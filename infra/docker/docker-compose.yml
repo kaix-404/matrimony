@@ -1,0 +1,105 @@
+# Local development infrastructure.
+#
+# Mirrors the production dependency set with the minimum viable footprint:
+#   postgres  — primary datastore
+#   redis     — cache, rate limiting (section 41), background job queue
+#   minio     — S3-compatible object storage for profile photos (section 9)
+#
+# Production runs the same engines on managed AWS services (RDS, ElastiCache,
+# S3). Nothing here is intended to be a production deployment.
+#
+#   docker compose -f infra/docker/docker-compose.yml up -d
+#   docker compose -f infra/docker/docker-compose.yml down -v   # wipe volumes
+
+name: matrimony
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: matrimony-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-matrimony}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-matrimony_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-matrimony}
+      # Deterministic collation keeps ORDER BY stable across environments,
+      # which matters for keyset pagination in Discovery.
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-matrimony} -d ${POSTGRES_DB:-matrimony}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks: [matrimony]
+
+  redis:
+    image: redis:7-alpine
+    container_name: matrimony-redis
+    restart: unless-stopped
+    # Rate limiting and idempotency keys are lost on restart in dev; that is
+    # acceptable locally and unacceptable in production, where a managed
+    # ElastiCache instance with persistence is used instead.
+    command: ['redis-server', '--appendonly', 'yes', '--save', '60', '1']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [matrimony]
+
+  minio:
+    image: minio/minio:latest
+    container_name: matrimony-minio
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    ports:
+      - '${MINIO_PORT:-9000}:9000'
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [matrimony]
+
+  # Creates the profile-photo bucket and marks it private, then exits.
+  # Private-by-default is required: section 41 asks for secure image storage
+  # and section 9 only ever serves approved photos.
+  minio-init:
+    image: minio/mc:latest
+    container_name: matrimony-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${S3_ACCESS_KEY:-minioadmin} ${S3_SECRET_KEY:-minioadmin} &&
+      mc mb --ignore-existing local/${S3_BUCKET:-networth-matrimony-profiles} &&
+      mc anonymous set none local/${S3_BUCKET:-networth-matrimony-profiles} &&
+      echo 'bucket ready and private'
+      "
+    restart: 'no'
+    networks: [matrimony]
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+
+networks:
+  matrimony:
+    driver: bridge

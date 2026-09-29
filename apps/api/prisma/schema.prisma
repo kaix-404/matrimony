@@ -1,0 +1,1237 @@
+// ---------------------------------------------------------------------------
+// Matrimony platform — data model
+//
+// Derived from the Internal Developer Work Document, section 35 (Database
+// Structure) and section 36 (Important Data Rules). Section references appear
+// inline so every table can be traced back to the requirement that created it.
+//
+// GOLDEN RULES enforced here (section 36):
+//   * net-worth category is server-controlled  -> no user-writable column path
+//   * every unlock references a verified payment -> paymentId is UNIQUE
+//   * unlock expiry is computed from server time -> ClockService, never the client
+//   * payment amounts are immutable              -> snapshotted at order time
+//   * admin changes are auditable                -> audit_logs, append-only
+//
+// Money is Decimal(12,2). Never Float — see packages/shared/src/money.ts.
+// ---------------------------------------------------------------------------
+
+// The `prisma-client` generator is Prisma 7's own client and emits real
+// TypeScript types. The older `prisma-client-js` generator now emits only a
+// runtime stub (`export declare const PrismaClient: any`), which would leave
+// every query in this codebase untyped.
+//
+// Generated output is gitignored; regenerate with `npm run prisma:generate`.
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  // The connection URL lives in prisma.config.ts (Prisma 7 removed
+  // `url` from the datasource block) and is supplied to the client at
+  // runtime via the @prisma/adapter-pg driver adapter.
+}
+
+// ===========================================================================
+// ENUMS
+// ===========================================================================
+
+// NOTE: there is deliberately no `NetWorthCategory` enum. The client confirmed
+// four bands on 2026-09-29 and stated that further categories will be added
+// later, so the category must be *data*. `NetWorthCategoryRef` rows are the
+// authority; adding a band is a row insert, not a migration plus a client
+// redeploy. `PENDING_REVIEW` is likewise a seeded row rather than an enum
+// member, which is what allows the admin-review flow to be re-pointed at
+// whichever boundaries the client eventually defines (see docs/decisions,
+// GAP-2).
+
+enum UserStatus {
+  /// Registered but net-worth category not yet chosen (section 6/7).
+  PENDING_CATEGORY
+  PENDING_VERIFICATION
+  /// D9: ID check passed, but the one-time account setup fee is unpaid. The
+  /// user can neither browse nor be browsed until it settles.
+  AWAITING_SETUP_FEE
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+/// D9 added a second, much smaller charge to the product. Keeping it a distinct
+/// purpose means the ₹15 can never be mistaken for a 24-hour unlock, and the
+/// unlock tables can enforce "every ContactUnlock traces to an UNLOCK payment"
+/// without having to exclude setup fees.
+enum PaymentPurpose {
+  /// Section 14/15: 24-hour contact disclosure.
+  UNLOCK
+  /// D9: one-time account setup fee, charged at the last registration step.
+  SETUP_FEE
+}
+
+/// D9: identity verification is mandatory, via DigiLocker or the UIDAI Aadhaar
+/// API. Face/ID screening is automated, per F1(b).
+enum IdentityVerificationProvider {
+  DIGILOCKER
+  AADHAAR_UIDAI
+}
+
+enum IdentityVerificationStatus {
+  PENDING
+  VERIFIED
+  FAILED
+  /// Provider-side reference expired; the user must re-verify.
+  EXPIRED
+}
+
+/// D1: single-person photos and family group photos are both accepted.
+enum PhotoType {
+  SINGLE
+  /// Family group photo. May contain several faces, which is why automated
+  /// screening cannot assume a single face per image (see decisions GAP-4).
+  FAMILY
+}
+
+/// Section 26. Only APPROVED profiles are discoverable (section 12).
+enum ProfileStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  SUSPENDED
+  DELETED
+}
+
+/// Section 12 requires Profile Visibility = ACTIVE for discovery.
+enum ProfileVisibility {
+  ACTIVE
+  /// User paused their own profile from Settings.
+  PAUSED
+  /// Paywalled placement is out of scope until client question E5 is answered.
+  HIDDEN
+}
+
+/// Section 9. "Only approved photos are displayed to other users."
+enum PhotoStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+  PREFER_NOT_TO_SAY
+}
+
+enum MaritalStatus {
+  NEVER_MARRIED
+  DIVORCED
+  WIDOWED
+  AWAITING_DIVORCE
+  ANNULLED
+}
+
+/// Section 10. Gender is a discovery filter, so 'ANY' must be representable.
+enum GenderPreference {
+  MALE
+  FEMALE
+  ANY
+}
+
+enum OtpPurpose {
+  REGISTRATION
+  LOGIN
+  DELETE_ACCOUNT
+  CATEGORY_REVIEW
+}
+
+/// Section 40. Amounts are snapshotted at order creation and are thereafter
+/// immutable except for the controlled status transition.
+enum PaymentStatus {
+  CREATED
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+  /// Section 27: "View refund status where supported."
+  REFUND_PENDING
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentProvider {
+  RAZORPAY
+  /// Reserved: section 29 references manual unlocks, which never create a
+  /// Payment record — they create an AdminGrantAudit entry instead.
+  ADMIN_GRANT
+}
+
+enum UnlockStatus {
+  ACTIVE
+  EXPIRED
+  /// Set when a profile is deleted or suspended mid-window (client question A4).
+  REVOKED
+}
+
+/// Section 20. Report reasons are configurable by Admin.
+enum ReportReasonCode {
+  FAKE_PROFILE
+  INCORRECT_INFORMATION
+  INAPPROPRIATE_CONTENT
+  INCORRECT_CONTACT
+  HARASSMENT
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  DISMISSED
+  ACTIONED
+}
+
+/// Section 30.
+enum ReportActionType {
+  DISMISS
+  WARN
+  SUSPEND
+  BLOCK
+  DELETE
+}
+
+enum NotificationChannel {
+  PUSH
+  SMS
+  EMAIL
+  IN_APP
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SUPPRESSED
+}
+
+/// Section 33. The matrix is provisional until client question F2 is answered;
+/// enforcement is permission-based, not role-name-based (see admin_permissions).
+enum AdminRoleSlug {
+  SUPER_ADMIN
+  ADMIN
+  MODERATION_ADMIN
+  FINANCE_ADMIN
+}
+
+enum OtpStatus {
+  PENDING
+  VERIFIED
+  EXPIRED
+  ATTEMPT_LIMIT_REACHED
+}
+
+// ===========================================================================
+// IDENTITY & ACCESS
+// ===========================================================================
+
+model OtpRequest {
+  id       String     @id @default(cuid())
+  /// Stored as a hash, never in plaintext (section 41).
+  codeHash String
+  mobile   String
+  purpose  OtpPurpose
+  status   OtpStatus  @default(PENDING)
+
+  attempts      Int       @default(0)
+  maxAttempts   Int
+  resendAfterAt DateTime
+  expiresAt     DateTime
+  verifiedAt    DateTime?
+
+  /// Rate-limit bookkeeping (section 6: "Basic anti-abuse/rate limiting").
+  requestIpHash   String?
+  requestDeviceId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([mobile, purpose, createdAt(sort: Desc)])
+  @@index([status, expiresAt])
+  @@index([resendAfterAt])
+}
+
+// ===========================================================================
+// IDENTITY VERIFICATION, CONSENT & DATA RIGHTS
+//   client answers D9 (mandatory Aadhaar/DigiLocker), H3 (India-only
+//   residency, consent capture, export + deletion request flow)
+// ===========================================================================
+
+/// D9 makes identity verification mandatory for every account.
+///
+/// A RAW AADHAAR NUMBER IS NEVER STORED. Aadhaar is a government identifier
+/// and storing it creates obligations well beyond a normal PII field, so this
+/// table keeps only what is needed to prove a check happened:
+///   * `providerReference` — the DigiLocker/UIDAI transaction reference
+///   * `aadhaarLast4`     — four masked digits, for human confirmation only
+/// The Aadhaar Act and the UIDAI circulars restrict storage of the full
+/// number; DigiLocker exists precisely so the number can be used as an
+/// assertion without ever being retained. Enforced by review, and by the
+/// absence of any column able to hold it.
+model IdentityVerification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider IdentityVerificationProvider
+  status   IdentityVerificationStatus   @default(PENDING)
+
+  /// Provider-side reference for the assertion. The Aadhaar number itself is
+  /// deliberately not present anywhere in this schema.
+  providerReference String?
+  /// Exactly 4 digits, masked before display. Never the full number.
+  aadhaarLast4      String? @db.VarChar(4)
+  /// Name and birth year as they appear on the ID, used only to warn the user
+  /// on a mismatch with their entered profile — not as an identity assertion.
+  nameOnId          String?
+  yearOfBirth       Int?
+
+  /// H3: consent must be captured *before* the provider is called, and the
+  /// consent record referenced so the ordering is auditable.
+  consentRecordId String?
+  consentRecord   ConsentRecord? @relation(fields: [consentRecordId], references: [id], onDelete: SetNull)
+
+  /// F1(b): result of the automated screen, so a failed check is explainable.
+  screeningResult String?
+  screeningModel  String?
+
+  verifiedAt                 DateTime?
+  failureCode                String?
+  failureReason              String?
+  /// Provider reference lifetime; a re-verify is required once elapsed.
+  providerReferenceExpiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId])
+  @@index([status, createdAt])
+}
+
+/// H3: the DPDP Act requires demonstrable, withdrawable, per-purpose consent.
+enum ConsentType {
+  PRIVACY_POLICY
+  TERMS_OF_SERVICE
+  /// Explicit, separately-given consent to process Aadhaar (D9).
+  AADHAAR_PROCESSING
+  /// Consent to appear in Discovery to other users.
+  PROFILE_VISIBILITY
+  /// Consent to receive the push/email notifications chosen in G1.
+  NOTIFICATIONS
+  /// Optional. Kept separate so it can be withdrawn without affecting service.
+  MARKETING
+}
+
+enum ConsentStatus {
+  GRANTED
+  WITHDRAWN
+}
+
+model ConsentRecord {
+  id String @id @default(cuid())
+
+  /// Null for a consent captured before the account exists, e.g. on the
+  /// registration screen prior to OTP verification.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type          ConsentType
+  status        ConsentStatus @default(GRANTED)
+  /// Which version of the document was shown. A consent to "v1" is not consent
+  /// to whatever v2 later says, so the version is part of the record.
+  policyVersion String
+
+  grantedAt   DateTime  @default(now())
+  withdrawnAt DateTime?
+
+  /// Hashed only. A raw IP would be unnecessary personal data.
+  ipHash   String?
+  deviceId String?
+
+  createdAt DateTime @default(now())
+
+  identityVerifications IdentityVerification[]
+
+  @@index([userId, type, status])
+  @@index([policyVersion])
+}
+
+/// H3: "An account data export and deletion request flow". A request is tracked
+/// as a row so the 30-day statutory response window is enforceable by a query
+/// rather than by memory.
+enum DataRequestType {
+  EXPORT
+  ERASURE
+}
+
+enum DataRequestStatus {
+  REQUESTED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+model DataRequest {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type   DataRequestType
+  status DataRequestStatus @default(REQUESTED)
+
+  requestedAt DateTime  @default(now())
+  /// Statutory response deadline, derived from requestedAt.
+  dueAt       DateTime
+  completedAt DateTime?
+
+  /// Object key in S3 for a generated export archive, if one was produced.
+  artefactKey       String?
+  artefactExpiresAt DateTime?
+
+  /// Rejection is only permitted with a reason.
+  resolutionNotes String?
+
+  handledByAdminId String?
+  handledBy        AdminUser? @relation(fields: [handledByAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status, dueAt])
+  @@index([userId, type])
+}
+
+// ===========================================================================
+// MASTER LISTS  (client answer D3)
+// ===========================================================================
+
+/// D3: education, profession, caste and community come from admin-managed
+/// master lists, because free text cannot be filtered reliably. Company name
+/// and annual income deliberately stay free text, so they are columns on
+/// Profile and not entries here.
+///
+/// A single generic table rather than one table per field, so adding another
+/// admin-configured list needs no migration.
+model MasterList {
+  key         String  @id
+  label       String
+  /// Caste and community are more sensitive than education; flagged so the
+  /// consent flow and the preview-visibility rules can treat them specially.
+  isSensitive Boolean @default(false)
+  isActive    Boolean @default(true)
+  sortOrder   Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  values MasterListValue[]
+
+  @@index([isActive, sortOrder])
+}
+
+model MasterListValue {
+  id      String     @id @default(cuid())
+  listKey String
+  list    MasterList @relation(fields: [listKey], references: [key], onDelete: Cascade)
+
+  value     String
+  /// A value retired by admin is kept for historical rows but not offered.
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  educationFor  Profile[] @relation("EducationValue")
+  professionFor Profile[] @relation("ProfessionValue")
+  communityFor  Profile[] @relation("CommunityValue")
+
+  @@unique([listKey, value])
+  @@index([listKey, isActive, sortOrder])
+}
+
+model User {
+  id     String  @id @default(cuid())
+  mobile String  @unique
+  email  String? @unique
+
+  // -- section 3: access-control attribute, server-controlled ---------------
+  // A foreign key into NetWorthCategoryRef, not an enum: the client will add
+  // bands later and this must not require a migration. Set once at registration
+  // and immutable thereafter — B1: the user cannot edit it, only an audited
+  // admin action can (section 25).
+  networthCategory         String
+  categoryRef              NetWorthCategoryRef @relation("UserCategory", fields: [networthCategory], references: [key], onDelete: Restrict)
+  /// Why PENDING_REVIEW was assigned, set when the value lands exactly on a
+  /// band boundary (section 3).
+  categoryReviewNote       String?
+  /// Set when an admin overrides the user's category; forces an audit row.
+  categoryChangedAt        DateTime?
+  categoryChangedByAdminId String?
+
+  status UserStatus @default(PENDING_CATEGORY)
+
+  /// D9: mandatory Aadhaar/DigiLocker check. Until this is VERIFIED the user
+  /// cannot be discovered and cannot browse.
+  identityVerifiedAt DateTime?
+
+  /// D9: the one-time ₹15 account setup fee, settled after verification.
+  /// Both directions are gated on this: a user may browse others only once
+  /// paid, and may be browsed only once paid.
+  setupFeePaidAt    DateTime?
+  setupFeePaymentId String?   @unique
+  setupFeePayment   Payment?  @relation("SetupFeePayment", fields: [setupFeePaymentId], references: [id], onDelete: SetNull)
+
+  /// Set by Admin with a mandatory reason + audit row (section 25).
+  statusChangedAt    DateTime?
+  statusChangeReason String?
+
+  isPhoneVerified  Boolean   @default(false)
+  lastLoginAt      DateTime?
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+
+  // -- section 21: soft deletion + anonymisation ---------------------------
+  deletedAt           DateTime?
+  deletionRequestedAt DateTime?
+  /// Retention deadline for irreversible erasure — client question F6.
+  purgeAfter          DateTime?
+  /// PII is overwritten on anonymisation; payment records are retained (section 21).
+  isAnonymised        Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profile           Profile?
+  partnerPreference PartnerPreference?
+  payments          Payment[]              @relation("UserPayments")
+  identityChecks    IdentityVerification[]
+  consents          ConsentRecord[]
+  dataRequests      DataRequest[]
+  unlocksBought     ContactUnlock[]        @relation("UnlockBuyer")
+  blocksInitiated   BlockedUser[]          @relation("Blocker")
+  blockedBy         BlockedUser[]          @relation("Blocked")
+  reportsFiled      Report[]               @relation("Reporter")
+  reportsAgainst    Report[]               @relation("ReportedUser")
+  notifications     Notification[]
+  refreshTokens     RefreshToken[]
+
+  // Discovery joins users -> profiles on this pair (section 12). B1 makes
+  // category a partition key: only same-category users are ever candidates.
+  @@index([networthCategory, status])
+  @@index([status, deletedAt])
+  @@index([createdAt(sort: Desc)])
+}
+
+model RefreshToken {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Only the hash is stored; rotation invalidates the predecessor (section 41).
+  tokenHash String  @unique
+  familyId  String
+  deviceId  String?
+  ipHash    String?
+  userAgent String?
+
+  expiresAt     DateTime
+  revokedAt     DateTime?
+  revokedReason String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, revokedAt])
+  @@index([familyId])
+  @@index([expiresAt])
+}
+
+// ===========================================================================
+// PROFILE  (spec sections 8, 9)
+// ===========================================================================
+
+model Profile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // -- 8.1 personal information -------------------------------------------
+  firstName     String
+  /// Surname is hidden before payment (section 13), so it is stored apart
+  /// from firstName and deliberately excluded from the preview DTO.
+  lastName      String?
+  gender        Gender
+  dateOfBirth   DateTime       @db.Date
+  timeOfBirth   String? // section 13 lists birth time as preview-visible
+  placeOfBirth  String?
+  heightCm      Int?
+  maritalStatus MaritalStatus?
+
+  // -- 8.2 religious / horoscope (D2: display only, no compatibility matching)
+  // Client answer A2: religion is visible on the free preview, community is
+  // not. Community is still filterable in preferences — hidden in display is
+  // not the same as absent from the data model.
+  religion       String?
+  communityId    String?
+  communityValue MasterListValue? @relation("CommunityValue", fields: [communityId], references: [id], onDelete: SetNull)
+  motherTongue   String?
+  swagotra       String? // preview-visible (section 13)
+  maternalGothra String? // preview-visible (section 13)
+  rashi          String?
+  nakshatra      String?
+  gan            String?
+  manglikStatus  String?
+
+  // -- 8.3 education & career (D3) ------------------------------------------
+  // Education and profession are master-list backed. Company name and annual
+  // income stay free text by explicit client instruction.
+  educationId     String?
+  educationValue  MasterListValue? @relation("EducationValue", fields: [educationId], references: [id], onDelete: SetNull)
+  professionId    String?
+  professionValue MasterListValue? @relation("ProfessionValue", fields: [professionId], references: [id], onDelete: SetNull)
+  company         String?
+  annualIncome    String? // free text (D3)
+  workLocation    String?
+
+  // -- 8.4 family ----------------------------------------------------------
+  fathersOccupation String?
+  mothersOccupation String?
+  siblings          String?
+  familyLocation    String?
+  familyDescription String?
+
+  // -- 8.5 lifestyle & about ----------------------------------------------
+  foodPreference String?
+  smoking        String?
+  drinking       String?
+  aboutMe        String?
+  /// "Other configurable lifestyle fields" (section 8.5). Key/value so new
+  /// admin-configured fields need no migration.
+  attributes     Json?
+
+  // -- 8.6 location --------------------------------------------------------
+  country String? @db.VarChar(2)
+  state   String?
+  city    String?
+
+  // -- moderation ----------------------------------------------------------
+  status     ProfileStatus     @default(DRAFT)
+  visibility ProfileVisibility @default(ACTIVE)
+
+  approvedAt        DateTime?
+  approvedByAdminId String?
+  rejectedAt        DateTime?
+  rejectionReason   String?
+  suspendedAt       DateTime?
+  suspensionReason  String?
+
+  /// Section 21 + 36: deleted/suspended profiles must not appear in discovery.
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  photos            ProfilePhoto[]
+  partnerPreference PartnerPreference?
+  unlockedBy        ContactUnlock[]    @relation("UnlockTarget")
+  reportsAgainst    Report[]           @relation("ReportedProfile")
+  attributes_       ProfileAttribute[]
+
+  // -- discovery index -----------------------------------------------------
+  @@index([status, visibility, deletedAt])
+  @@index([status, visibility, city, state])
+  @@index([gender, dateOfBirth])
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Admin-configurable extra fields: horoscope attributes (section 8.2) and
+/// "other business-approved criteria" (section 10). Key/value avoids a
+/// migration every time a field is added from the admin dashboard.
+model ProfileAttribute {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  key   String
+  value String
+
+  /// When true this attribute is filtered out of the free preview (section 13).
+  hiddenInPreview Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([profileId, key])
+  @@index([key])
+}
+
+model ProfilePhoto {
+  id        String  @id @default(cuid())
+  profileId String
+  profile   Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  /// Object key, not a public URL. Clients receive short-lived presigned URLs
+  /// (section 41: "Secure image URLs/storage").
+  objectKey    String
+  thumbnailKey String?
+
+  mimeType String
+  byteSize Int
+  widthPx  Int
+  heightPx Int
+  /// Rejected outright if magic bytes do not match the declared type (section 9).
+  checksum String?
+
+  sortOrder Int         @default(0)
+  isPrimary Boolean     @default(false)
+  /// D1: single-person and family group photos are both accepted. `FAMILY`
+  /// may contain multiple faces, so automated screening cannot assume one
+  /// face per image.
+  photoType PhotoType   @default(SINGLE)
+  status    PhotoStatus @default(PENDING_REVIEW)
+
+  reviewedAt        DateTime?
+  reviewedByAdminId String?
+  rejectionReason   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // -- section 9: only APPROVED photos are ever exposed --------------------
+  @@index([profileId, status, sortOrder])
+}
+
+// ===========================================================================
+// PARTNER PREFERENCE  (spec section 10 — core module)
+// ===========================================================================
+
+model PartnerPreference {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  gender GenderPreference @default(ANY)
+
+  ageMin      Int?
+  ageMax      Int?
+  heightMinCm Int?
+  heightMaxCm Int?
+
+  preferredCountry String? @db.VarChar(2)
+  preferredState   String?
+  preferredCity    String?
+
+  education     String?
+  profession    String?
+  maritalStatus MaritalStatus?
+  religion      String?
+  community     String?
+  motherTongue  String?
+  annualIncome  String?
+  rashi         String?
+  nakshatra     String?
+  manglikStatus String?
+
+  /// Admin-managed matching criteria; not user-editable directly.
+  criteria Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// The profile this preference describes. One-to-one; every user has at
+  /// most one saved preference row.
+  profile   Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profileId String?  @unique
+
+  // -- discovery hot path --------------------------------------------------
+  @@index([gender, ageMin, ageMax])
+  @@index([preferredCity, preferredState, preferredCountry])
+  @@index([religion, community])
+}
+
+/// Section 3 / 7. This table — not a database enum — is the authority for
+/// net-worth categories, because the client has said more bands are coming.
+///
+/// Four bands were confirmed on 2026-09-29 (below 2 Cr, 2-5 Cr, 5-10 Cr, above
+/// 10 Cr). `PENDING_REVIEW` is a seeded row rather than an enum member so the
+/// admin-review flow survives as data.
+///
+/// CLASSIFICATION: `minInr` is inclusive, `maxInr` exclusive, both nullable for
+/// an open end. The bands must not overlap and must not leave a gap; the
+/// database does not enforce that, so it is asserted at seed time and in CI.
+/// Exactly on a boundary value (exactly 2 Cr) is currently undefined by the
+/// client — see docs/decisions GAP-2, and `PENDING_REVIEW` is the bucket for it.
+model NetWorthCategoryRef {
+  key         String @id
+  label       String
+  description String
+
+  /// Inclusive lower bound in whole rupees; null = no lower bound.
+  minInr       BigInt?
+  /// Exclusive upper bound in whole rupees; null = no upper bound.
+  maxInr       BigInt?
+  /// Convenience denormalisation of the upper bound for the selection screen.
+  /// Always equal to maxInr; kept only to avoid casting in list endpoints.
+  thresholdInr BigInt?
+
+  /// The seeded ₹15 account setup fee is a flat platform charge, not a
+  /// percentage of net worth, so it lives here rather than in pricing_config.
+  setupFeeAmount Decimal @default(15.00) @db.Decimal(12, 2)
+
+  /// PENDING_REVIEW denies discovery. Set false for the four real bands.
+  isDiscoverable Boolean @default(true)
+  sortOrder      Int     @default(0)
+  isActive       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users          User[]          @relation("UserCategory")
+  pricingConfigs PricingConfig[]
+  payments       Payment[]
+
+  @@index([isActive, sortOrder])
+}
+
+// ===========================================================================
+// PRICING  (spec sections 4, 29)
+// ===========================================================================
+
+/// Append-only, versioned. Rows are never mutated — a price change closes the
+/// current row and opens a new one, so historical payments keep their original
+/// amount (section 29).
+model PricingConfig {
+  id String @id @default(cuid())
+
+  category    String
+  categoryRef NetWorthCategoryRef @relation(fields: [category], references: [key], onDelete: Restrict)
+  baseAmount  Decimal             @db.Decimal(12, 2)
+  /// Stored as a fraction: 0.1800 = 18%.
+  gstRate     Decimal             @db.Decimal(5, 4)
+
+  version       Int
+  effectiveFrom DateTime
+  /// Set when superseded. NULL = currently active.
+  effectiveTo   DateTime?
+
+  note             String?
+  createdByAdminId String?
+  createdBy        AdminUser? @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  createdAt        DateTime   @default(now())
+
+  payments Payment[]
+
+  @@unique([category, version])
+  @@index([category, effectiveFrom(sort: Desc)])
+  @@index([effectiveTo])
+}
+
+// ===========================================================================
+// PAYMENTS  (spec sections 14, 18, 27, 40)
+// ===========================================================================
+
+model Payment {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation("UserPayments", fields: [userId], references: [id], onDelete: Restrict)
+
+  provider PaymentProvider @default(RAZORPAY)
+
+  /// D9 introduced the ₹15 account setup fee alongside the per-unlock charge.
+  /// ContactUnlock is only ever created from an UNLOCK payment, so the setup
+  /// fee can never produce a contact disclosure.
+  purpose PaymentPurpose @default(UNLOCK)
+
+  /// Category the price was drawn from, snapshotted so historical payments
+  /// survive a future re-banding. Plain string, not a live relation.
+  category String?
+
+  // -- snapshot of pricing_config at order time; immutable (section 36) ----
+  baseAmount      Decimal        @db.Decimal(12, 2)
+  gstRate         Decimal        @db.Decimal(5, 4)
+  gstAmount       Decimal        @db.Decimal(12, 2)
+  totalAmount     Decimal        @db.Decimal(12, 2)
+  currency        String         @default("INR") @db.VarChar(3)
+  /// Pointer back to the pricing row used, for reconciliation.
+  pricingConfigId String?
+  pricingConfig   PricingConfig? @relation(fields: [pricingConfigId], references: [id], onDelete: SetNull)
+
+  status PaymentStatus @default(CREATED)
+
+  /// Section 14: "The mobile app must never be trusted to declare a payment
+  /// successful." status only moves to SUCCESS via a verified webhook.
+  gatewayOrderId   String? @unique
+  gatewayPaymentId String? @unique
+  gatewaySignature String?
+  gatewayMethod    String?
+
+  /// Section 40: amount must be verified against server-side order data.
+  amountVerifiedAt DateTime?
+  failureCode      String?
+  failureReason    String?
+
+  paidAt          DateTime?
+  refundedAt      DateTime?
+  refundAmount    Decimal?  @db.Decimal(12, 2)
+  refundReference String?
+
+  /// Section 18: reconciliation fields.
+  idempotencyKey String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  unlock               ContactUnlock?
+  webhookLogs          WebhookEvent[]
+  /// Set on the user this payment activated as their account setup fee (D9).
+  activatesSetupFeeFor User?                @relation("SetupFeePayment")
+  categoryRef          NetWorthCategoryRef? @relation(fields: [category], references: [key], onDelete: SetNull)
+
+  @@index([userId, purpose, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+  @@index([gatewayOrderId])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Section 40: "Webhook must be idempotent. Duplicate webhook events must not
+/// create duplicate unlocks." The gateway event id is the idempotency key.
+model WebhookEvent {
+  id String @id @default(cuid())
+
+  provider  PaymentProvider
+  /// Gateway-supplied event identifier — UNIQUE is the idempotency guarantee.
+  eventId   String          @unique
+  eventType String
+  signature String?
+
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  payload         Json
+  processedAt     DateTime?
+  processingError String?
+
+  createdAt DateTime @default(now())
+
+  @@index([eventType, createdAt(sort: Desc)])
+  @@index([paymentId])
+}
+
+// ===========================================================================
+// CONTACT UNLOCK  (spec sections 15, 16, 17, 39)
+// ===========================================================================
+
+model ContactUnlock {
+  id String @id @default(cuid())
+
+  /// The buyer.
+  userId String
+  user   User   @relation("UnlockBuyer", fields: [userId], references: [id], onDelete: Restrict)
+
+  /// The profile being unlocked.
+  profileId String
+  profile   Profile @relation("UnlockTarget", fields: [profileId], references: [id], onDelete: Restrict)
+
+  /// Section 36: "Every unlock must reference a verified payment."
+  /// UNIQUE is what makes duplicate-webhook replay safe.
+  paymentId String  @unique
+  payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  /// Section 15, both from server time only:
+  ///   unlocked_at       = server-confirmed payment success time
+  ///   unlock_expires_at = unlocked_at + 24 hours
+  unlockedAt      DateTime
+  unlockExpiresAt DateTime
+
+  status        UnlockStatus @default(ACTIVE)
+  revokedAt     DateTime?
+  revokedReason String?
+
+  /// Populated when the profile owner deleted/suspended mid-window.
+  supersededByEvent String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // -- guard check on every protected request (section 17) -----------------
+  @@index([userId, status, unlockExpiresAt])
+  @@index([profileId, unlockExpiresAt])
+  @@index([unlockExpiresAt])
+}
+
+// ===========================================================================
+// TRUST & SAFETY  (spec sections 19, 20, 30)
+// ===========================================================================
+
+model BlockedUser {
+  id String @id @default(cuid())
+
+  blockerId String
+  blocker   User   @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+
+  blockedId String
+  blocked   User   @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  /// Section 19. Blocks are mutual for discovery purposes (client question F5).
+  isMutual Boolean @default(true)
+  reason   String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+model ReportReason {
+  id String @id @default(cuid())
+
+  code                ReportReasonCode @unique
+  label               String
+  description         String?
+  /// Section 20: "Report reasons should be configurable by Admin."
+  isActive            Boolean          @default(true)
+  /// When true the client collects a free-text justification.
+  requiresDescription Boolean          @default(false)
+  sortOrder           Int              @default(0)
+
+  reports Report[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Report {
+  id String @id @default(cuid())
+
+  reporterId String
+  reporter   User   @relation("Reporter", fields: [reporterId], references: [id], onDelete: Restrict)
+
+  reportedUserId String?
+  reportedUser   User?   @relation("ReportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+
+  reportedProfileId String?
+  reportedProfile   Profile? @relation("ReportedProfile", fields: [reportedProfileId], references: [id], onDelete: SetNull)
+
+  reasonId String
+  reason   ReportReason @relation(fields: [reasonId], references: [id], onDelete: Restrict)
+
+  description String?
+
+  status            ReportStatus      @default(OPEN)
+  /// Section 30: "Review notes."
+  reviewNotes       String?
+  resolvedAt        DateTime?
+  resolvedByAdminId String?
+  actionTaken       ReportActionType?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([reportedProfileId])
+  @@index([reportedUserId])
+  @@index([reporterId])
+}
+
+// ===========================================================================
+// NOTIFICATIONS  (spec sections 31, 42)
+// ===========================================================================
+
+model Notification {
+  id String @id @default(cuid())
+
+  /// Null for system-wide announcements (section 31).
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  event   String
+  channel NotificationChannel
+  status  NotificationStatus  @default(PENDING)
+
+  title   String
+  body    String
+  payload Json?
+
+  /// Section 23: user-selectable notification settings.
+  isCritical Boolean @default(false)
+
+  providerMessageId String?
+  attempts          Int       @default(0)
+  lastError         String?
+  sentAt            DateTime?
+
+  createdByAdminId String?
+  createdByAdmin   AdminUser? @relation(fields: [createdByAdminId], references: [id], onDelete: SetNull)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@index([event, createdAt(sort: Desc)])
+}
+
+// ===========================================================================
+// ADMIN, RBAC & AUDIT  (spec sections 24-33, 32)
+// ===========================================================================
+
+model AdminUser {
+  id           String  @id @unique
+  email        String  @unique
+  name         String
+  phone        String?
+  passwordHash String
+  mfaSecret    String?
+
+  status           UserStatus @default(ACTIVE)
+  lastLoginAt      DateTime?
+  failedLoginCount Int        @default(0)
+  lockedUntil      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  roles          AdminRoleAssignment[]
+  rolesGranted   AdminRoleAssignment[] @relation("RoleGrantedBy")
+  dataRequests   DataRequest[]
+  refreshTokens  AdminRefreshToken[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+  pricingChanges PricingConfig[]
+
+  @@index([status])
+}
+
+model AdminRefreshToken {
+  id String @id @default(cuid())
+
+  adminId String
+  admin   AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  tokenHash String    @unique
+  familyId  String
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([adminId, revokedAt])
+}
+
+/// Roles are a global catalogue, not per-admin rows. Each admin *holds* one or
+/// more roles via AdminRoleAssignment. (An earlier draft hung `adminId` off
+/// this model with a `@unique` slug, which would have made it impossible for a
+/// second administrator to hold the same role.)
+model AdminRole {
+  id String @id @default(cuid())
+
+  slug        AdminRoleSlug @unique
+  name        String
+  description String?
+
+  createdAt DateTime @default(now())
+
+  assignments AdminRoleAssignment[]
+  permissions AdminRolePermission[]
+}
+
+/// Join between administrators and the role catalogue. Composite primary key
+/// makes a duplicate grant impossible.
+model AdminRoleAssignment {
+  adminId String
+  admin   AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  roleId String
+  role   AdminRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  grantedByAdminId String?
+  grantedBy        AdminUser? @relation("RoleGrantedBy", fields: [grantedByAdminId], references: [id], onDelete: SetNull)
+  grantedAt        DateTime   @default(now())
+
+  @@id([adminId, roleId])
+  @@index([roleId])
+}
+
+/// Section 33: "backend permissions must be role-based rather than hidden UI
+/// buttons." Grants are what guards check, not role names.
+model Permission {
+  id String @id @default(cuid())
+
+  /// e.g. "pricing:write", "user:change_category", "unlock:grant"
+  key         String  @unique
+  resource    String
+  action      String
+  description String?
+  /// Section 28: manual unlock requires an explicit permission + audit row.
+  isSensitive Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  roleGrants AdminRolePermission[]
+}
+
+model AdminRolePermission {
+  roleId       String
+  role         AdminRole  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permissionId String
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  grantedAt DateTime @default(now())
+
+  @@id([roleId, permissionId])
+}
+
+/// Section 32. Append-only; no update or delete path exists in the application.
+model AuditLog {
+  id String @id @default(cuid())
+
+  actorAdminId String?
+  actorAdmin   AdminUser? @relation(fields: [actorAdminId], references: [id], onDelete: SetNull)
+
+  action       String
+  resourceType String
+  resourceId   String
+
+  previousValue Json?
+  newValue      Json?
+  /// Section 25/32: mandatory for sensitive actions such as category change.
+  reason        String?
+  ipHash        String?
+  userAgent     String?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorAdminId, createdAt(sort: Desc)])
+  @@index([resourceType, resourceId])
+  @@index([action, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+}
+
+/// Section 28: "Do not provide arbitrary manual unlock capability without role
+/// permission and audit logging." Modelled separately from ContactUnlock so a
+/// payment-less grant is always distinguishable and always audited.
+model AdminGrantAudit {
+  id String @id @default(cuid())
+
+  adminId         String
+  targetUserId    String
+  targetProfileId String
+
+  reason String
+  ipHash String?
+
+  createdAt DateTime @default(now())
+
+  @@index([targetUserId, createdAt(sort: Desc)])
+  @@index([adminId, createdAt(sort: Desc)])
+}

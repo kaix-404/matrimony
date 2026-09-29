@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+.next/
+coverage/
+*.tsbuildinfo
+package-lock.json
+.env
+.env.*
+!.env.example
