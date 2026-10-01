@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A new push to the same branch supersedes the previous run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+
+    services:
+      # A real database, so the migration and seed are executed rather than
+      # merely typechecked. Both are the parts most likely to break on a schema
+      # change, and neither needs a network beyond localhost.
+      postgres:
+        # Keep in step with infra/docker/docker-compose.yml so CI and local
+        # development run the same engine.
+        image: postgres:16
+        env:
+          POSTGRES_USER: matrimony
+          POSTGRES_PASSWORD: matrimony_ci_password
+          POSTGRES_DB: matrimony_ci
+          POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U matrimony -d matrimony_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgresql://matrimony:matrimony_ci_password@localhost:5432/matrimony_ci
+      # Required by the env schema, which fails closed at boot. Throwaway
+      # values: nothing in CI authenticates or signs anything.
+      JWT_ACCESS_SECRET: ci-access-secret-not-used-for-signing
+      JWT_REFRESH_SECRET: ci-refresh-secret-not-used-for-signing
+      S3_ENDPOINT: http://localhost:9000
+      S3_BUCKET: ci-bucket
+      S3_ACCESS_KEY: ci-access-key
+      S3_SECRET_KEY: ci-secret-key
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify schema
+        run: npm run prisma:validate
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Typecheck, lint, test and build
+        run: npm run typecheck && npm run lint && npm run test && npm run build
+
+      # Catches schema/SQL drift that `prisma validate` cannot: validate only
+      # parses the schema, it does not prove the SQL applies.
+      - name: Apply migrations
+        run: npm run prisma:deploy
+
+      - name: Seed reference data
+        run: npm run prisma:seed
+
+      # The seed asserts its own invariants (pricing totals, band coverage,
+      # Super-Admin-only permissions), so a second run proves it is genuinely
+      # idempotent rather than only working on an empty database.
+      - name: Re-run seed to prove idempotency
+        run: npm run prisma:seed
+
+      - name: Start the API and check readiness
+        run: |
+          node apps/api/dist/main.js &
+          API_PID=$!
+          # API_GLOBAL_PREFIX defaults to api/v1 (see apps/api/src/config/env.ts).
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:4000/api/v1/health/ready; then
+              echo "readiness OK"
+              kill "$API_PID" 2>/dev/null || true
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "API did not become ready" >&2
+          kill "$API_PID" 2>/dev/null || true
+          exit 1

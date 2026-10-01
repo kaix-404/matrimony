@@ -5,7 +5,7 @@
   "description": "Matrimony platform — React Native app, NestJS API, Next.js admin dashboard",
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=22.6.0"
   },
   "workspaces": [
     "packages/*",
@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build -w @matrimony/shared && npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
@@ -21,11 +21,14 @@
     "prisma:generate": "npm run prisma:generate -w @matrimony/api",
     "prisma:validate": "npm run prisma:validate -w @matrimony/api",
     "prisma:migrate": "npm run prisma:migrate -w @matrimony/api",
+    "prisma:deploy": "npm run prisma:deploy -w @matrimony/api",
+    "prisma:seed": "npm run prisma:seed -w @matrimony/api",
     "prisma:studio": "npm run prisma:studio -w @matrimony/api",
     "dev": "docker compose -f infra/docker/docker-compose.yml up -d",
     "dev:down": "docker compose -f infra/docker/docker-compose.yml down",
     "dev:logs": "docker compose -f infra/docker/docker-compose.yml logs -f",
-    "verify": "npm run prisma:validate && npm run typecheck && npm run test"
+    "setup": "npm install && npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed",
+    "verify": "npm run prisma:validate && npm run prisma:generate && npm run typecheck && npm run lint && npm run test && npm run build"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

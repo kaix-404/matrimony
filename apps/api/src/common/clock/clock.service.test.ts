@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
 import { ClockService, ClockDriftGuard, FrozenClock } from './clock.service';
 
 describe('ClockService', () => {
@@ -90,5 +90,76 @@ describe('ClockDriftGuard', () => {
       expect((error as Error).message).toMatch(/600000ms/);
       expect((error as Error).message).toMatch(/NTP/);
     }
+  });
+
+  it('is healthy until drift is actually observed', () => {
+    guard.check();
+    expect(guard.isHealthy()).toBe(true);
+    expect(guard.observedDriftMs()).toBeNull();
+
+    guard.check();
+    clock.advance(-600_000);
+    expect(() => guard.check()).toThrow();
+
+    expect(guard.isHealthy()).toBe(false);
+    expect(guard.observedDriftMs()).toBe(600_000);
+  });
+
+  /**
+   * The first check cannot detect drift: a process that boots with a wrong
+   * clock has nothing to compare against. This pins that limitation so it is
+   * not mistaken for a guarantee.
+   */
+  it('cannot detect an already-wrong clock on the first check', () => {
+    expect(guard.isHealthy()).toBe(true);
+    expect(() => guard.check()).not.toThrow();
+  });
+});
+
+describe('ClockDriftGuard periodic monitoring', () => {
+  let clock: FrozenClock;
+  let guard: ClockDriftGuard;
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    clock = new FrozenClock(new Date('2026-03-01T10:00:00.000Z'));
+    guard = new ClockDriftGuard(clock);
+  });
+
+  afterEach(() => {
+    guard.onModuleDestroy();
+    jest.useRealTimers();
+  });
+
+  it('checks repeatedly while running, not only at boot', () => {
+    guard.onApplicationBootstrap();
+
+    clock.advance(-10 * 60_000);
+    jest.advanceTimersByTime(60_000);
+
+    // A drift found by the timer must not escape as an uncaught exception.
+    expect(guard.isHealthy()).toBe(false);
+  });
+
+  it('stays healthy while the clock advances normally', () => {
+    guard.onApplicationBootstrap();
+    for (let minute = 0; minute < 5; minute += 1) {
+      clock.advance(60_000);
+      jest.advanceTimersByTime(60_000);
+    }
+    expect(guard.isHealthy()).toBe(true);
+  });
+
+  it('stops checking after shutdown', () => {
+    guard.onApplicationBootstrap();
+    guard.onModuleDestroy();
+
+    clock.advance(-10 * 60_000);
+    jest.advanceTimersByTime(10 * 60_000);
+
+    // State is reset on destroy, so a destroyed guard is not still holding a
+    // timer or a stale baseline.
+    expect(guard.isHealthy()).toBe(true);
+    expect(jest.getTimerCount()).toBe(0);
   });
 });

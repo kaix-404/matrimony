@@ -15,7 +15,12 @@ export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
-    seed: 'node --experimental-strip-types prisma/seed.ts',
+    // `tsx`, not `node --experimental-strip-types`. The generated Prisma client
+    // is TypeScript, and bare `node` runs the seed as ESM, which requires an
+    // explicit file extension on every relative import. `tsx` resolves the
+    // extensionless imports used throughout the source, so the seed can import
+    // the same generated client and shared package as the application.
+    seed: 'tsx prisma/seed.ts',
   },
   datasource: {
     url: process.env.DATABASE_URL ?? '',

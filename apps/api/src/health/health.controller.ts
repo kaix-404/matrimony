@@ -1,7 +1,7 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.module';
-import { ClockService } from '../common/clock/clock.service';
+import { ClockDriftGuard, ClockService } from '../common/clock/clock.service';
 
 interface HealthReport {
   status: 'ok' | 'degraded';
@@ -19,6 +19,7 @@ export class HealthController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly clock: ClockService,
+    private readonly driftGuard: ClockDriftGuard,
   ) {}
 
   /**
@@ -34,19 +35,24 @@ export class HealthController {
   /**
    * Readiness. Includes a real database round-trip, because a pool that is
    * connected but unable to execute is not ready to serve traffic.
+   *
+   * A backwards clock jump also fails readiness: unlock windows are priced and
+   * expired against server time, so an instance whose clock jumped is unsafe
+   * for payments even though it can still execute SQL.
    */
   @SkipThrottle()
   @Get('ready')
   async ready(): Promise<HealthReport> {
     const database = await this.prisma.isHealthy();
+    const clock = this.driftGuard.isHealthy();
     const report: HealthReport = {
-      status: database ? 'ok' : 'degraded',
+      status: database && clock ? 'ok' : 'degraded',
       service: 'matrimony-api',
       serverTime: this.clock.now().toISOString(),
       uptimeSeconds: Math.floor((Date.now() - this.bootedAt) / 1000),
-      checks: { database: database ? 'up' : 'down' },
+      checks: { database: database ? 'up' : 'down', clock: clock ? 'up' : 'down' },
     };
-    if (!database) {
+    if (report.status !== 'ok') {
       throw new ServiceUnavailableException(report);
     }
     return report;

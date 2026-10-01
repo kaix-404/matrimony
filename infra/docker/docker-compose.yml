@@ -15,7 +15,11 @@ name: matrimony
 
 services:
   postgres:
-    image: postgres:16-alpine
+    # Debian-based rather than `-alpine`. Alpine images have been unreliable in
+    # Docker Desktop's containerd snapshotter on Windows (`exec format error`
+    # for images whose architecture matches the host), and the difference in
+    # size is not worth a local environment that will not start.
+    image: postgres:16
     container_name: matrimony-postgres
     restart: unless-stopped
     environment:
@@ -26,7 +30,10 @@ services:
       # which matters for keyset pagination in Discovery.
       POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      # 5433 on the host by default: a locally installed PostgreSQL commonly
+      # owns 5432, and host connections would then reach that server instead of
+      # this container. Override with POSTGRES_PORT in .env.
+      - '${POSTGRES_PORT:-5433}:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
