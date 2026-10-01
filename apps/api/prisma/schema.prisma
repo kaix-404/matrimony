@@ -70,11 +70,29 @@ enum PaymentPurpose {
   SETUP_FEE
 }
 
-/// D9: identity verification is mandatory, via DigiLocker or the UIDAI Aadhaar
-/// API. Face/ID screening is automated, per F1(b).
+/// D9: how identity is verified. This is the METHOD, not the supplier: the same
+/// method can be reached through different aggregators, and the client changed
+/// supplier after this enum was written. Keep the vendor on
+/// `IdentityVerification.vendor` instead of expanding this list.
 enum IdentityVerificationProvider {
+  /// Consent-based flow through the DigiLocker platform. Preferred: the user
+  /// shares the document from DigiLocker and no copy is retained.
   DIGILOCKER
+  /// Direct UIDAI Aadhaar API. Requires an AUA/KUA licence we do not hold.
   AADHAAR_UIDAI
+}
+
+/// Which supplier performed the check, for audit and reconciliation.
+///
+/// Separated from `IdentityVerificationProvider` on purpose: the supplier is
+/// swappable and the method is not. The client selected Cashfree Secure ID on
+/// 2026-10-01 (see docs/decisions/client-provider-decisions-2026-10-01.md);
+/// changing supplier should be an enum edit here, not a redefinition of how
+/// verification is done.
+enum IdentityVerificationVendor {
+  /// Cashfree Secure ID. A licensed aggregator, which is why it can reach
+  /// DigiLocker on our behalf without us holding UIDAI authorisation.
+  CASHFREE
 }
 
 enum IdentityVerificationStatus {
@@ -284,8 +302,12 @@ model IdentityVerification {
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  /// The verification method, see `IdentityVerificationProvider`.
   provider IdentityVerificationProvider
-  status   IdentityVerificationStatus   @default(PENDING)
+  /// The supplier that performed it. Null on rows written before suppliers were
+  /// tracked, which is a known and acceptable gap in those historical records.
+  vendor IdentityVerificationVendor?
+  status IdentityVerificationStatus @default(PENDING)
 
   /// Provider-side reference for the assertion. The Aadhaar number itself is
   /// deliberately not present anywhere in this schema.

@@ -68,8 +68,16 @@ export function createEnvSchema(isProduction: boolean) {
     REDIS_URL: z.string().url().default('redis://localhost:6379'),
 
     // -- object storage (section 41) --------------------------------------
+    // Cloudflare R2 in production (client decision 2026-10-01). R2 speaks the S3
+    // API, so the client code is provider-agnostic; MinIO serves locally.
+    //
+    // NOTE: R2 has no India jurisdiction — only eu/us/fedramp — so its "apac"
+    // region is a best-effort location hint. That conflicts with H3
+    // (India-only residency). Tracked as GAP-11 in
+    // docs/decisions/client-provider-decisions-2026-10-01.md.
     S3_ENDPOINT: z.string().url(),
-    S3_REGION: z.string().default('ap-south-1'),
+    /** R2 is a single global service addressed by account, so "auto" is literal. */
+    S3_REGION: z.string().default('auto'),
     S3_BUCKET: z.string().min(1),
     S3_ACCESS_KEY: z.string().min(1),
     S3_SECRET_KEY: z.string().min(1),
@@ -82,10 +90,29 @@ export function createEnvSchema(isProduction: boolean) {
     RAZORPAY_KEY_SECRET: z.string().default(''),
     RAZORPAY_WEBHOOK_SECRET: z.string().default(''),
 
+    // -- identity verification (D9, client decision 2026-10-01) ----------
+    // Cashfree Secure ID. Use the DigiLocker flow: consent-based, returns an
+    // already-masked Aadhaar, and retains no document. We never store a raw
+    // Aadhaar number, so the schema has no column able to hold one.
+    CASHFREE_ENVIRONMENT: z.enum(['sandbox', 'production']).default('sandbox'),
+    CASHFREE_CLIENT_ID: z.string().default(''),
+    CASHFREE_CLIENT_SECRET: z.string().default(''),
+
     // -- notifications (section 42) ---------------------------------------
-    FCM_SERVER_KEY: z.string().default(''),
+    // Firebase HTTP v1. The legacy FCM server key is deliberately not supported:
+    // it is deprecated, and quietly keeping it would let a deploy ship against a
+    // credential that no longer works.
+    FCM_SERVICE_ACCOUNT_JSON: z.string().default(''),
+    // SMS and email providers are undecided (GAP-12); MSG91 is the fallback, so
+    // the config stays provider-agnostic until the client settles it. The DLT
+    // identifiers are required for transactional SMS in India regardless of
+    // which provider wins, which is why they are configured here.
     SMS_PROVIDER_API_KEY: z.string().default(''),
+    SMS_SENDER_ID: z.string().default(''),
+    SMS_DLT_ENTITY_ID: z.string().default(''),
+    SMS_DLT_TEMPLATE_ID: z.string().default(''),
     EMAIL_PROVIDER_API_KEY: z.string().default(''),
+    EMAIL_FROM_ADDRESS: z.string().default(''),
 
     // -- rate limiting / OTP (section 6) ----------------------------------
     RATE_LIMIT_TTL: int(1, 3600).default(60),

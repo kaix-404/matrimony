@@ -3,6 +3,12 @@
 Answers to `02_client_clarification_questions.pdf`, recorded verbatim in intent and
 traced to the code they change. Brand is **Networth Matrimony**.
 
+> **Superseded in part on 2026-10-01.** Supplier choices (Razorpay, Cashfree, Cloudflare
+> R2, Firebase) and the resulting **GAP-11** residency conflict are recorded in
+> [`client-provider-decisions-2026-10-01.md`](client-provider-decisions-2026-10-01.md).
+> That file is authoritative for *which* supplier; this one stays authoritative for
+> product behaviour, and nothing here has been rewritten.
+
 ## Resolved answers
 
 | Q | Decision | Effect on the build |

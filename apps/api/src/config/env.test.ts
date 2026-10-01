@@ -128,3 +128,54 @@ describe('typed coercion', () => {
     expect(loadEnv(VALID).UNLOCK_WINDOW_HOURS).toBe(24);
   });
 });
+
+describe('supplier decisions of 2026-10-01', () => {
+  it('defaults storage region to auto, which is what R2 requires', () => {
+    // R2 is a single global service addressed by account. ap-south-1 was the
+    // pre-R2 value and would silently be wrong rather than obviously invalid.
+    expect(loadEnv(VALID).S3_REGION).toBe('auto');
+  });
+
+  it('defaults the Cashfree environment to sandbox', () => {
+    // A missing environment must not default to production: that would send
+    // sandbox test identities to a live verification provider.
+    expect(loadEnv(VALID).CASHFREE_ENVIRONMENT).toBe('sandbox');
+  });
+
+  it('rejects an unknown Cashfree environment', () => {
+    const schema = createEnvSchema(false);
+    expect(schema.safeParse({ ...VALID, CASHFREE_ENVIRONMENT: 'live' }).success).toBe(false);
+    expect(schema.parse({ ...VALID, CASHFREE_ENVIRONMENT: 'production' }).CASHFREE_ENVIRONMENT).toBe(
+      'production',
+    );
+  });
+
+  it('keeps verification credentials optional until the client supplies them', () => {
+    const env = loadEnv(VALID);
+    expect(env.CASHFREE_CLIENT_ID).toBe('');
+    expect(env.CASHFREE_CLIENT_SECRET).toBe('');
+  });
+
+  it('carries the SMS DLT identifiers required for transactional delivery', () => {
+    // Provider is undecided (GAP-12) but DLT registration is mandatory in India
+    // whichever provider wins, so the config must exist before one is chosen.
+    const env = loadEnv(VALID);
+    expect(env.SMS_SENDER_ID).toBe('');
+    expect(env.SMS_DLT_ENTITY_ID).toBe('');
+    expect(env.SMS_DLT_TEMPLATE_ID).toBe('');
+  });
+
+  it('does not support the deprecated FCM legacy server key', () => {
+    // Firebase was confirmed, but the legacy key is deprecated. It is not
+    // accepted, so a deploy cannot silently rely on a credential that is dead.
+    const schema = createEnvSchema(false);
+    const result = schema.safeParse({ ...VALID, FCM_SERVER_KEY: 'legacy-key' });
+    expect(result.success).toBe(true); // unknown keys are ignored
+    expect('FCM_SERVER_KEY' in loadEnv(VALID)).toBe(false);
+  });
+
+  it('reads the Firebase HTTP v1 service account credential', () => {
+    const env = loadEnv({ ...VALID, FCM_SERVICE_ACCOUNT_JSON: '{"type":"service_account"}' });
+    expect(env.FCM_SERVICE_ACCOUNT_JSON).toBe('{"type":"service_account"}');
+  });
+});
