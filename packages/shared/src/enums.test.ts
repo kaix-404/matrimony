@@ -16,6 +16,7 @@ import {
   PROFILE_STATUSES,
   PROFILE_VISIBILITIES,
   PHOTO_STATUSES,
+  PHOTO_TYPES,
   PAYMENT_STATUSES,
   UNLOCK_STATUSES,
   GENDERS,
@@ -39,7 +40,12 @@ function schemaEnum(name: string, source = readSchema()): string[] {
   }
   return match[1]
     .split('\n')
-    .map((line) => line.trim().replace(/\/\/.*$/, '').trim())
+    .map((line) =>
+      line
+        .trim()
+        .replace(/\/\/.*$/, '')
+        .trim(),
+    )
     .filter(Boolean);
 }
 
@@ -48,6 +54,7 @@ describe('shared enums match the Prisma schema', () => {
     ['ProfileStatus', PROFILE_STATUSES],
     ['ProfileVisibility', PROFILE_VISIBILITIES],
     ['PhotoStatus', PHOTO_STATUSES],
+    ['PhotoType', PHOTO_TYPES],
     ['PaymentStatus', PAYMENT_STATUSES],
     ['UnlockStatus', UNLOCK_STATUSES],
     ['Gender', GENDERS],

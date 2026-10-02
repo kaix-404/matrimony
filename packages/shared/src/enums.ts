@@ -66,6 +66,13 @@ export type ProfileVisibility = (typeof PROFILE_VISIBILITIES)[number];
 export const PHOTO_STATUSES = ['PENDING_REVIEW', 'APPROVED', 'REJECTED'] as const;
 export type PhotoStatus = (typeof PHOTO_STATUSES)[number];
 
+/** D1: single-person and family group photos are both accepted, and a family
+ * photo may contain several faces — so screening cannot assume one face per
+ * image. The app states which it is uploading rather than letting moderation
+ * guess. */
+export const PHOTO_TYPES = ['SINGLE', 'FAMILY'] as const;
+export type PhotoType = (typeof PHOTO_TYPES)[number];
+
 export const PAYMENT_STATUSES = [
   'CREATED',
   'PENDING',
@@ -140,8 +147,7 @@ export const NOTIFICATION_EVENTS = {
   SETUP_FEE_PAID: 'SETUP_FEE_PAID',
   SETUP_FEE_REQUIRED: 'SETUP_FEE_REQUIRED',
 } as const;
-export type NotificationEvent =
-  (typeof NOTIFICATION_EVENTS)[keyof typeof NOTIFICATION_EVENTS];
+export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[keyof typeof NOTIFICATION_EVENTS];
 
 /** C3: lead time for the pre-expiry reminder, in hours. */
 export const UNLOCK_EXPIRY_REMINDER_HOURS = 2;

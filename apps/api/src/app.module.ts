@@ -6,6 +6,9 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ClockModule } from './common/clock/clock.module';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
+import { StorageModule } from './storage/storage.module';
+import { MasterDataModule } from './master-data/master-data.module';
+import { ProfileModule } from './profile/profile.module';
 import type { Env } from './config/env';
 
 /**
@@ -26,6 +29,9 @@ import type { Env } from './config/env';
     PrismaModule,
     HealthModule,
     AuthModule,
+    StorageModule,
+    MasterDataModule,
+    ProfileModule,
     ThrottlerModule.forRootAsync({
       inject: ['ENV'],
       useFactory: (env: Env) => ({
