@@ -12,20 +12,26 @@ import { z } from 'zod';
 /** Coerce "1" / "true" / "yes" to boolean; anything else is a hard error. */
 const booleanish = z
   .union([z.boolean(), z.string()])
-  .transform((v) => (typeof v === 'boolean' ? v : ['1', 'true', 'yes', 'on'].includes(v.toLowerCase())));
+  .transform((v) =>
+    typeof v === 'boolean' ? v : ['1', 'true', 'yes', 'on'].includes(v.toLowerCase()),
+  );
 
 const csv = z
   .string()
   .optional()
-  .transform((v) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : []));
+  .transform((v) =>
+    v
+      ? v
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [],
+  );
 
-const int = (min: number, max: number) =>
-  z.coerce.number().int().min(min).max(max);
+const int = (min: number, max: number) => z.coerce.number().int().min(min).max(max);
 
 /** Money-ish config, kept as strings so no float ever enters the system. */
-const decimalString = z
-  .string()
-  .regex(/^\d+(\.\d+)?$/, 'must be a non-negative decimal literal');
+const decimalString = z.string().regex(/^\d+(\.\d+)?$/, 'must be a non-negative decimal literal');
 
 const production = process.env.NODE_ENV === 'production';
 
@@ -117,6 +123,14 @@ export function createEnvSchema(isProduction: boolean) {
     // -- rate limiting / OTP (section 6) ----------------------------------
     RATE_LIMIT_TTL: int(1, 3600).default(60),
     RATE_LIMIT_MAX: int(1, 10_000).default(100),
+    /**
+     * Peppers the OTP hash. A dedicated secret rather than borrowing a JWT one:
+     * it can be rotated independently of the tokens, and leaking one does not
+     * compromise the other. Rotating it invalidates every outstanding code,
+     * which is the correct failure mode — old codes were hashed under the old
+     * pepper.
+     */
+    OTP_HASH_SECRET: signingSecret('OTP_HASH_SECRET'),
     OTP_MAX_ATTEMPTS: int(1, 20).default(5),
     OTP_RESEND_COOLDOWN_SECONDS: int(1, 900).default(60),
     OTP_TTL_SECONDS: int(30, 3600).default(300),

@@ -46,6 +46,8 @@ jobs:
       # values: nothing in CI authenticates or signs anything.
       JWT_ACCESS_SECRET: ci-access-secret-not-used-for-signing
       JWT_REFRESH_SECRET: ci-refresh-secret-not-used-for-signing
+      # Peppers the OTP hash; required by the env schema, which fails closed.
+      OTP_HASH_SECRET: ci-otp-pepper-not-used-for-hashing
       S3_ENDPOINT: http://localhost:9000
       S3_BUCKET: ci-bucket
       S3_ACCESS_KEY: ci-access-key

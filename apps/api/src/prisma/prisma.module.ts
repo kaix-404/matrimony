@@ -57,9 +57,22 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 }
 
+/**
+ * The client is registered under both tokens.
+ *
+ * `design:paramtypes` records the *declared* constructor type, so a service
+ * asking for `PrismaClient` resolves the token `PrismaClient`, not
+ * `PrismaService` — even though `PrismaService` extends it. Registering only
+ * the subclass therefore fails dependency resolution at runtime, in a way that
+ * type-checking cannot catch and that surfaces only when the first service that
+ * touches the database is instantiated.
+ */
 @Global()
 @Module({
-  providers: [PrismaService],
-  exports: [PrismaService],
+  providers: [
+    PrismaService,
+    { provide: PrismaClient, useExisting: PrismaService },
+  ],
+  exports: [PrismaService, PrismaClient],
 })
 export class PrismaModule {}

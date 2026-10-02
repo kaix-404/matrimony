@@ -6,6 +6,7 @@ const VALID: NodeJS.ProcessEnv = {
   DATABASE_URL: 'postgresql://u:p@localhost:5432/matrimony',
   JWT_ACCESS_SECRET: 'a'.repeat(48),
   JWT_REFRESH_SECRET: 'b'.repeat(48),
+  OTP_HASH_SECRET: 'c'.repeat(48),
   S3_ENDPOINT: 'http://localhost:9000',
   S3_BUCKET: 'matrimony-profiles',
   S3_ACCESS_KEY: 'minioadmin',
@@ -26,6 +27,17 @@ describe('required configuration', () => {
   it('fails when a JWT secret is absent', () => {
     const { JWT_ACCESS_SECRET: _drop, ...rest } = VALID;
     expect(() => loadEnv(rest)).toThrow(/JWT_ACCESS_SECRET/);
+  });
+
+  it('fails when the OTP pepper is absent', () => {
+    // OTP codes are hashed with this. Without it there is no safe default, so
+    // the API must refuse to boot rather than fall back to an unpeppered hash.
+    const { OTP_HASH_SECRET: _drop, ...rest } = VALID;
+    expect(() => loadEnv(rest)).toThrow(/OTP_HASH_SECRET/);
+  });
+
+  it('rejects a placeholder OTP pepper in production', () => {
+    expect(createEnvSchema(true).safeParse({ ...VALID, OTP_HASH_SECRET: 'changeme' }).success).toBe(false);
   });
 
   it('reports every offending key at once, not just the first', () => {

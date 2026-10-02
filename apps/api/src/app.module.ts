@@ -5,6 +5,7 @@ import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ClockModule } from './common/clock/clock.module';
 import { HealthModule } from './health/health.module';
+import { AuthModule } from './auth/auth.module';
 import type { Env } from './config/env';
 
 /**
@@ -24,6 +25,7 @@ import type { Env } from './config/env';
     ClockModule,
     PrismaModule,
     HealthModule,
+    AuthModule,
     ThrottlerModule.forRootAsync({
       inject: ['ENV'],
       useFactory: (env: Env) => ({
