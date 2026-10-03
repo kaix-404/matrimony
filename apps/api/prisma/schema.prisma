@@ -268,6 +268,16 @@ model OtpRequest {
   expiresAt     DateTime
   verifiedAt    DateTime?
 
+  /// Set when a VERIFIED code is spent by the step that needed it — completing a
+  /// registration, for one. Without this a verified OTP is a bearer credential
+  /// that never expires: the row stays VERIFIED indefinitely, so anyone who
+  /// learns the mobile number can present it again and mint a session for an
+  /// account that registered months ago. Consuming it in the same statement that
+  /// checks it makes the code single-use even under concurrent requests, and
+  /// leaving the timestamp means a support question about a suspicious login has
+  /// an answer.
+  consumedAt DateTime?
+
   /// Rate-limit bookkeeping (section 6: "Basic anti-abuse/rate limiting").
   requestIpHash   String?
   requestDeviceId String?
@@ -278,6 +288,9 @@ model OtpRequest {
   @@index([mobile, purpose, createdAt(sort: Desc)])
   @@index([status, expiresAt])
   @@index([resendAfterAt])
+  /// The registration step looks up "a verified, unspent, unexpired code for this
+  /// number", so that predicate is a query the database should be able to serve.
+  @@index([mobile, purpose, status, consumedAt])
 }
 
 // ===========================================================================

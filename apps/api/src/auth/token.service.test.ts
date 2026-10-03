@@ -323,6 +323,34 @@ describe('refresh token rotation', () => {
 
     expect(await service.rotate(issued.token)).toBeNull();
   });
+
+  it('refuses tokens for a suspended account', async () => {
+    // Refresh is the endpoint that keeps a session alive, so a suspension that
+    // only stopped sign-in would leave the user working until their access token
+    // happened to expire.
+    const clock = new FrozenClock(new Date('2026-01-01T00:00:00Z'));
+    const { service } = await makeService(clock);
+
+    const issued = await service.issueRefreshToken('u1');
+    users.set('u1', { ...users.get('u1')!, status: 'SUSPENDED' });
+
+    expect(await service.rotate(issued.token)).toBeNull();
+  });
+
+  it('leaves the token unrevoked when the account is merely suspended', async () => {
+    // Unsuspending should not require a fresh sign-in, and an unrelated replay of
+    // this token must still be detected as a reuse rather than silently passing.
+    const clock = new FrozenClock(new Date('2026-01-01T00:00:00Z'));
+    const { service, store } = await makeService(clock);
+
+    const issued = await service.issueRefreshToken('u1');
+    users.set('u1', { ...users.get('u1')!, status: 'SUSPENDED' });
+    expect(await service.rotate(issued.token)).toBeNull();
+    users.set('u1', { ...users.get('u1')!, status: 'ACTIVE' });
+
+    expect(await service.rotate(issued.token)).not.toBeNull();
+    expect([...store.rows.values()].find((r) => r.tokenHash)?.revokedReason).toBe('ROTATED');
+  });
 });
 
 describe('logout', () => {

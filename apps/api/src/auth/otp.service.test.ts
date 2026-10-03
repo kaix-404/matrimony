@@ -16,8 +16,14 @@ import type { Env } from '../config/env';
  */
 type Row = Record<string, unknown>;
 
-/** The predicate forms this double has to understand, as Prisma emits them. */
-type Predicate = string | number | boolean | null | { lt: number };
+/**
+ * The predicate forms this double has to understand, as Prisma emits them.
+ *
+ * `gt` exists for the `expiresAt > now` bound on spending a verified code. That
+ * bound is security-relevant, so the double must enforce it: a fake that ignored
+ * it would let the replay regression test pass against code that does not.
+ */
+type Predicate = string | number | boolean | null | Date | { lt: number } | { gt: Date };
 
 type Where = Record<string, Predicate>;
 type Patch = Record<string, string | number | boolean | Date | null | { increment: number }>;
@@ -41,6 +47,7 @@ class FakeOtpStore {
       id: `o${this.rows.length + 1}`,
       attempts: 0,
       verifiedAt: null,
+      consumedAt: null,
       requestDeviceId: null,
       ...data,
     };
@@ -66,9 +73,17 @@ class FakeOtpStore {
 
 function matches(row: Row, where: Where): boolean {
   return Object.entries(where).every(([key, expected]) => {
-    if (expected !== null && typeof expected === 'object') {
-      return (row[key] as number) < expected.lt;
+    if (expected !== null && typeof expected === 'object' && !(expected instanceof Date)) {
+      if ('lt' in expected) {
+        return (row[key] as number) < expected.lt;
+      }
+      return (row[key] as Date) > expected.gt;
     }
+
+    if (expected instanceof Date) {
+      return (row[key] as Date) > expected;
+    }
+
     return row[key] === expected;
   });
 }
@@ -327,6 +342,127 @@ describe('OTP verification', () => {
   it('returns null for a number that never requested a code', async () => {
     const { service } = await makeService(new ClockService());
     expect(await service.verify({ mobile: MOBILE, purpose: 'LOGIN', code: '123456' })).toBeNull();
+  });
+});
+
+describe('OTP single use', () => {
+  it('spends a verified code', async () => {
+    const { service, store } = await makeService(new ClockService());
+    const issued = await service.issue({ mobile: MOBILE, purpose: 'REGISTRATION' });
+    await service.verify({ mobile: MOBILE, purpose: 'REGISTRATION', code: issued.code });
+
+    const spent = await service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' });
+
+    expect(spent).toBe(true);
+    expect(store.rows[0].consumedAt).not.toBeNull();
+  });
+
+  it('refuses to spend the same code twice', async () => {
+    // This is the registration takeover. Registration is idempotent on mobile
+    // and issues tokens whether or not the account already existed, so a code
+    // that verified months ago and was never invalidated would hand over a
+    // session for an account registered long ago.
+    const { service } = await makeService(new ClockService());
+    const issued = await service.issue({ mobile: MOBILE, purpose: 'REGISTRATION' });
+    await service.verify({ mobile: MOBILE, purpose: 'REGISTRATION', code: issued.code });
+
+    expect(await service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' })).toBe(true);
+    expect(await service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' })).toBe(false);
+  });
+
+  it('grants the spend to exactly one of two concurrent callers', async () => {
+    // The `consumedAt IS NULL` predicate lives inside the update, so this is a
+    // property of the statement rather than of a read taken first.
+    const { service } = await makeService(new ClockService());
+    const issued = await service.issue({ mobile: MOBILE, purpose: 'REGISTRATION' });
+    await service.verify({ mobile: MOBILE, purpose: 'REGISTRATION', code: issued.code });
+
+    const results = await Promise.all([
+      service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' }),
+      service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' }),
+    ]);
+
+    expect(results.filter(Boolean)).toHaveLength(1);
+  });
+
+  it('refuses an unverified code', async () => {
+    const { service } = await makeService(new ClockService());
+    await service.issue({ mobile: MOBILE, purpose: 'REGISTRATION' });
+
+    expect(await service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' })).toBe(false);
+  });
+
+  it('refuses once the code has expired, even if nothing else spent it', async () => {
+    // Otherwise a code verified at the end of its window would authorise an
+    // unrelated action indefinitely, with nothing left to invalidate it.
+    const clock = new FrozenClock(new Date('2026-03-01T10:00:00Z'));
+    const { service } = await makeService(clock);
+    const issued = await service.issue({ mobile: MOBILE, purpose: 'REGISTRATION' });
+    await service.verify({ mobile: MOBILE, purpose: 'REGISTRATION', code: issued.code });
+
+    clock.advance(300_001);
+
+    expect(await service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' })).toBe(false);
+  });
+
+  it('does not spend a code issued for another number or purpose', async () => {
+    const { service } = await makeService(new ClockService());
+    const login = await service.issue({ mobile: MOBILE, purpose: 'LOGIN' });
+    await service.verify({ mobile: MOBILE, purpose: 'LOGIN', code: login.code });
+
+    expect(
+      await service.consumeVerified({ mobile: '9000000009', purpose: 'LOGIN' }),
+    ).toBe(false);
+    expect(
+      await service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' }),
+    ).toBe(false);
+  });
+
+  it('leaves the status as verified so the audit trail survives', async () => {
+    // `consumedAt` is the usability flag; `status` records what happened.
+    const { service, store } = await makeService(new ClockService());
+    const issued = await service.issue({ mobile: MOBILE, purpose: 'REGISTRATION' });
+    await service.verify({ mobile: MOBILE, purpose: 'REGISTRATION', code: issued.code });
+
+    await service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' });
+
+    expect(store.rows[0].status).toBe(OtpStatus.VERIFIED);
+  });
+
+  it('burns every outstanding verified code for the number in one step', async () => {
+    // Verifying a second code leaves the first VERIFIED rather than superseding
+    // it, so there can be more than one live credential for a number. Spending
+    // them all together is deliberate: the step has been satisfied once, and
+    // leaving the older row claimable would be a second way to replay it.
+    const clock = new FrozenClock(new Date('2026-03-01T10:00:00Z'));
+    const { service, store } = await makeService(clock);
+    const first = await service.issue({ mobile: MOBILE, purpose: 'LOGIN' });
+    await service.verify({ mobile: MOBILE, purpose: 'LOGIN', code: first.code });
+
+    clock.advance(1000);
+    const second = await service.issue({ mobile: MOBILE, purpose: 'LOGIN' });
+    await service.verify({ mobile: MOBILE, purpose: 'LOGIN', code: second.code });
+
+    expect(await service.consumeVerified({ mobile: MOBILE, purpose: 'LOGIN' })).toBe(true);
+    expect(store.rows.every((r) => r.consumedAt !== null)).toBe(true);
+    expect(await service.consumeVerified({ mobile: MOBILE, purpose: 'LOGIN' })).toBe(false);
+  });
+
+  it('does not spend a code belonging to a different number or purpose', async () => {
+    // The predicate is part of the claim, so another number's live code cannot
+    // be retired by this one and, more importantly, cannot be spent by it.
+    const clock = new FrozenClock(new Date('2026-03-01T10:00:00Z'));
+    const { service, store } = await makeService(clock);
+    const mine = await service.issue({ mobile: MOBILE, purpose: 'LOGIN' });
+    await service.verify({ mobile: MOBILE, purpose: 'LOGIN', code: mine.code });
+
+    const other = await service.issue({ mobile: '9000000009', purpose: 'LOGIN' });
+    await service.verify({ mobile: '9000000009', purpose: 'LOGIN', code: other.code });
+
+    await service.consumeVerified({ mobile: MOBILE, purpose: 'LOGIN' });
+
+    const otherRow = store.rows.find((r) => r.id === other.id);
+    expect(otherRow?.consumedAt).toBeNull();
   });
 });
 

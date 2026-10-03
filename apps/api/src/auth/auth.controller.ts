@@ -87,12 +87,26 @@ export class AuthController {
     const verified = await this.otp.verify(body);
 
     if (!verified) {
+      // A wrong code against a known account is a brute-force attempt, not a
+      // typo, so it feeds the lockout. Guarded on the account existing: counting
+      // failures for a number with no account gives an attacker a way to lock
+      // arbitrary numbers out of ever registering, which is a denial of service
+      // they would otherwise have to pay to commit.
+      if (body.purpose !== 'REGISTRATION') {
+        await this.auth.recordFailedSignInForMobile(body.mobile);
+      }
+
       return { verified: false };
     }
 
     if (body.purpose === 'REGISTRATION') {
       return { verified: true, registration_required: true };
     }
+
+    // Spent here rather than left available, for the same reason as the
+    // registration code: a verified code is a session, and it must not be
+    // redeemable twice.
+    await this.otp.consumeVerified({ mobile: body.mobile, purpose: body.purpose });
 
     const tokens = await this.auth.signIn(body.mobile);
 
@@ -102,23 +116,24 @@ export class AuthController {
   /**
    * Completes registration for a number whose OTP was verified.
    *
-   * Requires that verification to exist for this exact number. Without the
-   * check, anyone could register a number they were never sent a code for, and
-   * the account would be indistinguishable from a real one until the first login
-   * failed.
+   * The code is spent here, and spent once. Checking that "a verified code for
+   * this number exists" is not enough on its own: registration is idempotent on
+   * mobile and issues tokens whether the account already existed, so a code that
+   * was never invalidated would let anyone who later learns the number obtain a
+   * session for it. Consuming on use turns a verification into a single-use
+   * grant for exactly this step.
    */
   @Post('register')
   @HttpCode(201)
   async register(
     @Body(new ZodValidationPipe(CompleteRegistrationSchema)) body: CompleteRegistrationInput,
   ): Promise<TokenPair & { user: CurrentUser }> {
-    const verified = await this.prisma.otpRequest.findFirst({
-      where: { mobile: body.mobile, purpose: 'REGISTRATION', status: 'VERIFIED' },
-      orderBy: { verifiedAt: 'desc' },
-      select: { id: true },
+    const consumed = await this.otp.consumeVerified({
+      mobile: body.mobile,
+      purpose: 'REGISTRATION',
     });
 
-    if (!verified) {
+    if (!consumed) {
       throw new UnauthorizedException('Verify your mobile number before registering');
     }
 

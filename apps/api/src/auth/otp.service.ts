@@ -155,12 +155,55 @@ export class OtpService {
       return null;
     }
 
-    await this.prisma.otpRequest.update({
-      where: { id: request.id },
+    // Claimed conditionally. Two concurrent requests carrying the same correct
+    // code would both have read `status = PENDING` above; without the predicate
+    // in the update both would return a success id for the same row.
+    const claimed = await this.prisma.otpRequest.updateMany({
+      where: { id: request.id, status: OtpStatus.PENDING },
       data: { status: OtpStatus.VERIFIED, verifiedAt: now },
     });
 
+    if (claimed.count === 0) {
+      return null;
+    }
+
     return request.id;
+  }
+
+  /**
+   * Spends a verified code, returning whether this caller was the one to do it.
+   *
+   * Verification is deliberately not the same as use: `verify` is only evidence
+   * that the caller possessed the number, while each later step is a separate
+   * privilege that must be earned once. Without this, a registration code that
+   * was verified months ago still matches "a VERIFIED registration OTP for this
+   * mobile", and since registration is idempotent on mobile and hands back
+   * tokens either way, presenting that row is enough to obtain a session for an
+   * account that registered long ago.
+   *
+   * The `consumedAt IS NULL` predicate is inside the conditional update, so the
+   * check and the claim are one statement and a replay cannot slip between them.
+   * The expiry bound matters for the same reason the `consumedAt` does: a code
+   * verified in the last hour should not authorise a registration at a later
+   * date just because nothing consumed it in between.
+   */
+  async consumeVerified(input: { mobile: string; purpose: OtpPurpose }): Promise<boolean> {
+    const now = this.clock.now();
+    const consumed = await this.prisma.otpRequest.updateMany({
+      where: {
+        mobile: input.mobile,
+        purpose: input.purpose,
+        status: OtpStatus.VERIFIED,
+        consumedAt: null,
+        expiresAt: { gt: now },
+      },
+      // `status` stays VERIFIED on purpose. It records what happened, and an audit
+      // of "which numbers completed registration, and when" should still see
+      // these rows; `consumedAt` is what makes them unusable.
+      data: { consumedAt: now },
+    });
+
+    return consumed.count > 0;
   }
 
   /** Remaining resend delay, computed from the newest request. */

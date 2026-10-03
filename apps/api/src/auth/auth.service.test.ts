@@ -220,3 +220,39 @@ describe('AuthService.recordFailedSignIn', () => {
     expect(users[0].lockedUntil?.getTime()).toBe(clock.now().getTime() + 15 * 60_000);
   });
 });
+
+describe('AuthService.recordFailedSignInForMobile', () => {
+  it('records the failure for the account that owns the number', async () => {
+    // The OTP verify step holds a mobile number, not a user id, so this is the
+    // path the lockout actually travels in production.
+    const { prisma, users } = harness();
+    const { service } = await makeService(prisma, new ClockService());
+
+    await service.recordFailedSignInForMobile('9876543210');
+
+    expect(users[0].failedLoginCount).toBe(1);
+  });
+
+  it('ignores a number with no account', async () => {
+    // Otherwise the lockout becomes an unauthenticated way to block arbitrary
+    // numbers from ever registering: no account, no code, one call.
+    const { prisma, users } = harness();
+    const { service } = await makeService(prisma, new ClockService());
+
+    await service.recordFailedSignInForMobile('9000000000');
+
+    expect(users[0].failedLoginCount).toBe(0);
+  });
+
+  it('locks the account after enough failures arrive by number', async () => {
+    const { prisma, users } = harness();
+    const clock = new FrozenClock(new Date('2026-04-01T00:00:00Z'));
+    const { service } = await makeService(prisma, clock);
+
+    for (let i = 0; i < 5; i += 1) {
+      await service.recordFailedSignInForMobile('9876543210');
+    }
+
+    expect(users[0].lockedUntil?.getTime()).toBe(clock.now().getTime() + 15 * 60_000);
+  });
+});

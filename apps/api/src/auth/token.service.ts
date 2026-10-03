@@ -167,12 +167,16 @@ export class TokenService {
       return null;
     }
 
-    // A token belonging to a deleted or anonymised account must not keep
-    // working: erasure means the account is gone, not merely hidden.
+    // A token belonging to a deleted, anonymised or suspended account must not
+    // keep working: erasure means the account is gone rather than hidden, and a
+    // suspension has to bite at once. Refresh is the only endpoint that would
+    // otherwise keep handing out access tokens past a suspension, since the
+    // access token itself outlives the decision by its short TTL.
     if (
       existing.user.deletedAt ||
       existing.user.isAnonymised ||
-      existing.user.status === 'DELETED'
+      existing.user.status === 'DELETED' ||
+      existing.user.status === 'SUSPENDED'
     ) {
       return null;
     }

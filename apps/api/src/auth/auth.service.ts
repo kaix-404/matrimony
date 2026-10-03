@@ -82,6 +82,27 @@ export class AuthService {
   }
 
   /**
+   * Looks up an account by number and records a failure against it if there is
+   * one.
+   *
+   * The lockout is keyed on a user id, but the only thing the OTP verify step
+   * holds is a mobile number, so this is the bridge. A number with no account
+   * is a silent no-op for the reason given on the caller: failing loudly, or
+   * creating a placeholder row to count against, would turn the lockout into an
+   * unauthenticated way to block someone else's number from registering.
+   */
+  async recordFailedSignInForMobile(mobile: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { mobile },
+      select: { id: true },
+    });
+
+    if (user) {
+      await this.recordFailedSignIn(user.id);
+    }
+  }
+
+  /**
    * Records a failed sign-in attempt and locks the account at the threshold.
    *
    * The increment and the threshold check happen in one conditional update, so
