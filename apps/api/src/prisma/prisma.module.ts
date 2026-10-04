@@ -34,7 +34,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleInit(): Promise<void> {
     await this.$connect();
-    this.logger.log('Database connection established');
+    // The pg pool connects lazily, so a resolved $connect() means the client is
+    // usable, not that the server answered. Logging a connection here reads as
+    // "database is up" during an outage. isHealthy() below does the real
+    // round-trip, and the readiness endpoint is what reports the truth.
+    this.logger.log('Database client initialised');
   }
 
   async onModuleDestroy(): Promise<void> {
