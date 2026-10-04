@@ -1,0 +1,58 @@
+// Copy this file to `.vscode/launch.json` to enable F5 debugging of the API.
+//
+// The API loads the repository `.env` itself (apps/api/src/load-env.ts), so
+// these configurations deliberately omit `envFile`. Debugging therefore
+// exercises the same code path as `npm run start`, with one source of truth.
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Most reliable for breakpoints: the process waits for the debugger, so
+      // the first statement is hit. Requires the `build: api` task, which is
+      // wired up as a preLaunchTask below.
+      "name": "API: debug compiled",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}/apps/api/dist/main.js",
+      "runtimeArgs": ["--inspect-brk=9229"],
+      "preLaunchTask": "build: api",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**", "**/generated/**"],
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "API listening on",
+        "uri": "http://localhost:4000/api/v1/health/ready",
+        "action": "openExternally"
+      }
+    },
+    {
+      // Rebuilds on change via `nest start --watch`. Nest's --debug passes
+      // --inspect to the spawned node process, and autoAttachChildProcesses
+      // picks it up.
+      "name": "API: watch and debug",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "-w", "@matrimony/api", "--", "--debug"],
+      "autoAttachChildProcesses": true,
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**", "**/generated/**"],
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "pattern": "API listening on",
+        "uri": "http://localhost:4000/api/v1/health/ready",
+        "action": "openExternally"
+      }
+    },
+    {
+      // For attaching to an API you started yourself, e.g.
+      // `npm run dev -w @matrimony/api -- --debug`.
+      "name": "API: attach to 9229",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**", "**/generated/**"]
+    }
+  ]
+}

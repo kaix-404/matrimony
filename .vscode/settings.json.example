@@ -1,0 +1,21 @@
+// Copy this file to `.vscode/settings.json`. Only the settings this repository
+// actually relies on are included; nothing here overrides a default that would
+// change how the toolchain behaves.
+{
+  // eslint-config-prettier already disables every ESLint rule that would
+  // conflict with Prettier, so the two can both run on save.
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+
+  // The generated Prisma client is large and gitignored. Excluding it keeps
+  // search and file watchers responsive.
+  "search.exclude": {
+    "**/apps/api/src/generated": true,
+    "**/dist": true,
+    "**/coverage": true
+  },
+  "files.watcherExclude": {
+    "**/apps/api/src/generated/**": true,
+    "**/packages/*/dist/**": true
+  }
+}

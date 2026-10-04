@@ -1,0 +1,109 @@
+// Copy this file to `.vscode/tasks.json`.
+//
+// `dev: first run` is the one-time setup for a fresh clone: the Prisma client
+// and packages/shared/dist are both gitignored, so nothing typechecks and the
+// API cannot start until those are produced.
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev: first run",
+      "detail": "Build shared, generate Prisma, start containers, migrate and seed",
+      "type": "process",
+      "command": "npm",
+      "args": ["run", "setup"],
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: up",
+      "detail": "Start Postgres and Redis",
+      "type": "shell",
+      "command": "npm run dev",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: up with storage",
+      "detail": "Also start MinIO. Needs MINIO_IMAGE and MINIO_MC_IMAGE; the upstream images were removed.",
+      "type": "shell",
+      "command": "npm run dev:storage",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: down",
+      "type": "shell",
+      "command": "npm run dev:down",
+      "problemMatcher": []
+    },
+    {
+      "label": "docker: logs",
+      "detail": "Follow container logs (Ctrl+C to stop)",
+      "type": "shell",
+      "command": "npm run dev:logs",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": { "panel": "dedicated", "clear": true }
+    },
+    {
+      // `@matrimony/shared` is consumed through its gitignored dist/, so the
+      // API only sees shared changes once this has run.
+      "label": "shared: build",
+      "type": "shell",
+      "command": "npm run build -w @matrimony/shared",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "shared: watch",
+      "detail": "Rebuild shared on change; pair with a second terminal running the API",
+      "type": "shell",
+      "command": "npm run build -w @matrimony/shared -- --watch",
+      "isBackground": true,
+      "problemMatcher": ["$tsc-watch"],
+      "presentation": { "panel": "dedicated", "clear": true }
+    },
+    {
+      "label": "prisma: generate",
+      "detail": "Required after a fresh clone or any schema.prisma change",
+      "type": "shell",
+      "command": "npm run prisma:generate",
+      "problemMatcher": []
+    },
+    {
+      "label": "prisma: deploy",
+      "detail": "Apply migrations to the local database",
+      "type": "shell",
+      "command": "npm run prisma:deploy",
+      "problemMatcher": []
+    },
+    {
+      "label": "prisma: seed",
+      "detail": "Load reference data",
+      "type": "shell",
+      "command": "npm run prisma:seed",
+      "problemMatcher": []
+    },
+    {
+      "label": "build: api",
+      "detail": "Used as the preLaunchTask for the compiled debug session",
+      "type": "shell",
+      "command": "npm run build -w @matrimony/api",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "test: api",
+      "detail": "On a memory constrained machine add -- --maxWorkers=2",
+      "type": "shell",
+      "command": "npm run test -w @matrimony/api",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "verify",
+      "detail": "Prisma validate, generate, typecheck, lint, test and build",
+      "type": "shell",
+      "command": "npm run verify",
+      "group": { "kind": "test" },
+      "problemMatcher": []
+    }
+  ]
+}

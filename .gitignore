@@ -32,7 +32,7 @@ pnpm-debug.log*
 # editors
 .idea/
 .vscode/*
-!.vscode/settings.json.example
+!.vscode/*.example
 *.swp
 
 # OS
