@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Implementation Status Report - Matrimony API</title>
+<style>
+  @page { size: A4; margin: 18mm 14mm 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif;
+    font-size: 10.2pt; line-height: 1.5; color: #1a1d21; margin: 0;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  h1 { font-size: 22pt; margin: 0 0 2mm; letter-spacing: -0.3pt; }
+  h2 {
+    font-size: 13pt; margin: 9mm 0 3mm; padding-bottom: 1.6mm;
+    border-bottom: 1.6pt solid #1f4e79; color: #1f4e79;
+    page-break-after: avoid;
+  }
+  h3 { font-size: 10.8pt; margin: 5mm 0 2mm; color: #2c3e50; page-break-after: avoid; }
+  p { margin: 0 0 2.6mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5.5mm; }
+  li { margin-bottom: 1.4mm; }
+  code {
+    font-family: Consolas, "Courier New", monospace; font-size: 8.8pt;
+    background: #f2f4f7; padding: 0.4mm 1.1mm; border-radius: 1.4pt;
+  }
+  table { width: 100%; border-collapse: collapse; margin: 2mm 0 4mm; font-size: 9pt; }
+  th {
+    background: #1f4e79; color: #fff; text-align: left; padding: 2mm 2.4mm;
+    font-weight: 600; border: 0.5pt solid #1f4e79;
+  }
+  td { padding: 1.8mm 2.4mm; border: 0.5pt solid #ccd3da; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7f9fb; }
+  .cover { border-bottom: 3pt solid #1f4e79; padding-bottom: 5mm; margin-bottom: 6mm; }
+  .sub { color: #5a6570; font-size: 10.5pt; margin: 0; }
+  .meta { margin-top: 3.5mm; font-size: 9pt; color: #5a6570; }
+  .meta b { color: #1a1d21; }
+  .kpis { display: flex; gap: 3mm; margin: 4mm 0 6mm; }
+  .kpi {
+    flex: 1; border: 0.6pt solid #ccd3da; border-top: 2.4pt solid #1f4e79;
+    border-radius: 2pt; padding: 3mm; text-align: center; background: #fbfcfd;
+  }
+  .kpi .n { font-size: 17pt; font-weight: 700; color: #1f4e79; line-height: 1.1; }
+  .kpi .l { font-size: 7.6pt; color: #5a6570; text-transform: uppercase; letter-spacing: 0.4pt; margin-top: 1mm; }
+  .done { color: #1a7f37; font-weight: 600; }
+  .wip  { color: #9a6700; font-weight: 600; }
+  .todo { color: #6b7280; font-weight: 600; }
+  .box {
+    border-left: 2.6pt solid #1f4e79; background: #f4f8fb;
+    padding: 2.6mm 3.4mm; margin: 3mm 0; page-break-inside: avoid;
+  }
+  .box.warn { border-left-color: #b45309; background: #fdf8ef; }
+  .box.fix  { border-left-color: #1a7f37; background: #f2f9f4; }
+  .box p:last-child, .box ul:last-child { margin-bottom: 0; }
+  .tag {
+    display: inline-block; font-size: 7.4pt; font-weight: 700; padding: 0.5mm 1.6mm;
+    border-radius: 1.6pt; text-transform: uppercase; letter-spacing: 0.3pt;
+  }
+  .t-done { background: #dcf3e4; color: #14612b; }
+  .t-new  { background: #dbe9f7; color: #1f4e79; }
+  .t-fix  { background: #dcf3e4; color: #14612b; }
+  .t-open { background: #fdefd4; color: #8a5a00; }
+  .t-block{ background: #fbe0e0; color: #96201c; }
+  .mono { font-family: Consolas, monospace; font-size: 8.4pt; color: #444; }
+  .small { font-size: 8.6pt; color: #5a6570; }
+  .pb { page-break-before: always; }
+  footer { margin-top: 8mm; padding-top: 2.5mm; border-top: 0.6pt solid #ccd3da;
+           font-size: 8pt; color: #7a838d; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>Implementation Status Report</h1>
+  <p class="sub">Matrimony API &mdash; features delivered and changes made</p>
+  <div class="meta">
+    <b>Report date:</b> 4 October 2026 &nbsp;&middot;&nbsp;
+    <b>Repository:</b> D:\matrimony &nbsp;&middot;&nbsp;
+    <b>Branch:</b> master &nbsp;&middot;&nbsp;
+    <b>Phase 0&ndash;3 complete</b>
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi"><div class="n">23</div><div class="l">API endpoints</div></div>
+  <div class="kpi"><div class="n">31</div><div class="l">Database models</div></div>
+  <div class="kpi"><div class="n">390</div><div class="l">Automated tests</div></div>
+  <div class="kpi"><div class="n">19</div><div class="l">Test files</div></div>
+  <div class="kpi"><div class="n">8</div><div class="l">Commits</div></div>
+</div>
+
+<h2>1. Executive summary</h2>
+
+<p>The API is functionally complete through <b>Phase 3 (Discovery)</b>. A user can register and
+sign in, hold a profile with photos and master-data attributes, and browse other users through a
+two-way net-worth visibility preference instead of the earlier same-category partition. Every
+phase was verified against a real PostgreSQL 16 instance, not only against unit-test doubles.</p>
+
+<p>The most recent delivery replaced hard same-category discovery with two independently editable
+preferences. This is the single largest behavioural change in the project so far, and it changed a
+pricing rule: with cross-band discovery possible, the unlock price must come from the
+<b>target's</b> category rather than the viewer's, so the amount is knowable before checkout.</p>
+
+<p>Three defects that were invisible to unit tests surfaced during live verification and are now
+fixed and covered &mdash; details in section 8. All 390 tests pass and the full
+<code>npm run verify</code> pipeline (Prisma validation and generation, typecheck, lint, test,
+build) exits clean.</p>
+
+<h2>2. Phase status</h2>
+
+<table>
+  <tr><th style="width:6%">Phase</th><th style="width:26%">Name</th><th style="width:11%">Status</th><th>Delivered behaviour</th></tr>
+  <tr><td>0</td><td>Foundations</td><td class="done">Complete</td><td>Monorepo, shared contracts, 31-table schema, config validation, security headers, rate limiting, clock service with drift guard, health probes, CI that boots the API against real PostgreSQL 16.</td></tr>
+  <tr><td>1</td><td>Identity and registration</td><td class="done">Complete</td><td>OTP request and verify, registration completing server-side category assignment, access JWT (15 min) with rotating opaque refresh tokens, login/logout/refresh/<code>GET /auth/me</code>, account lockout.</td></tr>
+  <tr><td>2</td><td>Profile and master data</td><td class="done">Complete</td><td>Profile CRUD with per-section validation, profile completeness, visibility toggle, master-list endpoints, direct-to-storage photo upload with presigned URLs. Photos are never paywalled; only <code>APPROVED</code> photos reach another user.</td></tr>
+  <tr><td>3</td><td>Discovery</td><td class="done">Complete</td><td>Two-way visibility rule, eligibility gates, saved preferences, temporary narrowing filters, cursor pagination, locked preview cards priced from the target's category.</td></tr>
+  <tr><td>4</td><td>Payments and unlock delivery</td><td class="wip">Next</td><td>Razorpay orders with snapshotted pricing, webhook idempotency, <code>ContactUnlock</code> only from a settled payment, 24-hour expiry plus the 2-hour reminder. <b>Blocked on GAP-3</b> (sort precedence).</td></tr>
+  <tr><td>5</td><td>Trust and safety</td><td class="todo">Planned</td><td>Reports, blocking, moderation queue, suspension and deletion with the retention-then-anonymise rule.</td></tr>
+  <tr><td>6</td><td>Identity verification</td><td class="todo">Planned</td><td>Cashfree Secure ID via DigiLocker; only provider reference and last four digits persisted. No user is discoverable until this passes.</td></tr>
+  <tr><td>7</td><td>Notifications</td><td class="todo">Planned</td><td>Push (FCM HTTP v1), SMS (DLT-gated), email, in-app, including the unlock-expiry reminder.</td></tr>
+  <tr><td>8</td><td>Admin API and dashboard</td><td class="todo">Planned</td><td>RBAC by permission, audit logging on every mutating admin action, master-data and pricing management, Next.js dashboard.</td></tr>
+  <tr><td>9</td><td>Mobile app</td><td class="todo">Planned</td><td>React Native client against the contracts in <code>packages/shared</code>.</td></tr>
+</table>
+
+<h2 class="pb">3. API endpoint inventory</h2>
+
+<p>All 23 implemented endpoints, grouped by controller. Paths are relative to the
+<code>/api</code> prefix.</p>
+
+<table>
+  <tr><th style="width:8%">Method</th><th style="width:30%">Path</th><th>Purpose</th></tr>
+  <tr><td colspan="3" style="background:#eef2f6;font-weight:700">Health</td></tr>
+  <tr><td>GET</td><td><code>/health/live</code></td><td>Liveness probe.</td></tr>
+  <tr><td>GET</td><td><code>/health/ready</code></td><td>Readiness probe, including the database.</td></tr>
+  <tr><td colspan="3" style="background:#eef2f6;font-weight:700">Identity</td></tr>
+  <tr><td>POST</td><td><code>/auth/otp/request</code></td><td>Issue an OTP. Codes stored hashed; cooldown and attempt limits enforced server-side.</td></tr>
+  <tr><td>POST</td><td><code>/auth/otp/verify</code></td><td>Verify and consume the OTP atomically; report whether registration is still required.</td></tr>
+  <tr><td>POST</td><td><code>/auth/register</code></td><td>Complete registration and assign the server-controlled net-worth category.</td></tr>
+  <tr><td>POST</td><td><code>/auth/refresh</code></td><td>Rotate the refresh token. Reuse of a rotated token revokes the whole family.</td></tr>
+  <tr><td>POST</td><td><code>/auth/logout</code></td><td>Revoke the session.</td></tr>
+  <tr><td>GET</td><td><code>/auth/me</code></td><td>Current user, including the immutable own category.</td></tr>
+  <tr><td colspan="3" style="background:#eef2f6;font-weight:700">Profile</td></tr>
+  <tr><td>POST</td><td><code>/profile</code></td><td>Create the profile for the authenticated user.</td></tr>
+  <tr><td>GET</td><td><code>/profile</code></td><td>Own profile.</td></tr>
+  <tr><td>PATCH</td><td><code>/profile</code></td><td>Update profile fields with per-section validation.</td></tr>
+  <tr><td>GET</td><td><code>/profile/completeness</code></td><td>Completeness scoring.</td></tr>
+  <tr><td>PATCH</td><td><code>/profile/visibility</code></td><td>Show or hide the profile from discovery.</td></tr>
+  <tr><td>POST</td><td><code>/profile/photos/upload</code></td><td>Presigned direct-to-storage upload.</td></tr>
+  <tr><td>POST</td><td><code>/profile/photos/complete</code></td><td>Confirm the uploaded object and queue it for approval.</td></tr>
+  <tr><td>GET</td><td><code>/profile/photos</code></td><td>Own photo list.</td></tr>
+  <tr><td>PATCH</td><td><code>/profile/photos/:photoId/primary</code></td><td>Set the cover photo.</td></tr>
+  <tr><td>DELETE</td><td><code>/profile/photos/:photoId</code></td><td>Remove a photo.</td></tr>
+  <tr><td colspan="3" style="background:#eef2f6;font-weight:700">Master data</td></tr>
+  <tr><td>GET</td><td><code>/master-data/lists</code></td><td>Community, education and profession values.</td></tr>
+  <tr><td>GET</td><td><code>/master-data/net-worth-categories</code></td><td><span class="tag t-new">New</span> The four active bands with bounds as strings and the setup-fee quote.</td></tr>
+  <tr><td colspan="3" style="background:#eef2f6;font-weight:700">Visibility and discovery</td></tr>
+  <tr><td>GET</td><td><code>/me/visibility</code></td><td><span class="tag t-new">New</span> Stored lists, the configured flags, and the immutable own category.</td></tr>
+  <tr><td>PATCH</td><td><code>/me/visibility</code></td><td><span class="tag t-new">New</span> Save one or both directions; partial replacement semantics.</td></tr>
+  <tr><td>GET</td><td><code>/discovery</code></td><td><span class="tag t-new">New</span> Locked candidate cards, scope actually searched, cursor pagination.</td></tr>
+</table>
+
+<h2>4. Features implemented in this cycle</h2>
+
+<h3>4.1 Two-way net-worth visibility and discoverability</h3>
+
+<p>The prior rule was that a user only ever saw profiles in their own net-worth band. That is
+replaced by two independent, user-editable lists:</p>
+
+<ul>
+  <li><b><code>discover</code></b> &mdash; the bands this user wants to browse.</li>
+  <li><b><code>visible_to</code></b> &mdash; the bands allowed to browse this user.</li>
+</ul>
+
+<p>A candidate is returned only when <b>both</b> hold:</p>
+<ol>
+  <li>the candidate's band appears in the viewer's effective <code>discover</code> list, and</li>
+  <li>the viewer's band appears in the candidate's effective <code>visible_to</code> list.</li>
+</ol>
+
+<p>Cross-band discovery is therefore opt-in on both sides and cannot happen by accident. Verified
+over HTTP: withdrawing either side's opt-in immediately removes the profile from the feed, and a
+band that nobody accepts is not even reported as searched.</p>
+
+<h3>4.2 Category options endpoint</h3>
+
+<p><code>GET /master-data/net-worth-categories</code> serves the four active bands in display order
+with their bounds as strings, because the values exceed the safe integer range in JavaScript.
+<code>PENDING_REVIEW</code> is returned but flagged <code>is_discoverable: false</code>, which is a
+property of the band rather than a per-user permission. Each band carries its setup-fee quote.</p>
+
+<div class="box">
+  <p><b>Setup fee confirmed: &#8377;15.00 base plus 18% GST = &#8377;17.70 payable.</b></p>
+  <p class="small">GAP-5 resolved 2026-10-03. GST is added on top, not included. One per account
+  lifetime, collected only after ID verification, recorded under a distinct payment purpose so it
+  can never be confused with a contact unlock.</p>
+</div>
+
+<h3>4.3 Locked discovery cards</h3>
+
+<ul>
+  <li>Exactly four keys per card: <code>profile_id</code>, <code>photos</code>,
+      <code>profile_locked</code>, <code>unlock_price</code>.</li>
+  <li>Built by explicit projection, never an object spread, so the hidden-field rule is enforced by
+      the shape of the response rather than by code review.</li>
+  <li>No name, contact, income, religion, community, horoscope or object key is exposed. Asserted
+      by scanning the whole serialized payload, not just the documented fields.</li>
+  <li>Unlock price derived from the <b>target's</b> category, so it is known before checkout.
+      Verified: a cross-band card quoted 499.00 + GST = 588.82 while the same feed's own-band card
+      quoted 249.00 + GST = 293.82.</li>
+  <li>Only <code>APPROVED</code> photos are exposed, through per-request presigned URLs.</li>
+</ul>
+
+<h3>4.4 Eligibility and safety gates applied to the read path</h3>
+
+<p>A candidate must be an approved, active, non-deleted profile belonging to a user who is active,
+ID-verified, setup-fee paid, not anonymised, and not blocked with the viewer in either direction.
+Both block directions are expressed as <code>none</code> relations rather than joins, so a duplicate
+row cannot resurface a blocked user through the join.</p>
+
+<h2 class="pb">5. Data model changes</h2>
+
+<p>31 models across 4 migrations. This cycle added the two-way preference model:</p>
+
+<table>
+  <tr><th style="width:34%">Change</th><th>Detail</th></tr>
+  <tr><td><code>PartnerPreference.discoveryConfigured</code></td><td>Boolean flag distinguishing "never saved" from "deliberately saved as nobody".</td></tr>
+  <tr><td><code>PartnerPreference.visibilityConfigured</code></td><td>Same distinction for the other direction.</td></tr>
+  <tr><td><code>UserDiscoveryCategory</code></td><td>Join table, composite key <code>(userId, category)</code>, so duplicates are impossible at the storage layer.</td></tr>
+  <tr><td><code>UserVisibilityCategory</code></td><td>Join table with the same composite key and reverse category indexes.</td></tr>
+</table>
+
+<p><code>User.networthCategory</code> remains server-controlled and cannot be changed by the user
+through any endpoint. That rule survived the specification change even though the surrounding
+discovery rule did not.</p>
+
+<h2>6. Business rules settled at implementation time</h2>
+
+<p>The specification was silent on three points. Each was decided explicitly and recorded in
+<code>docs/decisions/visibility-discoverability-2026-10-03.md</code> rather than inferred at
+runtime.</p>
+
+<table>
+  <tr><th style="width:26%">Question</th><th>Decision and rationale</th></tr>
+  <tr><td>What does an unset list mean?</td><td>The user's own band only. Behaviour is identical to the old partition until the user opts in, so nobody is silently exposed to a band they never chose.</td></tr>
+  <tr><td>What does an empty list mean?</td><td>Nobody, validly. It doubles as a pause control, which is why explicit <code>configured</code> flags are required rather than inferring intent from an empty table.</td></tr>
+  <tr><td>Can a request widen scope?</td><td>No. A per-request category is rejected by the contract. This is why <code>GET /me/visibility</code> returns raw stored lists plus flags instead of fabricating the default into the response.</td></tr>
+</table>
+
+<h2>7. Defects found and fixed</h2>
+
+<p>Each of the three was unreachable from unit tests and was caught by running against real
+PostgreSQL. All three now have regression coverage.</p>
+
+<h3>7.1 Foreign <code>Decimal</code> instances threw on every priced response</h3>
+<div class="box fix">
+  <p><span class="tag t-fix">Fixed</span> <code>toDecimal</code> tested <code>instanceof Decimal</code>.
+  Prisma's driver adapter constructs Decimals from its own bundled copy of <code>decimal.js</code>,
+  so the check fails for any value read from the database. Such a value fell through to
+  <code>value.trim()</code> and threw <code>value.trim is not a function</code>, producing a 500 on
+  every endpoint that returns money. Now duck-typed, with <code>toFixed</code> rather than
+  <code>toString</code> so a copy configured for exponent notation still parses. The saved
+  preference body deliberately keeps strict types, because there a wrongly typed value is a client
+  bug worth surfacing.</p>
+</div>
+
+<h3>7.2 Every paginated request was rejected</h3>
+<div class="box fix">
+  <p><span class="tag t-fix">Fixed</span> Query parameters arrive as strings, so <code>?limit=1</code>
+  failed a plain <code>z.number()</code> with "Expected number, received string". Pagination was
+  unusable over HTTP while passing in unit tests, which construct typed objects directly. Numeric
+  and boolean query fields now coerce, with one deliberate exception:
+  <code>use_saved_preference</code> does <b>not</b> use <code>z.coerce.boolean()</code>, because that
+  maps every non-empty string to true and would invert an explicit <code>false</code>.</p>
+</div>
+
+<h3>7.3 The response claimed a preference had been ignored when it had not</h3>
+<div class="box fix">
+  <p><span class="tag t-fix">Fixed</span> <code>preference_applied</code> echoed the request flag,
+  while the scope was in fact always computed from the saved preference. Sending
+  <code>use_saved_preference=false</code> produced a response claiming preferences were skipped on
+  cards that preferences had filtered. Now always <code>true</code>, with the flag documented as
+  compatibility-only, since honouring it would reintroduce the scope-widening bypass.</p>
+</div>
+
+<h3>7.4 Two false alarms worth recording</h3>
+<div class="box warn">
+  <p>Both looked like product bugs and were faults in the test fixtures:</p>
+  <ul>
+    <li><b>Cursor pagination appeared broken.</b> The seeded profile IDs were 19 characters while
+    the cursor validator requires 20&ndash;32, as real cuids are 25. Rejected IDs silently reset
+    pagination to page 1. The validator was correct; the fixture was unrealistic. Fixtures now
+    generate cuid-shaped IDs.</li>
+    <li><b>The never-saved default appeared missing.</b> <code>GET /me/visibility</code> correctly
+    returns empty lists for an unsaved account, with the flags false and the own category reported
+    alongside. The own-band default is applied when the preference is resolved for a search, not
+    written back as though the user had chosen it.</li>
+  </ul>
+</div>
+
+<h2 class="pb">8. How it was verified</h2>
+
+<p>Two independent strategies, because each catches what the other misses.</p>
+
+<h3>8.1 Automated suite</h3>
+<table>
+  <tr><th style="width:40%">Gate</th><th style="width:20%">Result</th><th>Notes</th></tr>
+  <tr><td><code>prisma validate</code> and <code>generate</code></td><td class="done">Pass</td><td>Client 7.10.0 generated into the API source tree.</td></tr>
+  <tr><td>Typecheck (shared + API)</td><td class="done">Pass</td><td>Strict TypeScript across both workspaces.</td></tr>
+  <tr><td>Lint (shared + API)</td><td class="done">Pass</td><td>ESLint, no suppressions added.</td></tr>
+  <tr><td>Shared tests</td><td class="done">148 passed</td><td>6 suites: contracts, money, enums, profile.</td></tr>
+  <tr><td>API tests</td><td class="done">242 passed</td><td>13 suites including the app-boot check against a real module graph.</td></tr>
+  <tr><td>Build (shared + API)</td><td class="done">Pass</td><td><code>tsc --build</code> and <code>nest build</code>.</td></tr>
+  <tr><td><code>npm run verify</code></td><td class="done">Exit 0</td><td>Whole pipeline green, the gate required before any commit.</td></tr>
+</table>
+
+<h3>8.2 Live HTTP and database verification</h3>
+<p>Two scripts exercised the running API against real PostgreSQL 16, through the full OTP
+authentication dance and real database rows rather than doubles. <b>88 assertions, all passing.</b></p>
+
+<table>
+  <tr><th style="width:22%">Area</th><th style="width:12%">Assertions</th><th>What it proved</th></tr>
+  <tr><td>Categories, preferences, auth</td><td>35</td><td>Band list and setup-fee totals; partial PATCH; unknown band rejected with the offending key named; the review bucket refused; retired band refused; a refused save writes nothing; own category immutable; unsaved preference reports raw state; empty list pauses the feed; authentication still required on every route.</td></tr>
+  <tr><td>Two-way discovery</td><td>53</td><td>Empty scope when nobody accepts; target opting the viewer in; cross-band discovery working both ways; target-band pricing; withdrawal on either side; no locked field anywhere in the payload; exactly the four contracted keys; per-request category rejected; cursor paging with no overlap; malformed cursor restarts rather than erroring; unauthenticated access refused.</td></tr>
+</table>
+
+<p class="small">Eligibility could not be reached through the API alone, because the ID check and
+the payment webhook that grant verified status and paid status do not exist yet. Those accounts were
+promoted directly in SQL to make the feed testable end to end, with that shortcut recorded in the
+fixture itself.</p>
+
+<h2>9. Known limitations and open work</h2>
+
+<h3>9.1 Deliberately deferred in delivered phases</h3>
+<table>
+  <tr><th style="width:30%">Gap</th><th>Effect</th></tr>
+  <tr><td><code>ProfileAttribute</code> CRUD absent</td><td>Admin-configurable profile attribute values exist in the schema but have no management endpoints yet.</td></tr>
+  <tr><td>Explicit <code>null</code> clearing</td><td>Clearing <code>education_id</code>, <code>profession_id</code> or <code>community_id</code> is skipped rather than unsetting the column.</td></tr>
+  <tr><td>Photo editability and TTL</td><td>Photo mutations do not consistently re-check account and profile editability, and initiation hardcodes a 300-second presign TTL instead of using <code>S3_SIGNED_URL_TTL</code>.</td></tr>
+</table>
+
+<h3>9.2 Open decisions required from the client</h3>
+<table>
+  <tr><th style="width:10%">Gap</th><th style="width:26%">Subject</th><th>Status</th></tr>
+  <tr><td><b>GAP-3</b></td><td>Discovery sort precedence</td><td><b>Blocks Phase 4.</b> "Newest and closest" is two orderings; the primary sort changes the index design and the query. Currently newest-first. <b>This is the one input needed to start payments.</b></td></tr>
+  <tr><td>GAP-1</td><td>Unlocks bought from a profile that is then deleted</td><td>Client's answer means the buyer loses access with no refund. A credit note is recommended.</td></tr>
+  <tr><td>GAP-2</td><td>Boundary values between bands</td><td>Data-integrity question, needed before the category-selection screen ships.</td></tr>
+  <tr><td>GAP-4</td><td>Family photos</td><td>Required or optional, which is the cover image, and whether it is visible before payment. Face detection in group photos is materially harder.</td></tr>
+  <tr><td>GAP-6</td><td>Who may delete a user</td><td>Super Admin recommended.</td></tr>
+  <tr><td>GAP-7</td><td>Legal documents are a new line item</td><td>Privacy Policy and Terms of Service should be reflected in contract and quote.</td></tr>
+  <tr><td>GAP-8</td><td>UI/UX ownership moved in-house</td><td>18 user-facing and 14 admin screens need confirming against the estimate.</td></tr>
+  <tr><td>GAP-9</td><td>Aadhaar handling</td><td>Implemented as reference plus masked last four only; needs client comfort that the full number is never held.</td></tr>
+  <tr><td>GAP-10</td><td>Do preferences filter at all?</td><td>A yes/no is needed; filtering could make some profiles permanently undiscoverable.</td></tr>
+  <tr><td>GAP-11</td><td>Cloudflare R2 data residency</td><td>Not clean: R2 cannot guarantee India-only residency. <b>Blocked externally.</b></td></tr>
+  <tr><td>GAP-12</td><td>SMS and email providers</td><td>Production provider and TRAI DLT registration outstanding; only the non-production <code>dev_code</code> path works.</td></tr>
+</table>
+
+<h3>9.3 Environment and tooling limits</h3>
+<ul>
+  <li><b>Live object storage untested.</b> The configured MinIO image is unavailable, so a real
+      <code>PUT</code> has not been exercised. Presigned URL generation itself is verified.</li>
+  <li><b>Missing provider credentials:</b> Razorpay, Cashfree, Firebase, domain, SMS/email, DLT.
+      All external; none block Phases 1&ndash;3.</li>
+  <li><b>API test suite memory ceiling.</b> With roughly 2.6 GB free RAM the API suite
+      intermittently exhausts the Node heap when Jest runs its default worker count. It passes
+      reliably with <code>--maxWorkers=2</code>. This is a constraint of the development machine,
+      not a code defect, so the repository default has not been changed &mdash; flagging it for a
+      decision.</li>
+</ul>
+
+<h2>10. Commit history</h2>
+
+<table>
+  <tr><th style="width:12%">Commit</th><th style="width:14%">Date</th><th>Description</th></tr>
+  <tr><td class="mono">44ee52a</td><td>2026-10-04</td><td>Keep the visibility specification; drop the HTML it was built from.</td></tr>
+  <tr><td class="mono">fd0051c</td><td>2026-10-04</td><td><b>Replace same-category discovery with two editable preferences.</b> Adds the visibility and discovery endpoints, the category options endpoint, and the three defect fixes.</td></tr>
+  <tr><td class="mono">ed824e1</td><td>2026-10-03</td><td>Close three identity holes: OTP replay on an already-registered number, lockout never called from the request path, and refresh ignoring suspension.</td></tr>
+  <tr><td class="mono">5682bab</td><td>2026-10-02</td><td>Add profiles, master data and direct-to-storage photo upload.</td></tr>
+  <tr><td class="mono">acff6e3</td><td>2026-10-02</td><td>Let users register, sign in, and rotate their sessions.</td></tr>
+  <tr><td class="mono">03ed948</td><td>2026-10-01</td><td>Record the client's supplier decisions, and the one that does not work.</td></tr>
+  <tr><td class="mono">8a358fd</td><td>2026-10-01</td><td>Make the API actually boot, and verify it against a real database.</td></tr>
+  <tr><td class="mono">6f31a64</td><td>2026-09-29</td><td>Foundation: monorepo, schema and the client answers of 2026-09-29.</td></tr>
+</table>
+
+<p class="small">Working tree is clean at the time of writing. The visible HTML file that was
+generated into the client PDF has been removed as a redundant intermediate; the PDF it produced
+remains the deliverable.</p>
+
+<footer>
+  Implementation status report &mdash; Matrimony API &mdash; generated 4 October 2026 from commit
+  44ee52a on branch master. Figures are taken from the repository itself: 31 Prisma models,
+  4 migrations, 23 mapped endpoints, 390 automated tests across 19 files.
+</footer>
+
+</body>
+</html>

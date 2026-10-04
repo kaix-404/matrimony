@@ -47,7 +47,7 @@ values, master-list endpoints (community, education, profession), and photo
 upload to S3-compatible storage with presigned URLs. Photos are never locked
 behind payment and only `APPROVED` photos reach another user.
 
-## Phase 3 — Discovery
+## Phase 3 — Discovery ✅
 
 The read path. Candidates are selected by the **two-way** visibility rule rather
 than a category partition: the viewer's discovery selection must include the
@@ -64,6 +64,14 @@ shape of the response rather than by review.
 
 Unlock price is derived from the **target's** category, so it is known before
 checkout and is snapshotted onto the payment row when taken.
+
+Shipped in `fd0051c`, verified against a real PostgreSQL 16 as well as in unit
+tests. Three defects were only reachable through that live run and are now
+covered: a Decimal read through Prisma's driver adapter failed `instanceof` and
+threw on every priced response; `?limit=1` was rejected because query parameters
+arrive as strings; and `preference_applied` echoed a flag that could not actually
+change the scope. Discovery ordering is newest-first; GAP-3 (newest versus
+closest) is still open and is the one input needed before payments are built.
 
 ## Phase 4 — Payments and unlock delivery
 
