@@ -34,7 +34,10 @@ export function configureApp(app: INestApplication, env: Env): void {
       origin: env.API_CORS_ORIGINS,
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+      // Idempotency-Key is listed for the payment endpoints (section 18): the
+      // app must be able to retry an order without being charged twice, and an
+      // unlisted request header fails CORS preflight in a browser or WebView.
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'Idempotency-Key'],
       maxAge: 600,
     });
   }

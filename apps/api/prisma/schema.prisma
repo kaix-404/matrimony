@@ -682,6 +682,8 @@ model Profile {
   photos            ProfilePhoto[]
   partnerPreference PartnerPreference?
   unlockedBy        ContactUnlock[]    @relation("UnlockTarget")
+  /// Phase 4: which profile a given payment was buying. See Payment.targetProfileId.
+  paidUnlocks      Payment[]          @relation("PaymentTargetProfile")
   reportsAgainst    Report[]           @relation("ReportedProfile")
   attributes_       ProfileAttribute[]
 
@@ -968,6 +970,16 @@ model Payment {
   /// Category the price was drawn from, snapshotted so historical payments
   /// survive a future re-banding. Plain string, not a live relation.
   category String?
+
+  /// The profile this payment unlocks, for UNLOCK payments.
+  ///
+  /// A webhook carries a gateway order id and nothing else, so without this the
+  /// server could confirm a payment but not know which ContactUnlock to create
+  /// from it. Nullable because a SETUP_FEE has no target. Set on UNLOCK orders
+  /// only and never read back into a price: it is not a live relation, it is a
+  /// record of what was bought.
+  targetProfileId String?
+  targetProfile   Profile? @relation("PaymentTargetProfile", fields: [targetProfileId], references: [id], onDelete: SetNull)
 
   // -- snapshot of pricing_config at order time; immutable (section 36) ----
   baseAmount      Decimal        @db.Decimal(12, 2)

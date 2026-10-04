@@ -10,6 +10,7 @@ import { StorageModule } from './storage/storage.module';
 import { MasterDataModule } from './master-data/master-data.module';
 import { ProfileModule } from './profile/profile.module';
 import { DiscoveryModule } from './discovery/discovery.module';
+import { PaymentsModule } from './payments/payments.module';
 import type { Env } from './config/env';
 
 /**
@@ -34,6 +35,7 @@ import type { Env } from './config/env';
     MasterDataModule,
     ProfileModule,
     DiscoveryModule,
+    PaymentsModule,
     ThrottlerModule.forRootAsync({
       inject: ['ENV'],
       useFactory: (env: Env) => ({

@@ -5,3 +5,4 @@ export * from './contracts/profile.js';
 export * from './contracts/profile-edit.js';
 export * from './contracts/master-data.js';
 export * from './contracts/discovery.js';
+export * from './contracts/payments.js';
