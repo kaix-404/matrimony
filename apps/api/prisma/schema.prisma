@@ -559,6 +559,10 @@ model User {
   notifications     Notification[]
   refreshTokens     RefreshToken[]
 
+  // -- two-way net-worth visibility (see visibility-discoverability-2026-10-03)
+  discoveryCategories UserDiscoveryCategory[]
+  visibilityCategories UserVisibilityCategory[]
+
   // Discovery joins users -> profiles on this pair (section 12). B1 makes
   // category a partition key: only same-category users are ever candidates.
   @@index([networthCategory, status])
@@ -788,10 +792,74 @@ model PartnerPreference {
   profile   Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
   profileId String?  @unique
 
+  /// Set once the user has saved an explicit discovery selection.
+  ///
+  /// Without this, "never configured" and "configured to nobody" are the same
+  /// empty table, and the second must mean *nobody* (a deliberate opt-out). The
+  /// flag is what lets the service fall back to the user's own band for the
+  /// first case without either behaviour being ambiguous.
+  discoveryConfigured Boolean @default(false)
+  /// Set once the user has saved an explicit allowed-viewer selection. Same
+  /// reason as `discoveryConfigured`.
+  visibilityConfigured Boolean @default(false)
+
   // -- discovery hot path --------------------------------------------------
   @@index([gender, ageMin, ageMax])
   @@index([preferredCity, preferredState, preferredCountry])
   @@index([religion, community])
+}
+
+/// ===========================================================================
+/// TWO-WAY NET-WORTH VISIBILITY  (spec: Visibility_and_Discoverability, 2026-10-03)
+///
+/// A profile is discoverable only when BOTH sides allow it:
+///   * the viewer selected the target's band to discover, and
+///   * the target selected the viewer's band as an allowed viewer.
+///
+/// Two tables rather than one with a direction column, because the two lists are
+/// distinct user intents that are read and written independently, and because the
+/// reverse lookup — "which users allow this band to view them" — is its own index.
+///
+/// Both are *preferences*. They never change `User.networthCategory`, which stays
+/// server-controlled and immutable by the user (B1). These rows cannot widen it,
+/// and `category` here is a band reference, not a copy of the user's own band.
+///
+/// DEFAULT: when the corresponding flag on PartnerPreference is false, the
+/// effective selection is the user's own category. That keeps behaviour identical
+/// to the old same-category rule until the user opts in, so nobody is silently
+/// exposed to a band they never chose. See
+/// docs/decisions/visibility-discoverability-2026-10-03.md.
+model UserDiscoveryCategory {
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A band this user is open to discovering.
+  category String
+  band     NetWorthCategoryRef @relation(fields: [category], references: [key], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, category])
+  /// Reverse lookup: the users who want to see this band. Without this the
+  /// discovery query degenerates into a correlated subquery per candidate row.
+  @@index([category])
+}
+
+/// The mirror image of `UserDiscoveryCategory`: bands that may discover *this*
+/// user. Empty means nobody may.
+model UserVisibilityCategory {
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A band that may discover this user's profile.
+  category String
+  band     NetWorthCategoryRef @relation(fields: [category], references: [key], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@id([userId, category])
+  /// Reverse lookup: which profiles accept viewers from this band.
+  @@index([category])
 }
 
 /// Section 3 / 7. This table — not a database enum — is the authority for
@@ -819,8 +887,12 @@ model NetWorthCategoryRef {
   /// Always equal to maxInr; kept only to avoid casting in list endpoints.
   thresholdInr BigInt?
 
-  /// The seeded ₹15 account setup fee is a flat platform charge, not a
-  /// percentage of net worth, so it lives here rather than in pricing_config.
+  /// The ₹15 account setup fee is a flat platform charge, not a percentage of
+  /// net worth, so it lives here rather than in pricing_config.
+  ///
+  /// This is the BASE amount. GST is added on top at quote time, so the amount
+  /// payable is ₹17.70 (GAP-5, resolved 2026-10-03) — storing only the total
+  /// would make the tax line unreportable on the invoice.
   setupFeeAmount Decimal @default(15.00) @db.Decimal(12, 2)
 
   /// PENDING_REVIEW denies discovery. Set false for the four real bands.
@@ -834,6 +906,11 @@ model NetWorthCategoryRef {
   users          User[]          @relation("UserCategory")
   pricingConfigs PricingConfig[]
   payments       Payment[]
+
+  /// Reverse sides of the two-way visibility rule. Distinct from
+  /// `UserCategory`, which is the user's own band and not a preference.
+  discoveryPreferences UserDiscoveryCategory[]
+  visibilityPreferences UserVisibilityCategory[]
 
   @@index([isActive, sortOrder])
 }

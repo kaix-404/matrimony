@@ -9,10 +9,12 @@ import {
   remainingMs,
   classifyNetWorth,
   ACCOUNT_SETUP_FEE,
+  GST_PERCENT,
   DEFAULT_PRICING,
   NET_WORTH_BANDS,
   UNLOCK_WINDOW_HOURS,
 } from './money.js';
+import { Decimal } from 'decimal.js';
 import { NET_WORTH_PENDING_REVIEW_KEY } from './enums.js';
 
 const CR = 10_000_000n;
@@ -49,13 +51,21 @@ describe('quotePayment — four-band schedule confirmed 2026-09-29', () => {
     }
   });
 
-  it('quotes the D9 setup fee as a flat charge with no GST', () => {
-    // Working assumption recorded as GAP-5 in docs/decisions: ₹15 is the
-    // final amount, not ₹15 plus tax.
-    const q = quotePayment(ACCOUNT_SETUP_FEE, 0);
+  it('quotes the setup fee as ₹15 plus 18% GST', () => {
+    // GAP-5 was resolved on 2026-10-03: GST is added on top, so the amount the
+    // user actually pays is ₹17.70, not ₹15.
+    const q = quotePayment(ACCOUNT_SETUP_FEE, GST_PERCENT);
     expect(q.baseAmount).toBe('15.00');
-    expect(q.gstAmount).toBe('0.00');
-    expect(q.totalAmount).toBe('15.00');
+    expect(q.gstAmount).toBe('2.70');
+    expect(q.totalAmount).toBe('17.70');
+  });
+
+  it('charges the same GST rate on the setup fee as on an unlock', () => {
+    // Two different rates on one product would be an invoicing error waiting to
+    // happen, and the setup fee has no pricing_config row to read a rate from.
+    expect(quotePayment(ACCOUNT_SETUP_FEE, GST_PERCENT).gstRate).toBe(
+      quotePayment(DEFAULT_PRICING.BELOW_2CR.baseAmount, GST_PERCENT).gstRate,
+    );
   });
 
   it('always has total == base + gst', () => {
@@ -75,6 +85,43 @@ describe('quotePayment — four-band schedule confirmed 2026-09-29', () => {
 });
 
 describe('decimal safety', () => {
+  it('accepts a Decimal from a different copy of decimal.js', () => {
+    // Prisma's driver adapter bundles its own `decimal.js`, so a Decimal read
+    // from the database fails `instanceof` against this module's copy. Before
+    // the duck-typed branch in toDecimal, such a value fell through to
+    // `value.trim()` and threw `value.trim is not a function` at runtime — which
+    // the type system accepts, because the declared type really is Decimal.
+    //
+    // This stands in for that foreign instance with the same shape but no
+    // shared prototype.
+    class ForeignDecimal {
+      constructor(private readonly value: string) {}
+      toFixed(places: number): string {
+        const [whole, fraction = ''] = this.value.split('.');
+        return fraction.length >= places
+          ? `${whole}.${fraction.slice(0, places)}`
+          : `${this.value}${'0'.repeat(places - fraction.length)}`;
+      }
+      toString(): string {
+        return this.value;
+      }
+    }
+
+    const foreign = new ForeignDecimal('499.00');
+    expect(foreign).not.toBeInstanceOf(Decimal);
+    expect(quotePayment(foreign as unknown as Decimal, '18').totalAmount).toBe('588.82');
+  });
+
+  it('parses a Decimal-like value that formats in exponent notation', () => {
+    // `toFixed` rather than `toString` is what keeps this working: a foreign
+    // copy configured with different exponent thresholds would emit "5e+2".
+    const exponential = {
+      toFixed: () => '499.0000',
+      toString: () => '4.99e+2',
+    };
+    expect(quotePayment(exponential as unknown as Decimal, '18').totalAmount).toBe('588.82');
+  });
+
   it('does not inherit binary floating point error', () => {
     // 0.1 + 0.2 !== 0.3 in IEEE 754. Pricing must not depend on that being true.
     expect(0.1 + 0.2).not.toBe(0.3);

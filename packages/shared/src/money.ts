@@ -28,19 +28,46 @@ export const CURRENCY = 'INR';
  */
 const DECIMAL_PATTERN = /^-?\d+(\.\d+)?$/;
 
+/**
+ * True for anything Decimal-shaped, not just our own copy.
+ *
+ * Prisma's driver adapter constructs Decimals from its own bundled
+ * `decimal.js`, so a value read from the database fails `instanceof Decimal`
+ * even though it is a Decimal. Without this branch such a value falls through
+ * to `value.trim()` and throws `value.trim is not a function` — a runtime
+ * failure that no type check catches, because the declared type is `Decimal`.
+ */
+function isDecimalLike(value: unknown): value is { toFixed(places: number): string } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { toFixed?: unknown }).toFixed === 'function'
+  );
+}
+
 export function toDecimal(value: Decimal | string | number): Decimal {
-  if (value instanceof Decimal) return value;
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) {
       throw new TypeError(`Invalid money value: ${value}`);
     }
     return new Decimal(value.toFixed(MONEY_SCALE + 4));
   }
-  const trimmed = value.trim();
-  if (!DECIMAL_PATTERN.test(trimmed)) {
-    throw new TypeError(`Invalid money literal: "${value}"`);
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!DECIMAL_PATTERN.test(trimmed)) {
+      throw new TypeError(`Invalid money literal: "${value}"`);
+    }
+    return new Decimal(trimmed);
   }
-  return new Decimal(trimmed);
+
+  // Foreign Decimal instance. `toFixed` rather than `toString` so a value whose
+  // copy of decimal.js uses exponential notation still parses as plain digits.
+  if (isDecimalLike(value)) {
+    return new Decimal(value.toFixed(MONEY_SCALE + 4));
+  }
+
+  throw new TypeError(`Invalid money value: ${String(value)}`);
 }
 
 export function money(value: Decimal | string | number): string {
@@ -114,15 +141,20 @@ export function quotePayment(
 }
 
 /**
- * Section 4 as revised by the client on 2026-09-29. The database is
- * authoritative; these values seed the first PricingConfig row per band.
- *
- * GST is 18% on every band. The setup fee is a flat ₹15 and, per the working
- * assumption recorded in docs/decisions (GAP-5), carries no separate GST.
+ * GST is 18% on every band. The setup fee is a flat ₹15 base and, per the
+ * resolution of GAP-5 on 2026-10-03, carries the same 18% GST added on top, so
+ * the amount payable is ₹17.70.
  */
 export const GST_PERCENT = '18';
 
-/** One-time account setup fee introduced by client answer D9. */
+/**
+ * One-time account setup fee introduced by client answer D9, as the **base**
+ * amount. It is not the amount charged: GST applies on top, so
+ * `quotePayment(ACCOUNT_SETUP_FEE, GST_PERCENT).totalAmount` is ₹17.70.
+ *
+ * Kept flat rather than derived from net worth because it is a platform charge
+ * for creating the account, not a price for anything the user receives.
+ */
 export const ACCOUNT_SETUP_FEE = '15.00';
 
 export const DEFAULT_PRICING = {

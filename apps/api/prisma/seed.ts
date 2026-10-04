@@ -60,10 +60,16 @@ async function seedNetWorthCategories(): Promise<void> {
       );
     }
 
+    // Copy shown to the user when picking categories. It deliberately does not say
+    // "you will discover profiles in this category": a profile is discoverable
+    // only when both sides agree, so the band is neither a partition nor a
+    // promise. It states the price instead, because the price follows the band
+    // and the user will want to know it before choosing.
     const description =
-      `You will discover profiles of users in this category. ` +
-      `Unlock price \u20b9${pricing.baseAmount} plus ${pricing.gstPercent}% GST, ` +
-      `a total of \u20b9${quote.totalAmount}.`;
+      `Profiles in this band cost \u20b9${pricing.baseAmount} to unlock, plus ` +
+      `${pricing.gstPercent}% GST, a total of \u20b9${quote.totalAmount}. ` +
+      `Visibility is two-way: you also need to allow this band, and this band's ` +
+      `owners need to allow yours.`;
 
     await prisma.netWorthCategoryRef.upsert({
       where: { key: band.key },
@@ -365,7 +371,11 @@ async function main(): Promise<void> {
   console.log(`  report reasons      : ${reasons}`);
   console.log(`  permissions         : ${permissions}`);
   console.log(`  roles               : ${roles}`);
-  console.log(`  setup fee           : \u20b9${ACCOUNT_SETUP_FEE} (flat, no GST, ${GST_PERCENT}% applies to unlocks)`);
+  const setupQuote = quotePayment(ACCOUNT_SETUP_FEE, GST_PERCENT);
+console.log(
+    `  setup fee           : \u20b9${setupQuote.baseAmount} + ${GST_PERCENT}% GST ` +
+      `= \u20b9${setupQuote.totalAmount} payable`,
+  );
 }
 
 main()

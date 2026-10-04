@@ -1,8 +1,14 @@
 # Networth Matrimony
 
 A matrimony platform where matches are grouped by net-worth band. Each band has
-its own unlock price, and a user can only ever discover and unlock profiles in
-their own band.
+its own unlock price, and the price of unlocking a profile is set by the **target's**
+band rather than the viewer's.
+
+Discovery is two-way: a profile appears only when the viewer has chosen to see the
+target's band *and* the target has allowed the viewer's band. Both selections are
+preferences the user controls, and a user who has never set them sees only their own
+band. See
+[docs/decisions/visibility-discoverability-2026-10-03.md](docs/decisions/visibility-discoverability-2026-10-03.md).
 
 The repository is a TypeScript monorepo: a NestJS API, a shared domain package,
 and local infrastructure. The mobile app and admin dashboard are planned but not
@@ -12,13 +18,16 @@ yet scaffolded.
 
 This is a working foundation, not a finished product. What exists:
 
-- the full domain schema (29 tables) and the client's confirmed business rules,
+- the full domain schema (31 tables) and the client's confirmed business rules,
 - the shared contracts that the API and the future apps will both compile against,
 - the API's configuration, health, validation, rate limiting and database wiring,
+- registration, sign-in and session rotation, with single-use OTP verification,
+  account lockout, and rotation that respects suspension and erasure,
+- profile editing, master data, and direct-to-storage photo upload,
 - CI that migrates and seeds a real database, boots the API and checks readiness.
 
-What does not exist yet: authentication, discovery, payments, photo upload,
-notifications and the admin dashboard. No business endpoint has been written.
+What does not exist yet: discovery, payments, unlock delivery, notifications and the
+admin dashboard.
 
 Unresolved client questions are tracked in
 [docs/decisions/client-answers-2026-09-29.md](docs/decisions/client-answers-2026-09-29.md).

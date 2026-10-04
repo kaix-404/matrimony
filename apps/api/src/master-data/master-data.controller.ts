@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { MasterDataService } from './master-data.service';
-import type { MasterListsResponse } from '@matrimony/shared';
+import type { MasterListsResponse, NetWorthCategoryOption } from '@matrimony/shared';
 
 /**
  * Reference data for pickers in the app.
@@ -18,5 +18,17 @@ export class MasterDataController {
   @Get('lists')
   async lists(): Promise<MasterListsResponse> {
     return this.masterData.lists();
+  }
+
+  /**
+   * The net-worth bands.
+   *
+   * Public because registration needs them before a session exists, and because
+   * two-way visibility lets a signed-in user edit their own selections from a
+   * screen that must not wait on a network round trip to render the options.
+   */
+  @Get('net-worth-categories')
+  async netWorthCategories(): Promise<NetWorthCategoryOption[]> {
+    return this.masterData.netWorthCategories();
   }
 }

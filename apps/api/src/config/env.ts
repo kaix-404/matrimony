@@ -143,7 +143,10 @@ export function createEnvSchema(isProduction: boolean) {
     PRICING_FIVE_CR_TO_TEN_CR_BASE: decimalString.default('499.00'),
     PRICING_ABOVE_10CR_BASE: decimalString.default('999.00'),
     PRICING_GST_RATE: decimalString.default('0.18'),
-    /** D9: flat account setup fee. No separate GST. */
+    /**
+     * D9: the account setup fee as a BASE amount. GST is added on top, so the
+     * payable total is ₹17.70 at the default rate (GAP-5, resolved 2026-10-03).
+     */
     ACCOUNT_SETUP_FEE: decimalString.default('15.00'),
     /** C3: reminder lead time before an unlock expires. */
     UNLOCK_EXPIRY_REMINDER_HOURS: int(1, 48).default(2),

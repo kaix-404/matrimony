@@ -1,14 +1,14 @@
 # Build phases
 
 Derived from the Internal Developer Work Document (section 45, Development
-Checklist) and the two decision logs in `docs/decisions`. Each phase is
+Checklist) and the three decision logs in `docs/decisions`. Each phase is
 independently deployable and leaves the system in a working state; nothing is
 built "in place" of a later phase.
 
 Ordering is driven by what unlocks what, not by what looks impressive. Identity
-comes before discovery because a user without a category partition key cannot be
-returned by any query, and payments come before unlock delivery because the
-schema forbids an unlock without a settled payment.
+comes before discovery because a user without a category cannot be returned by any
+query, and payments come before unlock delivery because the schema forbids an
+unlock without a settled payment.
 
 ## Phase 0 — Foundations ✅
 
@@ -17,7 +17,7 @@ security headers, rate limiting, clock service with drift guard, health probes,
 CI that boots the API against a real PostgreSQL 16. Client supplier decisions
 recorded (`03ed948`).
 
-## Phase 1 — Identity and registration
+## Phase 1 — Identity and registration ✅
 
 The only way into the product, and the only phase where the golden rules in
 section 36 can still be violated by a caller.
@@ -36,7 +36,11 @@ section 36 can still be violated by a caller.
 Exit criteria: a user can register, log in, refresh, log out, and every path is
 covered by tests including the expiry boundaries.
 
-## Phase 2 — Profile and master data
+Three holes found in review were closed in `ed824e1`: a verified registration OTP
+could be replayed to obtain a session for an already-registered number, the lockout
+was never called from the request path, and refresh rotation ignored suspension.
+
+## Phase 2 — Profile and master data ✅
 
 Profile CRUD with per-section validation, admin-configurable `ProfileAttribute`
 values, master-list endpoints (community, education, profession), and photo
@@ -45,12 +49,21 @@ behind payment and only `APPROVED` photos reach another user.
 
 ## Phase 3 — Discovery
 
-The read path. Candidates are restricted to the same category partition,
-eligibility gates applied (verified, setup fee paid, active, not deleted,
-not blocked), filters from `PartnerPreference`, and cursor pagination. Profile
-previews are built by explicit projection, never a spread, so the section 13
-hidden-field rule is enforced by the shape of the response rather than by
-review.
+The read path. Candidates are selected by the **two-way** visibility rule rather
+than a category partition: the viewer's discovery selection must include the
+target's category, and the target's allowed-viewer selection must include the
+viewer's category. Both lists are user-editable and default to the user's own
+category, so nothing widens without the user asking (see
+[`visibility-discoverability-2026-10-03.md`](../decisions/visibility-discoverability-2026-10-03.md)).
+
+Eligibility gates still apply (verified, setup fee paid, active, not deleted, not
+blocked in either direction), plus filters from `PartnerPreference` and cursor
+pagination. Net worth is never a filter. Profile previews are built by explicit
+projection, never a spread, so the section 13 hidden-field rule is enforced by the
+shape of the response rather than by review.
+
+Unlock price is derived from the **target's** category, so it is known before
+checkout and is snapshotted onto the payment row when taken.
 
 ## Phase 4 — Payments and unlock delivery
 

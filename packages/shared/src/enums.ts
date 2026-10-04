@@ -32,11 +32,16 @@ export type SeededNetWorthCategoryKey = (typeof SEEDED_NET_WORTH_CATEGORY_KEYS)[
 export const NET_WORTH_PENDING_REVIEW_KEY = 'PENDING_REVIEW';
 
 /**
- * Shape of a category row as delivered by the API. Numeric bounds are strings
- * because they are rupee amounts, and JavaScript numbers are not safe above
- * 2^53 paise.
+ * Shape of a category row as delivered by the API, in the internal camelCase
+ * shape used by services.
+ *
+ * The wire format is `NetWorthCategoryOptionSchema` in contracts/discovery.ts,
+ * which is snake_case to match every other contract and carries the GST-inclusive
+ * `setupFeeTotal`. This interface is the domain-side view of the same row; the
+ * service converts. Kept distinct from the wire type so the two cannot drift
+ * into one ambiguous export.
  */
-export interface NetWorthCategoryOption {
+export interface NetWorthCategoryRefRow {
   key: string;
   label: string;
   description: string;
@@ -44,7 +49,7 @@ export interface NetWorthCategoryOption {
   minInr: string | null;
   /** Exclusive upper bound in whole rupees; null = no upper bound. */
   maxInr: string | null;
-  /** The one-time account setup fee (D9), as a decimal string. */
+  /** The one-time account setup fee base (D9), as a decimal string. */
   setupFeeAmount: string;
   isDiscoverable: boolean;
   sortOrder: number;

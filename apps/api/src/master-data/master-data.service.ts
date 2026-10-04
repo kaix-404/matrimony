@@ -1,6 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '../prisma/prisma-client';
-import { MASTER_LIST_KEYS, type MasterList, type MasterListsResponse } from '@matrimony/shared';
+import {
+  MASTER_LIST_KEYS,
+  NET_WORTH_PENDING_REVIEW_KEY,
+  GST_PERCENT,
+  quotePayment,
+  type MasterList,
+  type MasterListsResponse,
+  type NetWorthCategoryOption,
+} from '@matrimony/shared';
 
 /**
  * Admin-managed reference data — client decision D3.
@@ -45,6 +53,58 @@ export class MasterDataService {
     });
 
     return { lists: ordered };
+  }
+
+  /**
+   * The net-worth bands, for the picker in registration and in the visibility
+   * preference screen.
+   *
+   * Public for the same reason `lists` is: the app needs the bands before anyone
+   * has a session, and a band is not user data.
+   *
+   * The review bucket is returned rather than filtered out. A client that fetched
+   * only four bands could not tell "this option is unavailable" from "this option
+   * does not exist", and the honest answer to a user whose net worth landed on a
+   * boundary is that the band is awaiting review. The `is_discoverable` flag
+   * carries that, and the preference contracts reject the bucket outright.
+   */
+  async netWorthCategories(): Promise<NetWorthCategoryOption[]> {
+    const rows = await this.prisma.netWorthCategoryRef.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      select: {
+        key: true,
+        label: true,
+        description: true,
+        minInr: true,
+        maxInr: true,
+        setupFeeAmount: true,
+        isDiscoverable: true,
+        sortOrder: true,
+      },
+    });
+
+    // Ordered by sortOrder, which the admin owns, so the sequence they chose is
+    // the one the client sees. Nothing else is assumed about band order.
+    return rows.map((row) => {
+      const setupFeeBase = row.setupFeeAmount.toFixed(2);
+
+      return {
+        key: row.key,
+        label: row.label,
+        description: row.description,
+        // BigInt: rupee bounds past 2^53 would lose precision as a number, and
+        // these are display strings, never arithmetic.
+        min_inr: row.minInr === null ? null : row.minInr.toString(),
+        max_inr: row.maxInr === null ? null : row.maxInr.toString(),
+        setup_fee_amount: setupFeeBase,
+        // The amount the user actually pays. Sending only the ₹15 base would
+        // leave the client showing a total that is ₹2.70 short (GAP-5).
+        setup_fee_total: quotePayment(setupFeeBase, GST_PERCENT).totalAmount,
+        is_discoverable: row.isDiscoverable && row.key !== NET_WORTH_PENDING_REVIEW_KEY,
+        sort_order: row.sortOrder,
+      };
+    });
   }
 
   /**

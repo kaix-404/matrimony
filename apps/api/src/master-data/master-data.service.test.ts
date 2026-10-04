@@ -62,6 +62,58 @@ class FakePrisma {
     },
   };
 
+  bands: Row[] = [
+    {
+      key: 'BELOW_2CR',
+      label: 'Net Worth Below 2 Crores',
+      description: 'Cheapest band.',
+      minInr: null,
+      maxInr: 20_000_000n,
+      setupFeeAmount: { toFixed: () => '15.00' },
+      isDiscoverable: true,
+      sortOrder: 1,
+      isActive: true,
+    },
+    {
+      key: 'ABOVE_10CR',
+      label: 'Net Worth Above 10 Crores',
+      description: 'Priciest band.',
+      minInr: 100_000_000n,
+      maxInr: null,
+      setupFeeAmount: { toFixed: () => '15.00' },
+      isDiscoverable: true,
+      sortOrder: 11,
+      isActive: true,
+    },
+    {
+      key: 'PENDING_REVIEW',
+      label: 'Under manual review',
+      description: 'Awaiting admin review.',
+      minInr: null,
+      maxInr: null,
+      setupFeeAmount: { toFixed: () => '15.00' },
+      isDiscoverable: false,
+      sortOrder: 99,
+      isActive: true,
+    },
+    {
+      key: 'RETIRED_BAND',
+      label: 'Retired band',
+      description: 'No longer offered.',
+      minInr: null,
+      maxInr: null,
+      setupFeeAmount: { toFixed: () => '15.00' },
+      isDiscoverable: true,
+      sortOrder: 50,
+      isActive: false,
+    },
+  ];
+
+  netWorthCategoryRef = {
+    findMany: async ({ where }: { where: { isActive: boolean } }) =>
+      this.bands.filter((b) => b['isActive'] === where.isActive),
+  };
+
   masterListValue = {
     findFirst: async ({ where }: { where: { id: string; listKey: string; isActive: boolean } }) => {
       for (const list of this.lists) {
@@ -148,8 +200,47 @@ describe('MasterDataService', () => {
     });
     expect(result).toMatchObject({
       educationId: 'e1',
+      educationValue: 'B.Tech',
       professionId: 'p1',
+      professionValue: 'Engineer',
       communityId: 'c1',
+      communityValue: 'Aggarwal',
+    });
+  });
+
+  describe('netWorthCategories', () => {
+    it('serves the active bands in admin sort order', async () => {
+      const bands = await service.netWorthCategories();
+      expect(bands.map((b) => b.key)).toEqual(['BELOW_2CR', 'ABOVE_10CR', 'PENDING_REVIEW']);
+    });
+
+    it('omits a retired band entirely', async () => {
+      const bands = await service.netWorthCategories();
+      expect(bands.some((b) => b.key === 'RETIRED_BAND')).toBe(false);
+    });
+
+    it('sends rupee bounds as strings, not numbers', async () => {
+      // BigInt bounds past 2^53 would silently lose precision as a number, so
+      // the wire type is string and the conversion is part of the contract.
+      const above = (await service.netWorthCategories()).find((b) => b.key === 'ABOVE_10CR')!;
+      expect(above.min_inr).toBe('100000000');
+      expect(above.max_inr).toBeNull();
+      expect(typeof above.min_inr).toBe('string');
+    });
+
+    it('sends the GST-inclusive setup total, not just the base', async () => {
+      // GAP-5: the client showing only the ₹15 base would quote ₹2.70 short.
+      const band = (await service.netWorthCategories())[0];
+      expect(band.setup_fee_amount).toBe('15.00');
+      expect(band.setup_fee_total).toBe('17.70');
+    });
+
+    it('marks the review bucket as not discoverable but still returns it', async () => {
+      // Returning it lets the app say "under review" instead of silently
+      // omitting an option the user believes exists.
+      const bands = await service.netWorthCategories();
+      const pending = bands.find((b) => b.key === 'PENDING_REVIEW')!;
+      expect(pending.is_discoverable).toBe(false);
     });
   });
 });

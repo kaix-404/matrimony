@@ -8,6 +8,12 @@ traced to the code they change. Brand is **Networth Matrimony**.
 > [`client-provider-decisions-2026-10-01.md`](client-provider-decisions-2026-10-01.md).
 > That file is authoritative for *which* supplier; this one stays authoritative for
 > product behaviour, and nothing here has been rewritten.
+>
+> **Superseded in part on 2026-10-03.** Discovery visibility and unlock pricing are now
+> set by [`visibility-discoverability-2026-10-03.md`](visibility-discoverability-2026-10-03.md).
+> **B1** and **E1** no longer stand, and **GAP-5** is resolved. B1's rule that the user
+> cannot edit their own category *does* still stand. The superseded rows are kept below
+> as written, marked, rather than deleted.
 
 ## Resolved answers
 
@@ -16,7 +22,7 @@ traced to the code they change. Brand is **Networth Matrimony**.
 | A1 | Show full date of birth | DOB leaves the hidden-before-payment list. Age is consequently visible; hiding it would be cosmetic. |
 | A2 | Community hidden, religion visible | `community` added to the hidden list; `religion` explicitly preview-visible. Note: this combination was not one of the offered options. |
 | A4 | No refund; account deleted immediately with no access; move user to the deleted-account database | See **GAP-1** — access stops *and* no refund, which was not an offered option. |
-| B1 | Discovery is strictly within the user's own category. Category cannot be edited by the user; only an admin may change it. Net worth must not appear in filters or preferences. | Net worth becomes a partition key, not a filter. Trivially settles the buyer's-price-vs-target-price question: both are the same category, so the same price. |
+| B1 | Discovery is strictly within the user's own category. Category cannot be edited by the user; only an admin may change it. Net worth must not appear in filters or preferences. **SUPERSEDED 2026-10-03 on discovery visibility, on preferences, and on whose category sets the price.** The category-immutability rule stands. | Net worth was a partition key, not a filter, which trivially settled the buyer's-price-vs-target-price question. Two-way preferences break that: the price is now the **target's** category, and `PricingConfig.category` always meant the target. See [`visibility-discoverability-2026-10-03.md`](visibility-discoverability-2026-10-03.md). |
 | B3 | Block duplicate purchases | Re-charging for a live 24h unlock is refused before any gateway order is created. |
 | B5 | No refunds except technical glitches, by email request. Remove "view refund status" | No self-serve refund surface at all. The only route is an emailed request handled by an admin. |
 | C3 | Reminder 2 hours before expiry | `UNLOCK_EXPIRING_2H` notification event. |
@@ -24,7 +30,7 @@ traced to the code they change. Brand is **Networth Matrimony**.
 | D2 | Horoscope display only, no compatibility matching | Confirms the matching engine is **out of scope**. Scope reduction. |
 | D3 | Master lists for education, profession, caste and community. Company name and income remain free text | New admin-managed master-list tables. |
 | D9 | Mandatory Aadhaar/DigiLocker ID verification. Collect a ₹15 account setup fee as the last step; only after paying may a user view others or be seen | Identity verification becomes mandatory, and a second payment type is introduced. See **GAP-5**. |
-| E1 | Return all profiles | A user with no partner preference sees everyone in their category. Preference is not a gate. |
+| E1 | Return all profiles | A user with no partner preference sees everyone in their category. Preference is not a gate. **SUPERSEDED 2026-10-03:** the fallback is now the two-way intersection, with both lists defaulting to the user's own category. |
 | E2 | Newest and closest profile first | See **GAP-3** — precedence is ambiguous. |
 | F1 | Automated screening with admin spot-checks | Screening is automated-first, not manual-review-everything. |
 | F2 | (a) Only Super Admin may change category, edit pricing, or issue a manual unlock, each audit-logged | Role matrix tightened. See **GAP-6** — "deleting a user" was asked but not answered. |
@@ -82,12 +88,13 @@ photo is the primary/cover image, and does a family photo count as visible
 before payment? Note that F1 automated screening has to detect faces in group
 photos, which is materially harder than single-face screening.
 
-**GAP-5 — The ₹15 setup fee.** Undefined: is ₹15 the final amount or is GST
-added on top? Is it ever refunded if ID verification fails? Is it one per
-account lifetime? Does it appear in payment history? Current implementation
-assumption: ₹15.00 total, no separate GST, one per account, collected only
-after ID verification succeeds, and recorded as a distinct payment purpose so it
-is never confused with an unlock.
+**GAP-5 — The ₹15 setup fee. RESOLVED 2026-10-03.** Was undefined: is ₹15 the
+final amount or is GST added on top? The answer is **GST is added on top**, so the
+payable amount is ₹15.00 + 18% = **₹17.70**. The remaining parts of the question
+are unchanged: one per account lifetime, collected only after ID verification
+succeeds, and recorded as a distinct `PaymentPurpose` so it is never confused with
+an unlock. See
+[`visibility-discoverability-2026-10-03.md`](visibility-discoverability-2026-10-03.md).
 
 **GAP-6 — Who may delete a user.** F2(a) covers changing category, editing
 pricing and manual unlock, all restricted to Super Admin. The question also
