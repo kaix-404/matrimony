@@ -25,6 +25,7 @@
     "prisma:seed": "npm run prisma:seed -w @matrimony/api",
     "prisma:studio": "npm run prisma:studio -w @matrimony/api",
     "dev": "docker compose -f infra/docker/docker-compose.yml up -d",
+    "dev:storage": "docker compose -f infra/docker/docker-compose.yml --profile storage up -d",
     "dev:down": "docker compose -f infra/docker/docker-compose.yml down",
     "dev:logs": "docker compose -f infra/docker/docker-compose.yml logs -f",
     "setup": "npm install && npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed",

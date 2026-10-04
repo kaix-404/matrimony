@@ -63,9 +63,19 @@ services:
       retries: 10
     networks: [matrimony]
 
+  # Object storage is opt-in (`npm run dev:storage`) because the upstream MinIO
+  # Community Edition is now distributed as source only: the Docker Hub images
+  # were removed and the repository was archived, so `minio/minio` can no longer
+  # be pulled. Leaving it in the default set made `npm run dev` fail outright,
+  # taking Postgres and Redis down with it.
+  #
+  # The API boots and passes readiness without this; it is only needed for real
+  # photo uploads. Point MINIO_IMAGE and MINIO_MC_IMAGE at a mirror or fork you
+  # trust to run it.
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:-minio/minio:latest}
     container_name: matrimony-minio
+    profiles: [storage]
     restart: unless-stopped
     command: ['server', '/data', '--console-address', ':9001']
     environment:
@@ -87,8 +97,9 @@ services:
   # Private-by-default is required: section 41 asks for secure image storage
   # and section 9 only ever serves approved photos.
   minio-init:
-    image: minio/mc:latest
+    image: ${MINIO_MC_IMAGE:-minio/mc:latest}
     container_name: matrimony-minio-init
+    profiles: [storage]
     depends_on:
       minio:
         condition: service_healthy
