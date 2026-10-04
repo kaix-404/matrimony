@@ -6,7 +6,15 @@
  * driver adapter, so the pool is configured here rather than by the schema.
  */
 
-import { Global, Inject, Injectable, Logger, Module, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Global,
+  Inject,
+  Injectable,
+  Logger,
+  Module,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from './prisma-client';
 import type { Env } from '../config/env';
@@ -73,10 +81,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
  */
 @Global()
 @Module({
-  providers: [
-    PrismaService,
-    { provide: PrismaClient, useExisting: PrismaService },
-  ],
+  providers: [PrismaService, { provide: PrismaClient, useExisting: PrismaService }],
   exports: [PrismaService, PrismaClient],
 })
 export class PrismaModule {}
