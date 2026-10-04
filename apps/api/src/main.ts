@@ -4,8 +4,10 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { configureApp } from './configure-app';
 import type { Env } from './config/env';
+import { loadRootEnv } from './load-env';
 
 async function bootstrap(): Promise<void> {
+  loadRootEnv();
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
 
