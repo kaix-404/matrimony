@@ -64,7 +64,13 @@ class FakePrisma {
       if (!row) throw new Error(`no user ${where.id}`);
       return { networthCategory: row.band };
     },
-    findMany: async ({ where, distinct }: { where: Record<string, unknown>; distinct?: string[] }) => {
+    findMany: async ({
+      where,
+      distinct,
+    }: {
+      where: Record<string, unknown>;
+      distinct?: string[];
+    }) => {
       const matched = this.users.filter((u) => matchesUser(u, where, this));
       if (!distinct?.includes('networthCategory')) return matched.map(toUserSelect);
 
@@ -114,8 +120,7 @@ class FakePrisma {
             photoType: photo.photoType,
           })),
         user: {
-          networthCategory:
-            this.users.find((u) => u.id === p.userId)!.band satisfies string,
+          networthCategory: this.users.find((u) => u.id === p.userId)!.band satisfies string,
         },
       }));
     },
@@ -177,12 +182,11 @@ function matchesUser(u: SeedUser, where: Record<string, unknown>, storeRef: Fake
   const or = where['OR'] as Record<string, unknown>[] | undefined;
   if (or && !or.some((branch) => matchesUser(u, branch, storeRef))) return false;
 
-const vis = where['visibilityCategories'] as { some: { category: string } } | undefined;
+  const vis = where['visibilityCategories'] as { some: { category: string } } | undefined;
   if (vis && !u.visibleTo.includes(vis.some.category)) return false;
 
   const pref = where['partnerPreference'] as
-    | { is: { visibilityConfigured?: boolean } | null }
-    | undefined;
+    { is: { visibilityConfigured?: boolean } | null } | undefined;
   if (pref) {
     // `is: null` asserts the row is ABSENT, which is the state the own-band
     // default is defined against. Reading it as "no filter" would match every
@@ -207,7 +211,20 @@ const vis = where['visibilityCategories'] as { some: { category: string } } | un
   const blockedBy = where['blockedBy'] as { none: { blockerId: string } } | undefined;
   if (blockedBy && storeRef.blockedPairs.has(pairKey(blockedBy.none.blockerId, u.id))) return false;
 
-  throwOnUnmodelled(where, ['networthCategory', 'OR', 'visibilityCategories', 'partnerPreference', 'id', 'status', 'identityVerifiedAt', 'setupFeePaidAt', 'isAnonymised', 'deletedAt', 'blocksInitiated', 'blockedBy']);
+  throwOnUnmodelled(where, [
+    'networthCategory',
+    'OR',
+    'visibilityCategories',
+    'partnerPreference',
+    'id',
+    'status',
+    'identityVerifiedAt',
+    'setupFeePaidAt',
+    'isAnonymised',
+    'deletedAt',
+    'blocksInitiated',
+    'blockedBy',
+  ]);
   return true;
 }
 
@@ -215,7 +232,11 @@ function pairKey(a: string, b: string): string {
   return `${a}>${b}`;
 }
 
-function matchesProfile(p: SeedProfile, where: Record<string, unknown>, store: FakePrisma): boolean {
+function matchesProfile(
+  p: SeedProfile,
+  where: Record<string, unknown>,
+  store: FakePrisma,
+): boolean {
   if (where['status'] !== undefined && where['status'] !== p.status) return false;
   if (where['visibility'] !== undefined && where['visibility'] !== p.visibility) return false;
   if (where['deletedAt'] === null && p.deleted) return false;
@@ -231,10 +252,7 @@ function matchesProfile(p: SeedProfile, where: Record<string, unknown>, store: F
 }
 
 /** Fails loudly if the service grows a predicate the double does not model. */
-function throwOnUnmodelled(
-  where: Record<string, unknown>,
-  known: string[],
-): void {
+function throwOnUnmodelled(where: Record<string, unknown>, known: string[]): void {
   for (const key of Object.keys(where)) {
     if (!known.includes(key)) {
       throw new Error(`FakePrisma does not model predicate "${key}" — extend the double.`);
@@ -373,6 +391,32 @@ describe('DiscoveryService', () => {
 
       const result = await service.search('viewer', query());
       expect(result.applied_categories).toEqual([]);
+    });
+
+    it('omits a same-band user who opted out even when the band qualifies', async () => {
+      // 'a' accepts LOW, which is what makes HIGH a searched band. 'b' is also
+      // HIGH and also eligible, but has explicitly refused LOW. The scope only
+      // records that *someone* in the band accepts, so without a per-candidate
+      // check 'b' rides in on 'a's consent.
+      seedEligible('a', 'HIGH', { visibilityConfigured: true, visibleTo: ['LOW'] });
+      seedEligible('b', 'HIGH', { visibilityConfigured: true, visibleTo: ['MID'] });
+      preferences.effectiveDiscoveryCategories.mockResolvedValue(['HIGH']);
+
+      const result = await service.search('viewer', query());
+      expect(result.applied_categories).toEqual(['HIGH']);
+      expect(result.items.map((c) => c.profile_id)).toEqual([pid('a')]);
+    });
+
+    it('omits a same-band user who configured an empty visible_to list', async () => {
+      // An empty list is a deliberate "nobody", and must not be softened into the
+      // own-band default just because another same-band user left theirs unset.
+      seedEligible('a', 'HIGH', { visibilityConfigured: true, visibleTo: ['LOW'] });
+      seedEligible('b', 'HIGH', { visibilityConfigured: true, visibleTo: [] });
+      preferences.effectiveDiscoveryCategories.mockResolvedValue(['HIGH']);
+
+      const result = await service.search('viewer', query());
+      expect(result.applied_categories).toEqual(['HIGH']);
+      expect(result.items.map((c) => c.profile_id)).toEqual([pid('a')]);
     });
 
     it('counts a never-configured user as accepting their own band', async () => {
@@ -553,8 +597,26 @@ describe('DiscoveryService', () => {
     it('exposes approved photos only', async () => {
       seedEligible('a', 'LOW', {
         photos: [
-          { id: 'ph1', objectKey: 'k1', widthPx: 800, heightPx: 600, isPrimary: true, photoType: 'SINGLE', status: 'APPROVED', sortOrder: 0 },
-          { id: 'ph2', objectKey: 'k2', widthPx: 800, heightPx: 600, isPrimary: false, photoType: 'FAMILY', status: 'PENDING_REVIEW', sortOrder: 1 },
+          {
+            id: 'ph1',
+            objectKey: 'k1',
+            widthPx: 800,
+            heightPx: 600,
+            isPrimary: true,
+            photoType: 'SINGLE',
+            status: 'APPROVED',
+            sortOrder: 0,
+          },
+          {
+            id: 'ph2',
+            objectKey: 'k2',
+            widthPx: 800,
+            heightPx: 600,
+            isPrimary: false,
+            photoType: 'FAMILY',
+            status: 'PENDING_REVIEW',
+            sortOrder: 1,
+          },
         ],
       });
 
@@ -568,7 +630,16 @@ describe('DiscoveryService', () => {
     it('drops a photo whose signing fails rather than failing the page', async () => {
       seedEligible('a', 'LOW', {
         photos: [
-          { id: 'ph1', objectKey: 'bad', widthPx: 800, heightPx: 600, isPrimary: true, photoType: 'SINGLE', status: 'APPROVED', sortOrder: 0 },
+          {
+            id: 'ph1',
+            objectKey: 'bad',
+            widthPx: 800,
+            heightPx: 600,
+            isPrimary: true,
+            photoType: 'SINGLE',
+            status: 'APPROVED',
+            sortOrder: 0,
+          },
         ],
       });
       const moduleRef = await Test.createTestingModule({
@@ -615,7 +686,10 @@ describe('DiscoveryService', () => {
       seedEligible('c', 'LOW', { createdAt: '2026-09-01T00:00:00Z' });
 
       const first = await service.search('viewer', query({ limit: 1 }));
-      const second = await service.search('viewer', query({ limit: 1, cursor: first.next_cursor! }));
+      const second = await service.search(
+        'viewer',
+        query({ limit: 1, cursor: first.next_cursor! }),
+      );
 
       expect(first.items.map((c) => c.profile_id)).toEqual([pid('c')]);
       expect(second.items.map((c) => c.profile_id)).toEqual([pid('b')]);

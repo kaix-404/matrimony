@@ -98,6 +98,24 @@ export class DiscoveryService {
             // user through the join.
             blocksInitiated: { none: { blockedId: viewerId } },
             blockedBy: { none: { blockerId: viewerId } },
+            // Two-way acceptance, evaluated per candidate and not per band.
+            // `scope` only records which bands contain at least one user who
+            // accepts the viewer, so filtering on the band alone would also
+            // return same-band users who have explicitly opted this viewer out:
+            // one accepting stranger in a band was enough to expose every
+            // rejecting member of it.
+            OR: [
+              // Explicitly opted in to the viewer's band.
+              { visibilityCategories: { some: { category: viewer.networthCategory } } },
+              // Never configured, so the default applies: their own band.
+              {
+                networthCategory: viewer.networthCategory,
+                OR: [
+                  { partnerPreference: { is: { visibilityConfigured: false } } },
+                  { partnerPreference: { is: null } },
+                ],
+              },
+            ],
           },
         },
       },
