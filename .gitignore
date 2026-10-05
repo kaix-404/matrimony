@@ -17,6 +17,17 @@ out/
 *.pem
 *.key
 
+# Service-account key files. A Firebase Admin SDK download is a *private key*:
+# it grants full admin access to the Firebase project and can mint tokens for any
+# user in it. It arrives by browser download and is easy to drop into a docs
+# folder by habit, which is exactly how it ends up in a commit. Matched by name so
+# the rule survives a rename of the surrounding directory.
+*firebase-adminsdk*.json
+*service-account*.json
+serviceAccount*.json
+# Provider key files, in case a client hands them over the same way.
+*credentials*.json
+
 # test + coverage
 coverage/
 .nyc_output/

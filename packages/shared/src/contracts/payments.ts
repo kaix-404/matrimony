@@ -132,3 +132,36 @@ export const PaymentStatusSchema = z
   .strict();
 
 export type PaymentStatusResponse = z.infer<typeof PaymentStatusSchema>;
+
+// ---------------------------------------------------------------------------
+// Unlocks held by the caller
+// ---------------------------------------------------------------------------
+
+/**
+ * One unlock, as the buyer sees it.
+ *
+ * `display_name` is null once the window has closed. A list endpoint that kept
+ * rendering names would re-disclose, on every page load, exactly the fields
+ * section 13 withholds until payment — the one thing an expired unlock must not
+ * do is keep paying out.
+ */
+export const UnlockSummarySchema = z
+  .object({
+    profile_id: z.string().min(1),
+    display_name: z.string().nullable(),
+    status: z.enum(['ACTIVE', 'EXPIRED', 'REVOKED']),
+    unlocked_at: z.string().min(1),
+    unlock_expires_at: z.string().min(1),
+    remaining_ms: z.number().int().nonnegative(),
+  })
+  .strict();
+
+export type UnlockSummary = z.infer<typeof UnlockSummarySchema>;
+
+export const UnlockListResponseSchema = z
+  .object({
+    items: z.array(UnlockSummarySchema),
+  })
+  .strict();
+
+export type UnlockListResponse = z.infer<typeof UnlockListResponseSchema>;

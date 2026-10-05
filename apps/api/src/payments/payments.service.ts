@@ -112,14 +112,26 @@ export class PaymentsService {
   /**
    * Price and open a gateway order for one profile's contact.
    *
-   * The amount is derived here and never read from the request. Eligibility is
-   * checked before anything else, so an ineligible caller cannot learn a price.
+   * The amount is derived here and never read from the request.
+   *
+   * Idempotency is checked *first*, ahead of every eligibility rule below. This
+   * is the ordering the retry case forces: a client retries precisely when it is
+   * unsure whether its first attempt landed, and that is exactly when the world
+   * has moved on — the webhook may have marked the profile sold, the target may
+   * have paused visibility, the profile may have been deleted. Re-checking
+   * eligibility first would answer the retry with a 404 or 409 and leave the
+   * caller with no way to discover the order it already has. Replaying the
+   * caller's own order discloses nothing new: the price came from the same
+   * server-side quote both times, and the caller passed the key itself.
    */
   async createUnlockOrder(
     userId: string,
     profileId: string,
     idempotencyKey?: string,
   ): Promise<PaymentOrderResponse> {
+    const replay = await this.findByIdempotencyKey(idempotencyKey, userId, 'UNLOCK', profileId);
+    if (replay) return this.replayOrder(replay);
+
     const buyer = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { status: true },
@@ -158,9 +170,6 @@ export class PaymentsService {
     if (!(await this.preferences.isDiscoverableBy(userId, profile.user.id))) {
       throw new NotFoundException('Profile not found');
     }
-
-    const existing = await this.findByIdempotencyKey(idempotencyKey);
-    if (existing) return this.replayOrder(existing);
 
     const quote = await this.quoteForCategory(profile.user.networthCategory);
 
@@ -206,11 +215,20 @@ export class PaymentsService {
    * never touches `pricing_config`. D9 makes it the last step before a user may
    * browse or be browsed, which is why it is only offered to a user who has
    * passed verification and is waiting on precisely this.
+   *
+   * Idempotency is checked before the paid-up and status guards for the same
+   * reason as in `createUnlockOrder`, and here it matters more: the successful
+   * path *itself* sets `setupFeePaidAt`, so a retry arriving after the webhook
+   * would hit the guard below and be told the fee was already paid — losing the
+   * order the caller needs in order to check on it.
    */
   async createSetupFeeOrder(
     userId: string,
     idempotencyKey?: string,
   ): Promise<PaymentOrderResponse> {
+    const replay = await this.findByIdempotencyKey(idempotencyKey, userId, 'SETUP_FEE');
+    if (replay) return this.replayOrder(replay);
+
     const buyer = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { status: true, setupFeePaidAt: true },
@@ -228,9 +246,6 @@ export class PaymentsService {
         BLOCKED_PURCHASERS[buyer.status] ?? 'This account cannot pay the setup fee yet.',
       );
     }
-
-    const existing = await this.findByIdempotencyKey(idempotencyKey);
-    if (existing) return this.replayOrder(existing);
 
     const quote = quotePayment(ACCOUNT_SETUP_FEE, GST_PERCENT);
 
@@ -414,9 +429,42 @@ export class PaymentsService {
     };
   }
 
-  private async findByIdempotencyKey(key?: string): Promise<OrderRow | null> {
+  /**
+   * Find an order this caller already opened under this key.
+   *
+   * Scoped by `userId` as well as the key, and that is the point of the
+   * `findFirst`. `idempotencyKey` is globally unique, so a bare
+   * `findUnique({ idempotencyKey })` would hand one user's order to whoever sent
+   * the colliding key — returning another account's payment id, gateway order id
+   * and amount to a caller who merely guessed a string. Keys are generated, not
+   * secrets, so treating them as unguessable is the wrong assumption to build on.
+   *
+   * A key reused for a *different* purchase is rejected rather than replayed.
+   * Replaying the setup-fee order from the unlock endpoint (or one target's order
+   * for another target) would answer the wrong question with a plausible-looking
+   * 200.
+   */
+  private async findByIdempotencyKey(
+    key: string | undefined,
+    userId: string,
+    purpose: OrderRow['purpose'],
+    targetProfileId?: string,
+  ): Promise<OrderRow | null> {
     if (!key) return null;
-    return this.prisma.payment.findUnique({ where: { idempotencyKey: key } });
+
+    const existing = await this.prisma.payment.findFirst({
+      where: { idempotencyKey: key, userId },
+    });
+    if (!existing) return null;
+
+    if (
+      existing.purpose !== purpose ||
+      (existing.targetProfileId ?? null) !== (targetProfileId ?? null)
+    ) {
+      throw new ConflictException('This idempotency key was already used for a different payment.');
+    }
+
+    return existing;
   }
 
   /**
@@ -457,15 +505,41 @@ export class PaymentsService {
         currency: CURRENCY,
       },
       // Present on a replayed unlock order too: the app is about to show the
-      // target it is paying for, and dropping it would make a retried order
-      // look like a different purchase. The name is not re-read, because a
-      // replay must not depend on the profile still existing.
-      profile: existing.targetProfileId
-        ? { profile_id: existing.targetProfileId, first_name: '' }
-        : undefined,
+      // target it is paying for, and dropping it would make a retried order look
+      // like a different purchase.
+      profile: await this.replayTarget(existing),
       unlock_window_hours: existing.purpose === 'UNLOCK' ? UNLOCK_WINDOW_HOURS : undefined,
       created_at: existing.createdAt.toISOString(),
     };
+  }
+
+  /**
+   * The target preview for a replayed unlock order.
+   *
+   * Re-read rather than cached, and *omitted entirely* when the profile is gone.
+   *
+   * An earlier version echoed `first_name: ''` to avoid touching the profile.
+   * That is not an option: `PaymentOrderSchema.profile.first_name` has `min(1)`,
+   * so every retry of an unlock order returned a payload that failed its own
+   * contract — a client validating responses would reject the replay while
+   * accepting the original.
+   *
+   * Omission is the correct outcome rather than a fallback name. A target that no
+   * longer exists is the GAP-1 case the webhook already handles by recording
+   * `TARGET_UNAVAILABLE`, and `profile` is optional in the contract for exactly
+   * that reason: an order must be able to outlive its target and still replay
+   * cleanly. Inventing a name would tell the buyer they are paying for someone
+   * who no longer has a profile.
+   */
+  private async replayTarget(existing: OrderRow): Promise<PaymentOrderResponse['profile']> {
+    if (existing.purpose !== 'UNLOCK' || !existing.targetProfileId) return undefined;
+
+    const target = await this.prisma.profile.findUnique({
+      where: { id: existing.targetProfileId },
+      select: { id: true, firstName: true },
+    });
+
+    return target ? { profile_id: target.id, first_name: target.firstName } : undefined;
   }
 
   /**

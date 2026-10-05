@@ -22,7 +22,7 @@ import { PaymentsService } from './payments.service';
 import { PaymentGateway, type CreateGatewayOrderInput, type GatewayOrder } from './payment.gateway';
 import { FrozenClock } from '../common/clock/clock.service';
 import { VisibilityPreferenceService } from '../discovery/visibility-preference.service';
-import { UNLOCK_WINDOW_HOURS } from '@matrimony/shared';
+import { PaymentOrderSchema, UNLOCK_WINDOW_HOURS } from '@matrimony/shared';
 
 const WEBHOOK_SECRET = 'whsec_unit_test_secret';
 
@@ -184,8 +184,28 @@ class FakePrisma {
       }
       return null;
     },
-    findFirst: async ({ where }: { where: { id: string; userId: string } }) =>
-      this.payments.find((p) => p.id === where.id && p.userId === where.userId) ?? null,
+    findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+      // Both shapes the service uses: by id, and the idempotency lookup that is
+      // scoped by user as well as key. A fake that matched the key alone would
+      // not catch a regression that let one user's order replay for another.
+      if (typeof where.idempotencyKey === 'string') {
+        return (
+          this.payments.find(
+            (p) =>
+              p.idempotencyKey === where.idempotencyKey &&
+              (where.userId === undefined || p.userId === where.userId),
+          ) ?? null
+        );
+      }
+      if (typeof where.id === 'string') {
+        return (
+          this.payments.find(
+            (p) => p.id === where.id && (where.userId === undefined || p.userId === where.userId),
+          ) ?? null
+        );
+      }
+      return null;
+    },
     update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
       const row = this.payments.find((p) => p.id === where.id);
       if (!row) throw new Error(`no payment ${where.id}`);
@@ -459,6 +479,172 @@ describe('PaymentsService — order creation', () => {
     // twice.
     expect(prisma.payments).toHaveLength(1);
     expect(gateway.created).toHaveLength(1);
+  });
+
+  // A client retries precisely when it does not know whether its first attempt
+  // landed, which is exactly when the world has moved on underneath it. These
+  // tests pin that a retry still finds the order it already has.
+  describe('idempotent replay when the world has moved on', () => {
+    /** A user at the setup-fee step, which is where the fee is offered. */
+    function seedAwaitingFee(prisma: FakePrisma): string {
+      const id = 'user_fee';
+      prisma.users.push({
+        id,
+        status: 'AWAITING_SETUP_FEE',
+        setupFeePaidAt: null,
+        networthCategory: 'BELOW_2CR',
+      });
+      return id;
+    }
+
+    it('replays an unlock order after the target profile disappears', async () => {
+      const { service, prisma, gateway } = await makeService();
+      seed(prisma);
+
+      const first = await service.createUnlockOrder(BUYER, 'profile_target', 'idem-key');
+      // The target is deleted between the request and the retry.
+      prisma.profiles.length = 0;
+
+      const second = await service.createUnlockOrder(BUYER, 'profile_target', 'idem-key');
+
+      // Checking eligibility first would have answered this with a 404, leaving
+      // the caller unable to find the order it already has.
+      expect(second.payment_id).toBe(first.payment_id);
+      expect(gateway.created).toHaveLength(1);
+    });
+
+    it('replays a setup fee order after the fee has already been paid', async () => {
+      const { service, prisma, gateway } = await makeService();
+      const feeUser = seedAwaitingFee(prisma);
+
+      const first = await service.createSetupFeeOrder(feeUser, 'fee-key');
+      // The successful path itself flips these, so the guards below the
+      // idempotency check would reject the retry with "already paid".
+      const user = prisma.users.find((u) => u.id === feeUser)!;
+      user.setupFeePaidAt = new Date();
+      user.status = 'ACTIVE';
+
+      const second = await service.createSetupFeeOrder(feeUser, 'fee-key');
+
+      expect(second.payment_id).toBe(first.payment_id);
+      expect(gateway.created).toHaveLength(1);
+    });
+
+    it('replays an unlock order after the target pauses visibility', async () => {
+      const { service, prisma } = await makeService();
+      seed(prisma);
+
+      const first = await service.createUnlockOrder(BUYER, 'profile_target', 'idem-key');
+      prisma.profiles[0].visibility = 'PAUSED';
+
+      expect(
+        (await service.createUnlockOrder(BUYER, 'profile_target', 'idem-key')).payment_id,
+      ).toBe(first.payment_id);
+    });
+
+    it('returns a replayed unlock order that satisfies the payment contract', async () => {
+      const { service, prisma } = await makeService();
+      seed(prisma);
+      await service.createUnlockOrder(BUYER, 'profile_target', 'idem-key');
+
+      const replay = await service.createUnlockOrder(BUYER, 'profile_target', 'idem-key');
+
+      // Regression: the replay used to echo `first_name: ''`, which fails
+      // `min(1)` and would be rejected by any client validating the response.
+      expect(PaymentOrderSchema.parse(replay)).toEqual(replay);
+      expect(replay.profile).toEqual({ profile_id: 'profile_target', first_name: 'Asha' });
+    });
+
+    it('omits the target on a replay when the profile is gone', async () => {
+      const { service, prisma } = await makeService();
+      seed(prisma);
+      await service.createUnlockOrder(BUYER, 'profile_target', 'idem-key');
+      prisma.profiles.length = 0;
+
+      const replay = await service.createUnlockOrder(BUYER, 'profile_target', 'idem-key');
+
+      // An order has to be able to outlive its target (the GAP-1 case). Inventing
+      // a name would tell the buyer they are paying for a profile that is gone.
+      expect(replay.profile).toBeUndefined();
+      expect(PaymentOrderSchema.parse(replay)).toEqual(replay);
+    });
+
+    it("never replays another user's order for a colliding key", async () => {
+      const { service, prisma, gateway } = await makeService();
+      seed(prisma);
+      prisma.users.push({
+        id: 'user_third',
+        status: 'ACTIVE',
+        setupFeePaidAt: new Date('2026-10-01'),
+        networthCategory: 'BELOW_2CR',
+      });
+
+      const buyers = await service.createUnlockOrder(BUYER, 'profile_target', 'collide');
+
+      // `idempotencyKey` is globally unique, so a lookup by key alone would hand
+      // this caller someone else's payment id and gateway order id. Keys are
+      // generated, not secrets, so this must not depend on them being secret.
+      await expect(
+        service.createUnlockOrder('user_third', 'profile_target', 'collide'),
+      ).rejects.toThrow();
+      expect(gateway.created).toHaveLength(1);
+      expect(prisma.payments).toHaveLength(1);
+      expect(buyers.payment_id).not.toBe('pay_2');
+    });
+
+    it('refuses a key already used for a different target', async () => {
+      const { service, prisma } = await makeService();
+      seed(prisma);
+      prisma.profiles.push({
+        id: 'profile_two',
+        userId: TARGET,
+        firstName: 'Bela',
+        status: 'APPROVED',
+        visibility: 'ACTIVE',
+        deletedAt: null,
+      });
+      await service.createUnlockOrder(BUYER, 'profile_target', 'shared-key');
+
+      // Replaying the first target's order here would be a plausible-looking 200
+      // answering the wrong question.
+      await expect(service.createUnlockOrder(BUYER, 'profile_two', 'shared-key')).rejects.toThrow(
+        'already used for a different payment',
+      );
+    });
+
+    it('refuses to answer the unlock endpoint with a setup-fee order', async () => {
+      const { service, prisma } = await makeService();
+      seed(prisma);
+      const feeUser = seedAwaitingFee(prisma);
+      await service.createSetupFeeOrder(feeUser, 'cross-key');
+
+      // The same caller, reusing their key for a different purpose. Because the
+      // idempotency check runs ahead of the eligibility guards, this is reported
+      // as the conflict it is rather than masked by an eligibility error.
+      await expect(
+        service.createUnlockOrder(feeUser, 'profile_target', 'cross-key'),
+      ).rejects.toThrow('already used for a different payment');
+    });
+
+    it("rejects another user's colliding key rather than replaying their order", async () => {
+      const { service, prisma } = await makeService();
+      seed(prisma);
+      prisma.users.push({
+        id: 'user_third',
+        status: 'ACTIVE',
+        setupFeePaidAt: new Date('2026-10-01'),
+        networthCategory: 'BELOW_2CR',
+      });
+      await service.createUnlockOrder(BUYER, 'profile_target', 'collide');
+
+      // A user-scoped lookup finds nothing here, so the globally unique key
+      // catches the collision downstream. The important part is that it is a
+      // rejection, not the other account's order.
+      await expect(
+        service.createUnlockOrder('user_third', 'profile_target', 'collide'),
+      ).rejects.toThrow();
+      expect(prisma.payments).toHaveLength(1);
+    });
   });
 
   it('fails closed when a band has no active price', async () => {
