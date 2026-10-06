@@ -73,17 +73,49 @@ arrive as strings; and `preference_applied` echoed a flag that could not actuall
 change the scope. Discovery ordering is newest-first; GAP-3 (newest versus
 closest) is still open and is the one input needed before payments are built.
 
-## Phase 4 — Payments and unlock delivery
+## Phase 4 — Payments and unlock delivery ✅
 
 Razorpay order creation with amount snapshotted from `pricing_config`, webhook
 handling with idempotency on `WebhookEvent`, and `ContactUnlock` creation only
 from a `SUCCESS` payment. Includes the ₹15 setup-fee path and the 24-hour
-expiry, plus the 2-hour reminder the scheduler will fire.
+expiry. The 2-hour reminder is not delivered here: it belongs to the
+notification scheduler, so it lands with Phase 7, where the lead time already
+exists as C3 (`UNLOCK_EXPIRY_REMINDER_HOURS`).
 
 ## Phase 5 — Trust and safety
 
-Reports, blocking, admin moderation queue, suspension and deletion flows
-including the retention-then-anonymise behaviour in section 21.
+Sections 19-21. Blocking and reporting are built; section 21's deletion flow and
+the admin review queue are not.
+
+Built:
+
+- `POST /blocks`, `DELETE /blocks/:profileId`, `GET /blocks` — section 19's
+  block, unblock, and blocked-profile management behind Settings. Idempotent in
+  both directions. The entry carries a photo but never a name: section 13
+  withholds the name until payment and the discovery card never carried one, so
+  blocked is not unlocked. Discovery and the unlock guard already excluded a
+  blocked pair, so a block takes effect on the next request with nothing to
+  invalidate and no cache to propagate.
+- `GET /reports/reasons`, `POST /reports` — section 20's intake. The reason list
+  is admin-configurable and the client only ever sends a `reason_id`; a reason
+  retired since the form was rendered answers 404 rather than filing under a
+  code the dashboard no longer filters on. An identical still-open report is
+  collapsed rather than appended, because the moderation queue is itself a spam
+  surface and a client retry is indistinguishable from a second tap. A resolved
+  one is not collapsed — conduct that continued after a dismissal is a new
+  incident.
+- Both enforce the section 12 rule that a profile id from another net-worth band
+  answers 404 rather than 403. The distinction would confirm that an id exists
+  in a band the caller was never shown.
+
+Remaining:
+
+- Section 21 deletion: soft delete, retention-then-anonymise, and invalidating
+  active profile access. The OTP purpose and `DELETED_ACCOUNT_RETENTION_MONTHS`
+  already exist.
+- The admin review queue. It cannot start before an admin can authenticate —
+  `AdminUser` and `AdminRole` exist in the schema with no service behind them —
+  so it needs a sequencing decision against Phase 8's RBAC work.
 
 ## Phase 6 — Identity verification
 
