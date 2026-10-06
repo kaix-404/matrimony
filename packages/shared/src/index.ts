@@ -6,3 +6,4 @@ export * from './contracts/profile-edit.js';
 export * from './contracts/master-data.js';
 export * from './contracts/discovery.js';
 export * from './contracts/payments.js';
+export * from './contracts/trust-safety.js';
