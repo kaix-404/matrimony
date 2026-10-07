@@ -1,4 +1,5 @@
 import {
+  AccountDeletionResultSchema,
   BlockedListResponseSchema,
   BlockProfileSchema,
   BlockedProfileSchema,
@@ -138,5 +139,39 @@ describe('ReportSummarySchema', () => {
   it('only reports a status the app is allowed to show', () => {
     expect(ReportSummarySchema.safeParse({ ...summary, status: 'IN_REVIEW' }).success).toBe(true);
     expect(ReportSummarySchema.safeParse({ ...summary, status: 'PENDING' }).success).toBe(false);
+  });
+});
+
+describe('AccountDeletionResultSchema', () => {
+  const result = { deleted: true as const, purge_after: '2027-04-06T12:00:00.000Z' };
+
+  it('is closed, so nothing about the deleted account can ride along', () => {
+    // Section 21. The one field that would be most tempting to add — the
+    // mobile or the profile id, "so the client knows which account it just
+    // deleted" — is a PII disclosure on an endpoint whose whole purpose is the
+    // removal of PII. The caller already has the session; it knows.
+    expect(Object.keys(AccountDeletionResultSchema.parse(result)).sort()).toEqual([
+      'deleted',
+      'purge_after',
+    ]);
+    expect(AccountDeletionResultSchema.safeParse({ ...result, mobile: '9876543210' }).success).toBe(false);
+    expect(AccountDeletionResultSchema.safeParse({ ...result, profile_id: 'p1' }).success).toBe(false);
+    expect(AccountDeletionResultSchema.safeParse({ ...result, reason: 'not using it' }).success).toBe(false);
+  });
+
+  it('reports the retention deadline as an absolute instant', () => {
+    // Client answer F6. Without it the app cannot tell the user when the record
+    // becomes irreversibly erased, and "deleted" would be left meaning either
+    // now or eventually depending on who was reading.
+    expect(AccountDeletionResultSchema.parse(result).purge_after).toBe('2027-04-06T12:00:00.000Z');
+    expect(AccountDeletionResultSchema.safeParse({ deleted: true, purge_after: 'soon' }).success).toBe(false);
+    expect(AccountDeletionResultSchema.safeParse({ deleted: true }).success).toBe(false);
+  });
+
+  it('cannot claim a deletion that did not happen', () => {
+    expect(AccountDeletionResultSchema.safeParse({ deleted: false, purge_after: result.purge_after }).success).toBe(
+      false,
+    );
+    expect(AccountDeletionResultSchema.safeParse({ purge_after: result.purge_after }).success).toBe(false);
   });
 });

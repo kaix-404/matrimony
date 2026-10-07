@@ -74,10 +74,12 @@ export class AuthController {
   /**
    * Verifies an OTP.
    *
-   * REGISTRATION does not return tokens: completing registration also needs a
-   * net-worth category, which `POST /auth/register` supplies. Issuing a session
-   * here would mean a usable account that has no category, and `User`'s
-   * category column is non-null by design.
+   * REGISTRATION and DELETE_ACCOUNT do not return tokens: both are steps in a
+   * longer flow, and completing them also needs something else — a net-worth
+   * category for registration, the deletion request itself for section 21.
+   * Issuing a session here would mean a usable account with no category, or a
+   * freshly renewed session handed to an account whose very next request
+   * deletes it. Both codes are spent later, at the step that uses them.
    */
   @Post('otp/verify')
   @HttpCode(200)
@@ -101,6 +103,15 @@ export class AuthController {
 
     if (body.purpose === 'REGISTRATION') {
       return { verified: true, registration_required: true };
+    }
+
+    // Section 21 re-authentication. Verified but deliberately not spent: the
+    // deletion endpoint consumes it, and that is what binds the request to
+    // somebody who holds the number. Spending it here would leave the caller
+    // with a code that was already gone, and signing them in would mint a
+    // session for an account that is about to be deleted.
+    if (body.purpose === 'DELETE_ACCOUNT') {
+      return { verified: true };
     }
 
     // Spent here rather than left available, for the same reason as the

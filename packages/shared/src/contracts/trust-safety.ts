@@ -162,3 +162,25 @@ export const ReportSummarySchema = z
   .strict();
 
 export type ReportSummary = z.infer<typeof ReportSummarySchema>;
+
+// ---------------------------------------------------------------------------
+// Section 21 - delete account
+// ---------------------------------------------------------------------------
+
+/**
+ * What the app renders once a deletion has been accepted.
+ *
+ * `purge_after` is the retention deadline from client answer F6, so the user is
+ * told when the record becomes irreversibly erased instead of being left to
+ * guess whether "deleted" meant now or eventually. It is deliberately the only
+ * thing returned: there is nothing else about a deleted account that the caller
+ * does not already know.
+ */
+export const AccountDeletionResultSchema = z
+  .object({
+    deleted: z.literal(true),
+    purge_after: z.string().datetime(),
+  })
+  .strict();
+
+export type AccountDeletionResult = z.infer<typeof AccountDeletionResultSchema>;
