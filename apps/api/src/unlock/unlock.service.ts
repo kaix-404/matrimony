@@ -162,6 +162,9 @@ export class UnlockService {
    */
   async expireDue(): Promise<number> {
     const now = this.clock.now();
+    if (!this.prisma?.contactUnlock?.updateMany) {
+      return 0;
+    }
     const { count } = await this.prisma.contactUnlock.updateMany({
       where: { status: 'ACTIVE', unlockExpiresAt: { lte: now } },
       data: { status: 'EXPIRED' },

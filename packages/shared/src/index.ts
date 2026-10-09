@@ -7,3 +7,4 @@ export * from './contracts/master-data.js';
 export * from './contracts/discovery.js';
 export * from './contracts/payments.js';
 export * from './contracts/trust-safety.js';
+export * from './contracts/verification.js';
