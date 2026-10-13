@@ -1,17 +1,25 @@
 import { z } from 'zod';
-import { NOTIFICATION_EVENTS } from '../enums.js';
+import { NOTIFICATION_CHANNELS, NOTIFICATION_EVENTS } from '../enums.js';
 
-export const NotificationChannelSchema = z.enum(['PUSH', 'SMS', 'EMAIL', 'IN_APP']);
-export type NotificationChannel = z.infer<typeof NotificationChannelSchema>;
+/**
+ * `NotificationChannel` and `NotificationEvent` are defined once in `enums.ts`
+ * and re-exported from the barrel. The schemas here are built FROM those
+ * constants rather than re-declaring the unions: two `export type
+ * NotificationChannel` declarations across the same barrel collide (TS2308),
+ * which is exactly what broke the shared build. Sourcing the zod enum from
+ * `NOTIFICATION_CHANNELS`/`NOTIFICATION_EVENTS` keeps the runtime list and the
+ * compile-time union impossible to drift apart.
+ */
+export const NotificationChannelSchema = z.enum(NOTIFICATION_CHANNELS);
 
 export const NotificationStatusSchema = z.enum(['PENDING', 'SENT', 'FAILED', 'SUPPRESSED']);
 export type NotificationStatus = z.infer<typeof NotificationStatusSchema>;
 
+/** Free-form event key as stored on the row; may be any section-42 string. */
 export const NotificationEventSchema = z.string().min(1).max(200);
-export type NotificationEvent = z.infer<typeof NotificationEventSchema>;
 
 export const NotificationEventEnumSchema = z.nativeEnum(NOTIFICATION_EVENTS);
-export type NotificationEventEnum = keyof typeof NOTIFICATION_EVENTS;
+export type NotificationEventEnum = z.infer<typeof NotificationEventEnumSchema>;
 
 export const NotificationPayloadSchema = z.record(z.unknown()).optional();
 export type NotificationPayload = z.infer<typeof NotificationPayloadSchema>;

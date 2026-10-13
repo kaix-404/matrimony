@@ -13,6 +13,7 @@ import { DiscoveryModule } from './discovery/discovery.module';
 import { PaymentsModule } from './payments/payments.module';
 import { UnlockModule } from './unlock/unlock.module';
 import { ModerationModule } from './moderation/moderation.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import type { Env } from './config/env';
 
 /**
@@ -40,6 +41,7 @@ import type { Env } from './config/env';
     PaymentsModule,
     UnlockModule,
     ModerationModule,
+    NotificationsModule,
     ThrottlerModule.forRootAsync({
       inject: ['ENV'],
       useFactory: (env: Env) => ({
