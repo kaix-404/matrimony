@@ -118,14 +118,22 @@ export function createEnvSchema(isProduction: boolean) {
     // it is deprecated, and quietly keeping it would let a deploy ship against a
     // credential that no longer works.
     FCM_SERVICE_ACCOUNT_JSON: z.string().default(''),
-    // SMS and email providers are undecided (GAP-12); MSG91 is the fallback, so
-    // the config stays provider-agnostic until the client settles it. The DLT
-    // identifiers are required for transactional SMS in India regardless of
-    // which provider wins, which is why they are configured here.
+    // SMS (section 6). MSG91 was the fallback and is now the chosen provider
+    // (client decision 2026-10-14, resolving GAP-12). Sending goes through
+    // MSG91's Flow API, so `SMS_PROVIDER_API_KEY` holds the authkey and
+    // `SMS_TEMPLATE_ID` the MSG91 template. The DLT identifiers remain because
+    // transactional SMS in India has to be registered with DLT whatever the
+    // provider, and that registration is the client's to complete.
     SMS_PROVIDER_API_KEY: z.string().default(''),
     SMS_SENDER_ID: z.string().default(''),
+    SMS_TEMPLATE_ID: z.string().default(''),
     SMS_DLT_ENTITY_ID: z.string().default(''),
     SMS_DLT_TEMPLATE_ID: z.string().default(''),
+    // The template variable that holds the code, as named when the MSG91
+    // template was created. Case-sensitive on MSG91's side, hence configurable.
+    SMS_OTP_TEMPLATE_VAR: z.string().default('OTP'),
+    // Dialing code prefixed to a bare 10-digit number for the Flow API.
+    SMS_COUNTRY_CODE: z.string().default('91'),
     EMAIL_PROVIDER_API_KEY: z.string().default(''),
     EMAIL_FROM_ADDRESS: z.string().default(''),
 

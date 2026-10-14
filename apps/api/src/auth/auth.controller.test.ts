@@ -32,6 +32,7 @@ function makeController(
   const otp = { verify: verifyOtp, consumeVerified: consume };
   const auth = { signIn, recordFailedSignInForMobile: recordFailure };
 
+  const sms = { configured: true, sendOtp: jest.fn().mockResolvedValue({ providerMessageId: null }) };
   return {
     controller: new AuthController(
       otp as never,
@@ -39,6 +40,7 @@ function makeController(
       {} as never,
       auth as never,
       {} as never,
+      sms as never,
     ),
     consume,
     signIn,
@@ -127,7 +129,14 @@ describe('AuthController.verifyOtp', () => {
 describe('AuthController.register', () => {
   it('refuses when no registration code was spent', async () => {
     const otp = { consumeVerified: jest.fn().mockResolvedValue(false) };
-    const controller = new AuthController(otp as never, {} as never, {} as never, {} as never, {} as never);
+    const controller = new AuthController(
+      otp as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { configured: true, sendOtp: jest.fn() } as never,
+    );
 
     await expect(
       controller.register({

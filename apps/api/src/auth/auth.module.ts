@@ -6,6 +6,7 @@ import { JwtAuthGuard } from './jwt-auth.guard';
 import { OtpService } from './otp.service';
 import { RegistrationService } from './registration.service';
 import { TokenService, parseDurationSeconds } from './token.service';
+import { SmsModule } from '../sms/sms.module';
 import type { Env } from '../config/env';
 
 /**
@@ -32,6 +33,7 @@ import type { Env } from '../config/env';
         },
       }),
     }),
+    SmsModule,
   ],
   controllers: [AuthController],
   providers: [OtpService, TokenService, RegistrationService, AuthService, JwtAuthGuard],

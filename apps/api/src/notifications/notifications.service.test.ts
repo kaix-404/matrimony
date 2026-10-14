@@ -100,7 +100,7 @@ class FakePrisma {
 function setup() {
   const prisma = new FakePrisma();
   return { prisma, service: new NotificationsService(prisma as never) };
-}
+  }
 
 describe('NotificationsService.create', () => {
   it('records a PENDING row and defaults the audience and criticality', async () => {

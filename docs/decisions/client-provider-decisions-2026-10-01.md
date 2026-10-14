@@ -111,8 +111,12 @@ Recommendation: **option 2** if the cost saving is worth it, otherwise **option 
 option 1 — the mismatch is between two written commitments from the same client, and it
 should be resolved deliberately.
 
-**GAP-12 — SMS and email provider undecided.** MSG91 fallback agreed. No architectural
-impact. Start DLT registration in the meantime.
+**GAP-12 — Resolved (2026-10-14): SMS provider chosen as MSG91.** The client confirmed
+  using MSG91 for OTP delivery. The API now sends OTPs via MSG91's Flow API with a
+  provider seam (`SmsGateway` / `Msg91SmsGateway`) that can be substituted for tests
+  and is fail-closed in production when credentials are missing. DLT registration is the
+  client's to complete and its identifiers remain in configuration. The email provider
+  remains undecided for now.
 
 ## Effect on the client brief
 

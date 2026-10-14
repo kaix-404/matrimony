@@ -14,6 +14,7 @@ import { RegistrationService } from './registration.service';
 import { TokenService } from './token.service';
 import { PrismaClient } from '../prisma/prisma-client';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
+import { SmsGateway } from '../sms/sms.gateway';
 import {
   CompleteRegistrationSchema,
   RefreshSchema,
@@ -36,15 +37,17 @@ export class AuthController {
     private readonly registration: RegistrationService,
     private readonly auth: AuthService,
     private readonly prisma: PrismaClient,
+    private readonly sms: SmsGateway,
   ) {}
 
   /**
    * Requests an OTP.
    *
    * The response is identical whether or not the number is registered, so this
-   * endpoint cannot be used to enumerate users. Outside production the code is
-   * echoed back: the SMS provider is undecided (GAP-12) and there is otherwise
-   * no way to exercise the flow without a provider account.
+   * endpoint cannot be used to enumerate users. In production the code is sent
+   * via MSG91; if MSG91 is not configured, the request fails closed. Outside
+   * production the code is echoed back to make the flow testable end to end
+   * without a provider account.
    */
   @Post('otp/request')
   @HttpCode(200)
@@ -64,7 +67,12 @@ export class AuthController {
       expires_in_seconds: this.otp.ttlSeconds,
     };
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV === 'production') {
+      if (!this.sms.configured) {
+        throw new UnauthorizedException('SMS provider is not configured');
+      }
+      await this.sms.sendOtp({ mobile: body.mobile, code: issued.code });
+    } else {
       response.dev_code = issued.code;
     }
 

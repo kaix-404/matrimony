@@ -177,12 +177,15 @@ describe('supplier decisions of 2026-10-01', () => {
   });
 
   it('carries the SMS DLT identifiers required for transactional delivery', () => {
-    // Provider is undecided (GAP-12) but DLT registration is mandatory in India
-    // whichever provider wins, so the config must exist before one is chosen.
+    // MSG91 is now the chosen provider (resolving GAP-12), but DLT registration
+    // remains mandatory for transactional SMS in India regardless of provider.
     const env = loadEnv(VALID);
     expect(env.SMS_SENDER_ID).toBe('');
     expect(env.SMS_DLT_ENTITY_ID).toBe('');
     expect(env.SMS_DLT_TEMPLATE_ID).toBe('');
+    expect(env.SMS_TEMPLATE_ID).toBe('');
+    expect(env.SMS_OTP_TEMPLATE_VAR).toBe('OTP');
+    expect(env.SMS_COUNTRY_CODE).toBe('91');
   });
 
   it('does not support the deprecated FCM legacy server key', () => {
