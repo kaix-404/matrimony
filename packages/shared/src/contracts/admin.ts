@@ -183,6 +183,76 @@ export type AdminTokenPair = z.infer<typeof AdminTokenPairSchema>;
 export const AdminRefreshSchema = z.object({ refresh_token: z.string().min(1) }).strict();
 export type AdminRefreshInput = z.infer<typeof AdminRefreshSchema>;
 
+// ---------------------------------------------------------------------------
+// MFA (TOTP)
+// ---------------------------------------------------------------------------
+
+/**
+ * A six-digit TOTP code. The regex is the whole check: length and alphabet, no
+ * arithmetic, because a wrong-but-well-formed code is a normal rejection rather
+ * than a validation error.
+ */
+export const AdminMfaCodeSchema = z.string().regex(/^\d{6}$/, 'must be a six-digit code');
+export type AdminMfaCode = z.infer<typeof AdminMfaCodeSchema>;
+
+/**
+ * The result of a password check when the administrator has MFA enabled.
+ *
+ * When MFA is off, login answers with a plain `AdminTokenPair` as before; when it
+ * is on, it answers with this instead. `mfa_required: true` is the discriminator,
+ * so a client written against the old shape sees an object it does not recognise
+ * rather than a token pair it would wrongly treat as a session.
+ */
+export const AdminMfaChallengeSchema = z
+  .object({
+    mfa_required: z.literal(true),
+    challenge_token: z.string().min(1),
+    expires_in: z.number().int().positive(),
+  })
+  .strict();
+export type AdminMfaChallenge = z.infer<typeof AdminMfaChallengeSchema>;
+
+/** Login returns either a session or a challenge, never both. */
+export const AdminLoginResponseSchema = z.union([AdminTokenPairSchema, AdminMfaChallengeSchema]);
+export type AdminLoginResponse = z.infer<typeof AdminLoginResponseSchema>;
+
+/** Completes an MFA login: the challenge from `/login` plus a current code. */
+export const AdminMfaVerifySchema = z
+  .object({ challenge_token: z.string().min(1), code: AdminMfaCodeSchema })
+  .strict();
+export type AdminMfaVerifyInput = z.infer<typeof AdminMfaVerifySchema>;
+
+/**
+ * Enrollment step one. The server returns the secret in both raw and `otpauth://`
+ * form; the confirming code travels in the `activate` call, and the secret is
+ * only persisted once that code proves the authenticator was set up.
+ */
+export const AdminMfaSetupViewSchema = z
+  .object({
+    secret: z.string().min(1),
+    otpauth_uri: z.string().min(1),
+    enrollment_token: z.string().min(1),
+    expires_in: z.number().int().positive(),
+  })
+  .strict();
+export type AdminMfaSetupView = z.infer<typeof AdminMfaSetupViewSchema>;
+
+/** Enrollment step two: proves the authenticator holds the secret. */
+export const AdminMfaActivateSchema = z
+  .object({ enrollment_token: z.string().min(1), code: AdminMfaCodeSchema })
+  .strict();
+export type AdminMfaActivateInput = z.infer<typeof AdminMfaActivateSchema>;
+
+export const AdminMfaActivateViewSchema = z.object({ mfa_enabled: z.literal(true) }).strict();
+export type AdminMfaActivateView = z.infer<typeof AdminMfaActivateViewSchema>;
+
+/** Turning MFA off requires a current code, so a stolen session is not enough. */
+export const AdminMfaDisableSchema = z.object({ code: AdminMfaCodeSchema }).strict();
+export type AdminMfaDisableInput = z.infer<typeof AdminMfaDisableSchema>;
+
+export const AdminMfaDisableViewSchema = z.object({ mfa_enabled: z.literal(false) }).strict();
+export type AdminMfaDisableView = z.infer<typeof AdminMfaDisableViewSchema>;
+
 /**
  * Admin access-token claims.
  *
@@ -289,6 +359,8 @@ export interface AdminUserView {
   name: string;
   status: string;
   roles: AdminRoleSlug[];
+  /** True once TOTP enrollment is confirmed; the secret itself never leaves the server. */
+  mfaEnabled: boolean;
   lastLoginAt: string | null;
   createdAt: string;
 }

@@ -39,6 +39,7 @@ interface AdminRow {
   email: string;
   name: string;
   status: string;
+  mfaSecret: string | null;
   lastLoginAt: Date | null;
   createdAt: Date;
   roles: Array<{ role: { slug: string } }>;
@@ -49,15 +50,17 @@ const ADMIN_SELECT = {
   email: true,
   name: true,
   status: true,
+  mfaSecret: true,
   lastLoginAt: true,
   createdAt: true,
   roles: { select: { role: { select: { slug: true } } } },
 } as const;
 
 /**
- * Never returns a password hash. The select above does not fetch one, and the
- * mapper below only copies the fields the contract names, so a future caller
- * cannot accidentally serialise a credential by spreading the row.
+ * Never returns a password hash or the MFA secret. The `mfaSecret` column is
+ * selected only to derive the boolean below — whether a second factor is
+ * enrolled — and the mapper copies fields by name, so a future caller cannot
+ * serialise the secret by spreading the row.
  */
 function toAdminView(row: AdminRow): AdminUserView {
   return {
@@ -66,6 +69,7 @@ function toAdminView(row: AdminRow): AdminUserView {
     name: row.name,
     status: row.status,
     roles: row.roles.map((assignment) => assignment.role.slug as AdminRoleSlug),
+    mfaEnabled: row.mfaSecret !== null,
     lastLoginAt: row.lastLoginAt ? row.lastLoginAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
   };
@@ -596,6 +600,45 @@ export class AdminService {
     });
 
     return toDataRequestView(updated);
+  }
+
+  /**
+   * Clears another administrator's MFA so a lost device does not lock them out.
+   *
+   * This is a recovery path, not an impersonation path: it removes the second
+   * factor but grants no access on its own, because the account still needs its
+   * password. Self-reset is refused so the code requirement on the disable flow
+   * cannot be bypassed by a hijacked session, and the action is audited like
+   * every other access-control change.
+   */
+  async resetMfa(adminId: string, actingAdminId: string): Promise<AdminUserView> {
+    if (adminId === actingAdminId) {
+      throw new BadRequestException('Use the disable flow, which requires your own current code.');
+    }
+
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminId },
+      select: { id: true, mfaSecret: true },
+    });
+    if (!admin) {
+      throw new NotFoundException('Administrator not found');
+    }
+    if (!admin.mfaSecret) {
+      throw new BadRequestException('MFA is not enabled for this administrator');
+    }
+
+    await this.prisma.adminUser.update({ where: { id: adminId }, data: { mfaSecret: null } });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'admin:mfa:reset',
+      resourceType: 'AdminUser',
+      resourceId: adminId,
+      previousValue: { mfa_enabled: true },
+      newValue: { mfa_enabled: false },
+    });
+
+    return this.getAdminView(adminId);
   }
 
   private async getAdminView(adminId: string): Promise<AdminUserView> {

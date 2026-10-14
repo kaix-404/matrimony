@@ -7,7 +7,13 @@ import {
   AdminListAdminsQuerySchema,
   AdminListDataRequestsQuerySchema,
   AdminListUsersQuerySchema,
+  AdminLoginResponseSchema,
   AdminLoginSchema,
+  AdminMfaActivateSchema,
+  AdminMfaChallengeSchema,
+  AdminMfaCodeSchema,
+  AdminMfaDisableSchema,
+  AdminMfaVerifySchema,
   AdminPublishPricingSchema,
   AdminResolveDataRequestSchema,
   AdminRoleSlugSchema,
@@ -215,5 +221,51 @@ describe('AdminResolveDataRequestSchema', () => {
 
   it('rejects a non-terminal status', () => {
     expect(AdminResolveDataRequestSchema.safeParse({ status: 'REQUESTED' }).success).toBe(false);
+  });
+});
+
+describe('admin MFA contracts', () => {
+  it('accepts only a six-digit code', () => {
+    expect(AdminMfaCodeSchema.parse('000123')).toBe('000123');
+    expect(AdminMfaCodeSchema.safeParse('12345').success).toBe(false);
+    expect(AdminMfaCodeSchema.safeParse('abcdef').success).toBe(false);
+    expect(AdminMfaCodeSchema.safeParse('1234567').success).toBe(false);
+  });
+
+  it('distinguishes a challenge from a session in the login response', () => {
+    const pair = {
+      access_token: 'a',
+      refresh_token: 'b',
+      token_type: 'Bearer',
+      expires_in: 900,
+    };
+    const challenge = { mfa_required: true, challenge_token: 'c', expires_in: 300 };
+
+    expect(AdminLoginResponseSchema.safeParse(pair).success).toBe(true);
+    expect(AdminLoginResponseSchema.safeParse(challenge).success).toBe(true);
+    expect(AdminMfaChallengeSchema.safeParse(challenge).success).toBe(true);
+    // A session is not a challenge, and a half-built challenge is neither.
+    expect(AdminMfaChallengeSchema.safeParse(pair).success).toBe(false);
+    expect(AdminLoginResponseSchema.safeParse({ mfa_required: true }).success).toBe(false);
+  });
+
+  it('requires the challenge token and a code to finish a login', () => {
+    expect(
+      AdminMfaVerifySchema.safeParse({ challenge_token: 'c', code: '123456' }).success,
+    ).toBe(true);
+    expect(AdminMfaVerifySchema.safeParse({ code: '123456' }).success).toBe(false);
+    expect(AdminMfaVerifySchema.safeParse({ challenge_token: 'c', code: 'bad' }).success).toBe(false);
+  });
+
+  it('requires the enrollment token and a code to activate', () => {
+    expect(
+      AdminMfaActivateSchema.safeParse({ enrollment_token: 'e', code: '123456' }).success,
+    ).toBe(true);
+    expect(AdminMfaActivateSchema.safeParse({ code: '123456' }).success).toBe(false);
+  });
+
+  it('requires a current code to disable', () => {
+    expect(AdminMfaDisableSchema.safeParse({ code: '123456' }).success).toBe(true);
+    expect(AdminMfaDisableSchema.safeParse({}).success).toBe(false);
   });
 });

@@ -20,6 +20,7 @@ const TEST_ENV = {
   NODE_ENV: 'test',
   JWT_ACCESS_SECRET: 'test-access-secret-not-used-for-signing',
   JWT_REFRESH_SECRET: 'test-refresh-secret-not-used-for-signing',
+  MFA_ENCRYPTION_KEY: 'test-mfa-key-not-used-to-encrypt-anything',
   OTP_HASH_SECRET: 'test-otp-pepper-not-used-for-hashing',
   // AuthModule parses the access TTL at wiring time to configure the JWT signer,
   // so the bootstrap test needs it: without it the module fails to construct,

@@ -1,9 +1,12 @@
 import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import type { AdminLoginResponse, AdminMfaChallenge, AdminTokenPair } from '@matrimony/shared';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminTokenService } from './admin-token.service';
 import { FrozenClock } from '../common/clock/clock.service';
 import { hashPassword } from '../common/crypto/password';
+import { SecretBox } from '../common/crypto/secret-box';
+import { generateTotpSecret, totpCode } from '../common/crypto/totp';
 import type { Env } from '../config/env';
 
 /**
@@ -12,21 +15,29 @@ import type { Env } from '../config/env';
  * Admin login is password-based, so the failures carry the weight: a wrong
  * password must lock the account at the threshold, an inactive account must not
  * be handed a token even with the right secret, and a refresh token must rotate
- * such that replaying an already-rotated one kills the whole family. Each is a
- * case a happy-path test would never reach.
+ * such that replaying an already-rotated one kills the whole family. The MFA
+ * cases add the second factor: a password alone must not be a session, a wrong
+ * code must count against the same lockout, and a secret must reach the database
+ * only after a code proves the authenticator holds it.
  */
 
 const SECRET = 'test-secret-value-not-a-placeholder';
 const PASSWORD = 'correct horse battery staple';
+const MFA_KEY = 'test-mfa-encryption-key-not-used-for-anything-real';
 
-// Only the two TTLs the service reads; the rest of `Env` is irrelevant here.
-const env = { JWT_ACCESS_TTL: '15m', JWT_REFRESH_TTL: '30d' } as unknown as Env;
+// Only the fields the service reads; the rest of `Env` is irrelevant here.
+const env = {
+  JWT_ACCESS_TTL: '15m',
+  JWT_REFRESH_TTL: '30d',
+  MFA_ENCRYPTION_KEY: MFA_KEY,
+} as unknown as Env;
 
 interface AdminRow {
   id: string;
   email: string;
   passwordHash: string;
   status: string;
+  mfaSecret: string | null;
   failedLoginCount: number;
   lockedUntil: Date | null;
   lastLoginAt: Date | null;
@@ -40,6 +51,21 @@ interface RefreshRow {
   familyId: string;
   expiresAt: Date;
   revokedAt: Date | null;
+}
+
+/** Narrows a login result to a session, failing the test if it is a challenge. */
+function asPair(result: AdminLoginResponse): AdminTokenPair {
+  if (!('access_token' in result)) {
+    throw new Error('expected a token pair, got an MFA challenge');
+  }
+  return result;
+}
+
+function asChallenge(result: AdminLoginResponse): AdminMfaChallenge {
+  if (!('mfa_required' in result)) {
+    throw new Error('expected an MFA challenge, got a token pair');
+  }
+  return result;
 }
 
 function setup() {
@@ -64,16 +90,23 @@ function setup() {
         where,
         data,
       }: {
-        where: { id: string; failedLoginCount?: { lt: number } };
-        data: { failedLoginCount?: { increment: number } };
+        where: { id: string; failedLoginCount?: { lt: number }; mfaSecret?: null };
+        data: { failedLoginCount?: { increment: number }; mfaSecret?: string | null };
       }) => {
         const admin = admins.find((a) => a.id === where.id);
         if (!admin) return { count: 0 };
         if (where.failedLoginCount && !(admin.failedLoginCount < where.failedLoginCount.lt)) {
           return { count: 0 };
         }
+        // The conditional enrollment write: only match a still-unset secret.
+        if ('mfaSecret' in where && where.mfaSecret === null && admin.mfaSecret !== null) {
+          return { count: 0 };
+        }
         if (data.failedLoginCount?.increment) {
           admin.failedLoginCount += data.failedLoginCount.increment;
+        }
+        if ('mfaSecret' in data) {
+          admin.mfaSecret = data.mfaSecret ?? null;
         }
         return { count: 1 };
       },
@@ -125,7 +158,8 @@ function setup() {
 
   const jwt = new JwtService({ secret: SECRET, signOptions: { expiresIn: 900 } });
   const tokens = new AdminTokenService(jwt);
-  const service = new AdminAuthService(prisma as never, clock, tokens, env);
+  const audit = { record: jest.fn(async () => undefined) };
+  const service = new AdminAuthService(prisma as never, clock, tokens, jwt, audit as never, env);
 
   function addAdmin(overrides: Partial<AdminRow> = {}): AdminRow {
     const admin: AdminRow = {
@@ -133,6 +167,7 @@ function setup() {
       email: 'boss@example.com',
       passwordHash: hashPassword(PASSWORD),
       status: 'ACTIVE',
+      mfaSecret: null,
       failedLoginCount: 0,
       lockedUntil: null,
       lastLoginAt: null,
@@ -143,7 +178,13 @@ function setup() {
     return admin;
   }
 
-  return { clock, tokens, service, addAdmin, admins, refreshes };
+  return { clock, tokens, service, addAdmin, admins, refreshes, audit };
+}
+
+/** An admin row already enrolled, with the plaintext secret for computing codes. */
+function enroll(addAdmin: (o?: Partial<AdminRow>) => AdminRow, secret = generateTotpSecret()) {
+  addAdmin({ mfaSecret: new SecretBox(MFA_KEY).encrypt(secret) });
+  return secret;
 }
 
 describe('AdminAuthService.login', () => {
@@ -151,7 +192,7 @@ describe('AdminAuthService.login', () => {
     const { service, tokens, addAdmin, admins } = setup();
     addAdmin({ failedLoginCount: 3 });
 
-    const pair = await service.login({ email: 'boss@example.com', password: PASSWORD });
+    const pair = asPair(await service.login({ email: 'boss@example.com', password: PASSWORD }));
 
     expect(pair.token_type).toBe('Bearer');
     expect(pair.expires_in).toBe(900);
@@ -212,13 +253,157 @@ describe('AdminAuthService.login', () => {
       'not active',
     );
   });
+
+  it('returns a challenge instead of a session when MFA is enrolled', async () => {
+    const { service, addAdmin } = setup();
+    enroll(addAdmin);
+
+    const challenge = asChallenge(await service.login({ email: 'boss@example.com', password: PASSWORD }));
+
+    expect(challenge.mfa_required).toBe(true);
+    expect(challenge.challenge_token.length).toBeGreaterThan(20);
+    expect(challenge.expires_in).toBe(300);
+  });
+});
+
+describe('AdminAuthService.verifyMfa', () => {
+  it('issues a session when the correct code follows the challenge', async () => {
+    const { service, clock, tokens, addAdmin } = setup();
+    const secret = enroll(addAdmin);
+
+    const challenge = asChallenge(await service.login({ email: 'boss@example.com', password: PASSWORD }));
+    const pair = await service.verifyMfa({
+      challenge_token: challenge.challenge_token,
+      code: totpCode(secret, clock.now().getTime()),
+    });
+
+    expect(pair.token_type).toBe('Bearer');
+    const claims = await tokens.verifyAccessToken(pair.access_token);
+    expect(claims?.typ).toBe('admin_access');
+    expect(claims?.sub).toBe('admin_1');
+  });
+
+  it('charges a wrong code to the same lockout counter as a wrong password', async () => {
+    const { service, clock, addAdmin, admins } = setup();
+    const secret = enroll(addAdmin);
+
+    const challenge = asChallenge(await service.login({ email: 'boss@example.com', password: PASSWORD }));
+    const correct = totpCode(secret, clock.now().getTime());
+    const wrong = correct === '000000' ? '000001' : '000000';
+
+    await expect(
+      service.verifyMfa({ challenge_token: challenge.challenge_token, code: wrong }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(admins[0]!.failedLoginCount).toBe(1);
+  });
+
+  it('rejects a token that is not a challenge', async () => {
+    const { service, addAdmin } = setup();
+    addAdmin();
+
+    await expect(
+      service.verifyMfa({ challenge_token: 'not-a-token', code: '123456' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('does not accept an enrollment token as a challenge', async () => {
+    const { service, clock, addAdmin } = setup();
+    addAdmin();
+
+    const setupResult = await service.beginMfaEnrollment('admin_1');
+    await expect(
+      service.verifyMfa({
+        challenge_token: setupResult.enrollment_token,
+        code: totpCode(setupResult.secret, clock.now().getTime()),
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+});
+
+describe('AdminAuthService MFA enrollment', () => {
+  it('persists the secret only after a code proves the authenticator holds it', async () => {
+    const { service, clock, addAdmin, admins, audit } = setup();
+    addAdmin();
+
+    const setupResult = await service.beginMfaEnrollment('admin_1');
+    // Not stored yet: the pending secret lives only in the signed token.
+    expect(admins[0]!.mfaSecret).toBeNull();
+    expect(setupResult.otpauth_uri).toContain('otpauth://totp/');
+    expect(setupResult.otpauth_uri).toContain(setupResult.secret);
+
+    const result = await service.activateMfa('admin_1', {
+      enrollment_token: setupResult.enrollment_token,
+      code: totpCode(setupResult.secret, clock.now().getTime()),
+    });
+
+    expect(result).toEqual({ mfa_enabled: true });
+    // Stored encrypted, never as the plaintext secret.
+    expect(admins[0]!.mfaSecret).not.toBeNull();
+    expect(admins[0]!.mfaSecret).not.toBe(setupResult.secret);
+    expect(new SecretBox(MFA_KEY).decrypt(admins[0]!.mfaSecret!)).toBe(setupResult.secret);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'admin:mfa:enable', resourceId: 'admin_1' }),
+    );
+  });
+
+  it('refuses to activate on a wrong code and stores nothing', async () => {
+    const { service, addAdmin, admins } = setup();
+    addAdmin();
+    const setupResult = await service.beginMfaEnrollment('admin_1');
+
+    await expect(
+      service.activateMfa('admin_1', { enrollment_token: setupResult.enrollment_token, code: '000000' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(admins[0]!.mfaSecret).toBeNull();
+  });
+
+  it('refuses a second enrollment once MFA is on', async () => {
+    const { service, addAdmin } = setup();
+    enroll(addAdmin);
+
+    await expect(service.beginMfaEnrollment('admin_1')).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('disables with a current code and clears the secret, audit included', async () => {
+    const { service, clock, addAdmin, admins, audit } = setup();
+    const secret = enroll(addAdmin);
+
+    const result = await service.disableMfa('admin_1', { code: totpCode(secret, clock.now().getTime()) });
+
+    expect(result).toEqual({ mfa_enabled: false });
+    expect(admins[0]!.mfaSecret).toBeNull();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'admin:mfa:disable', resourceId: 'admin_1' }),
+    );
+  });
+
+  it('refuses to disable with a wrong code', async () => {
+    const { service, clock, addAdmin, admins } = setup();
+    const secret = enroll(addAdmin);
+    const correct = totpCode(secret, clock.now().getTime());
+
+    await expect(
+      service.disableMfa('admin_1', { code: correct === '000000' ? '000001' : '000000' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(admins[0]!.mfaSecret).not.toBeNull();
+  });
+
+  it('refuses to disable when MFA is not enabled', async () => {
+    const { service, addAdmin } = setup();
+    addAdmin();
+
+    await expect(service.disableMfa('admin_1', { code: '123456' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
 });
 
 describe('AdminAuthService.refresh', () => {
   it('rotates the token, revoking the old one', async () => {
     const { service, addAdmin, refreshes } = setup();
     addAdmin();
-    const pair = await service.login({ email: 'boss@example.com', password: PASSWORD });
+    const pair = asPair(await service.login({ email: 'boss@example.com', password: PASSWORD }));
 
     const rotated = await service.refresh(pair.refresh_token);
 
@@ -232,7 +417,7 @@ describe('AdminAuthService.refresh', () => {
   it('treats a replayed (already-rotated) token as compromise and revokes the family', async () => {
     const { service, addAdmin, refreshes } = setup();
     addAdmin();
-    const pair = await service.login({ email: 'boss@example.com', password: PASSWORD });
+    const pair = asPair(await service.login({ email: 'boss@example.com', password: PASSWORD }));
     const rotated = await service.refresh(pair.refresh_token);
 
     // Present the original token again, which the legitimate client no longer has.
@@ -252,7 +437,7 @@ describe('AdminAuthService.refresh', () => {
   it('revokes and rejects an expired token', async () => {
     const { service, addAdmin, clock, refreshes } = setup();
     addAdmin();
-    const pair = await service.login({ email: 'boss@example.com', password: PASSWORD });
+    const pair = asPair(await service.login({ email: 'boss@example.com', password: PASSWORD }));
 
     clock.advance(31 * 24 * 60 * 60 * 1000); // past the 30-day refresh TTL
 
@@ -263,7 +448,7 @@ describe('AdminAuthService.refresh', () => {
   it('refuses to refresh for an administrator who is no longer active', async () => {
     const { service, addAdmin, admins } = setup();
     addAdmin();
-    const pair = await service.login({ email: 'boss@example.com', password: PASSWORD });
+    const pair = asPair(await service.login({ email: 'boss@example.com', password: PASSWORD }));
 
     admins[0]!.status = 'SUSPENDED';
 
@@ -275,8 +460,8 @@ describe('AdminAuthService.logout', () => {
   it('revokes only the presented token', async () => {
     const { service, addAdmin } = setup();
     addAdmin();
-    const first = await service.login({ email: 'boss@example.com', password: PASSWORD });
-    const second = await service.login({ email: 'boss@example.com', password: PASSWORD });
+    const first = asPair(await service.login({ email: 'boss@example.com', password: PASSWORD }));
+    const second = asPair(await service.login({ email: 'boss@example.com', password: PASSWORD }));
 
     await expect(service.logout(first.refresh_token)).resolves.toBe(true);
     // The second device is untouched.

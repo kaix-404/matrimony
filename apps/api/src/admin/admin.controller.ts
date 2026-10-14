@@ -105,6 +105,17 @@ export class AdminController {
     return this.adminService.revokeRole(id, role, principal.id);
   }
 
+  /** Recovers an administrator who has lost their authenticator (always audited). */
+  @Post('admins/:id/mfa/reset')
+  @RequirePermission('admin:manage')
+  @HttpCode(200)
+  async resetMfa(
+    @Param('id') id: string,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminUserView> {
+    return this.adminService.resetMfa(id, principal.id);
+  }
+
   /**
    * F2(a): move a user between net-worth categories. Super-Admin-only in
    * practice because only the Super Admin role holds `user:change_category`.

@@ -68,6 +68,7 @@ function setup() {
       email: 'actor@example.com',
       name: 'Actor',
       status: 'ACTIVE',
+      mfaSecret: null as string | null,
       lastLoginAt: null as Date | null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       roles: [{ role: { slug: 'SUPER_ADMIN' } }],
@@ -77,6 +78,7 @@ function setup() {
       email: 'target@example.com',
       name: 'Target',
       status: 'ACTIVE',
+      mfaSecret: 'v1.iv.tag.ciphertext' as string | null,
       lastLoginAt: null as Date | null,
       createdAt: new Date('2026-02-01T00:00:00.000Z'),
       roles: [{ role: { slug: 'FINANCE_ADMIN' } }],
@@ -211,6 +213,11 @@ function setup() {
       findMany: async () => admins,
       findUnique: async ({ where }: { where: { id: string } }) =>
         admins.find((a) => a.id === where.id) ?? null,
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const admin = admins.find((a) => a.id === where.id)!;
+        Object.assign(admin, data);
+        return admin;
+      }),
       create: jest.fn(async ({ data }: { data: CreateAdminData }) => {
         const slugFor = (id: string) => roles.find((r) => r.id === id)!.slug;
         const roleSlugs: string[] = [];
@@ -287,9 +294,13 @@ describe('AdminService.listAdmins', () => {
       email: 'actor@example.com',
       roles: ['SUPER_ADMIN'],
       lastLoginAt: null,
+      mfaEnabled: false,
     });
+    expect(admins[1]).toMatchObject({ id: 'admin_target', mfaEnabled: true });
     expect(admins[0]!.createdAt).toBe('2026-01-01T00:00:00.000Z');
+    // Neither the password hash nor the raw MFA secret may reach the view.
     expect(JSON.stringify(admins)).not.toContain('passwordHash');
+    expect(JSON.stringify(admins)).not.toContain('mfaSecret');
   });
 });
 
@@ -416,6 +427,41 @@ describe('AdminService.revokeRole', () => {
     const { service } = setup();
     await expect(service.revokeRole('admin_actor', 'FINANCE_ADMIN', 'admin_target')).rejects.toBeInstanceOf(
       NotFoundException,
+    );
+  });
+});
+
+describe('AdminService.resetMfa', () => {
+  it('clears another administrator’s second factor and audits it', async () => {
+    const { service, audit, admins } = setup();
+
+    const result = await service.resetMfa('admin_target', 'admin_actor');
+
+    expect(result.mfaEnabled).toBe(false);
+    expect(admins.find((a) => a.id === 'admin_target')!.mfaSecret).toBeNull();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'admin:mfa:reset', resourceId: 'admin_target' }),
+    );
+  });
+
+  it('refuses to reset the acting administrator’s own MFA', async () => {
+    const { service, audit } = setup();
+
+    await expect(service.resetMfa('admin_actor', 'admin_actor')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing administrator', async () => {
+    const { service } = setup();
+    await expect(service.resetMfa('nobody', 'admin_actor')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('reports when MFA is not enabled for the target', async () => {
+    const { service } = setup();
+    await expect(service.resetMfa('admin_actor', 'admin_target')).rejects.toBeInstanceOf(
+      BadRequestException,
     );
   });
 });

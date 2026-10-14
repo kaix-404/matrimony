@@ -68,6 +68,15 @@ export function createEnvSchema(isProduction: boolean) {
     JWT_REFRESH_SECRET: signingSecret('JWT_REFRESH_SECRET'),
     JWT_ACCESS_TTL: z.string().default('15m'),
     JWT_REFRESH_TTL: z.string().default('30d'),
+    /**
+     * Encrypts administrators' TOTP secrets at rest (AES-256-GCM). A dedicated
+     * secret rather than borrowing a JWT key, so it can be rotated on its own
+     * schedule; rotating it makes existing secrets unreadable, which forces the
+     * affected administrators to re-enroll rather than sign in with a factor the
+     * server can no longer verify. Required — an API that cannot protect the
+     * second factor must not start.
+     */
+    MFA_ENCRYPTION_KEY: signingSecret('MFA_ENCRYPTION_KEY'),
 
     // -- data --------------------------------------------------------------
     DATABASE_URL: z.string().url(),
