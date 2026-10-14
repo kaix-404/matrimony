@@ -104,12 +104,26 @@ function unlock(overrides: Record<string, unknown> = {}) {
   };
 }
 
+/** A payment-less admin grant, defaulting to one that was made at NOW. */
+function grant(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'grant_1',
+    adminId: 'admin_1',
+    targetUserId: VIEWER,
+    targetProfileId: PROFILE,
+    reason: 'Goodwill',
+    createdAt: new Date(NOW),
+    ...overrides,
+  };
+}
+
 function makeService(
   opts: {
     now?: string;
     profiles?: ProfileRow[];
     photos?: Record<string, unknown>[];
     unlocks?: Record<string, unknown>[];
+    grants?: Record<string, unknown>[];
     discoverable?: boolean;
     signable?: boolean;
     pricing?: boolean;
@@ -119,11 +133,16 @@ function makeService(
 
   const rows = opts.profiles ?? [profile()];
   const unlocks = opts.unlocks ?? [];
+  const grants = opts.grants ?? [];
 
   const prisma = {
     profile: {
       findUnique: async ({ where }: { where: { id: string } }) =>
         rows.find((p) => p.id === where.id) ?? null,
+      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+        where.id.in
+          .map((id) => rows.find((p) => p.id === id))
+          .filter((p): p is ProfileRow => Boolean(p)),
     },
     profilePhoto: {
       findMany: async () => opts.photos ?? [],
@@ -159,6 +178,20 @@ function makeService(
         return { count: matched.length };
       },
     },
+    adminGrantAudit: {
+      findFirst: async ({
+        where,
+      }: {
+        where: { targetUserId: string; targetProfileId: string };
+      }) =>
+        grants.find(
+          (g) =>
+            g.targetUserId === where.targetUserId &&
+            g.targetProfileId === where.targetProfileId,
+        ) ?? null,
+      findMany: async ({ where }: { where: { targetUserId: string } }) =>
+        grants.filter((g) => g.targetUserId === where.targetUserId),
+    },
     pricingConfig: {
       findFirst: async () =>
         opts.pricing === false ? null : { baseAmount: '1000.00', gstRate: 0.18 },
@@ -176,6 +209,7 @@ function makeService(
     clock,
     prisma,
     unlocks,
+    grants,
     service: new UnlockService(prisma as never, clock, storage as never, preferences as never),
   };
 }
@@ -557,6 +591,75 @@ describe('UnlockService', () => {
 
       expect(await service.expireDue()).toBe(1);
       expect(await service.expireDue()).toBe(0);
+    });
+  });
+
+  /**
+   * Section 28: a payment-less unlock. `ContactUnlock` requires a verified
+   * payment, so an admin grant lives in `AdminGrantAudit` and has to be honoured
+   * here or the grant is only a log entry.
+   */
+  describe('an admin grant', () => {
+    it('unlocks the profile for the standard window', async () => {
+      const { service } = makeService({ grants: [grant()] });
+
+      const result = await service.view(VIEWER, PROFILE);
+
+      const parsed = UnlockedProfileResponseSchema.parse(result);
+      expect(parsed.profile_locked).toBe(false);
+      expect(parsed.contact.mobile).toBe('919876543210');
+      // NOW + 24h.
+      expect(parsed.unlock_expires_at).toBe('2026-10-05T12:00:00.000Z');
+    });
+
+    it('expires with the window, leaving a previously-unlocked paywall', async () => {
+      const { service } = makeService({
+        grants: [grant({ createdAt: new Date('2026-10-01T12:00:00.000Z') })],
+      });
+
+      const result = await service.view(VIEWER, PROFILE);
+
+      const parsed = ExpiredUnlockResponseSchema.parse(result);
+      expect(parsed.profile_locked).toBe(true);
+      expect(parsed.previously_unlocked).toBe(true);
+    });
+
+    it('extends a paid unlock when the grant closes later', async () => {
+      const { service } = makeService({
+        unlocks: [unlock({ unlockExpiresAt: new Date('2026-10-04T14:00:00.000Z') })],
+        grants: [grant()],
+      });
+
+      const result = await service.view(VIEWER, PROFILE);
+
+      const parsed = UnlockedProfileResponseSchema.parse(result);
+      // The grant's NOW+24h window outlives the paid unlock's 14:00 expiry.
+      expect(parsed.unlock_expires_at).toBe('2026-10-05T12:00:00.000Z');
+    });
+
+    it('does not grant access to a different viewer', async () => {
+      const { service } = makeService({
+        grants: [grant({ targetUserId: 'someone_else' })],
+      });
+
+      const result = await service.view(VIEWER, PROFILE);
+
+      const parsed = LockedProfileResponseSchema.parse(result);
+      expect(parsed.profile_locked).toBe(true);
+    });
+
+    it('is included in the caller’s unlock list', async () => {
+      const { service } = makeService({ grants: [grant()] });
+
+      const result = await service.listUnlocks(VIEWER);
+
+      const parsed = UnlockListResponseSchema.parse(result);
+      expect(parsed.items).toHaveLength(1);
+      expect(parsed.items[0]).toMatchObject({
+        profile_id: PROFILE,
+        display_name: 'Ananya Sharma',
+        status: 'ACTIVE',
+      });
     });
   });
 });

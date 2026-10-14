@@ -17,7 +17,13 @@
  */
 
 import { z } from 'zod';
-import { ADMIN_ROLE_SLUGS, type AdminRoleSlug } from '../enums.js';
+import {
+  ADMIN_ROLE_SLUGS,
+  DATA_REQUEST_STATUSES,
+  type AdminRoleSlug,
+  type DataRequestStatus,
+  type DataRequestType,
+} from '../enums.js';
 
 export interface AdminPermissionDescriptor {
   /** The noun being acted on, e.g. `user`, `pricing`. */
@@ -285,4 +291,140 @@ export interface AdminUserView {
   roles: AdminRoleSlug[];
   lastLoginAt: string | null;
   createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Audited enrichment actions (F2(a): category, pricing and manual unlock)
+// ---------------------------------------------------------------------------
+
+/**
+ * A rupee amount with at most two decimals, as a string.
+ *
+ * Matches the money literal used elsewhere (`UnlockPriceSchema`), and is a
+ * string rather than a number so a value like `0.1` never enters the API as a
+ * binary float that could round differently on the way to storage.
+ */
+const RupeesSchema = z.string().regex(/^\d+(\.\d{1,2})?$/);
+
+/**
+ * Section 25: move a user between net-worth categories.
+ *
+ * Both fields are required. The category is *not* the numeric net worth — it is
+ * a key into `net_worth_category_ref`, validated server-side, so a client cannot
+ * invent a band. `reason` is mandatory because a category change is an
+ * access-control decision (section 3): without a reason the audit row cannot
+ * explain why a user's visibility scope changed.
+ */
+export const AdminChangeCategorySchema = z
+  .object({
+    category: z.string().trim().min(1).max(64),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+export type AdminChangeCategoryInput = z.infer<typeof AdminChangeCategorySchema>;
+
+export interface AdminCategoryChangeView {
+  userId: string;
+  previousCategory: string;
+  networthCategory: string;
+  changedAt: string;
+  changedByAdminId: string;
+}
+
+/**
+ * Section 29: publish a new pricing version.
+ *
+ * `gstPercent` is a percentage (18 = 18%), converted to the stored fraction
+ * server-side, because an administrator thinks in percent while the column is a
+ * `Decimal(5,4)` rate. Publishing is append-only: the service closes the current
+ * row and opens the next version, so historical payments keep their amount.
+ */
+export const AdminPublishPricingSchema = z
+  .object({
+    category: z.string().trim().min(1).max(64),
+    baseAmount: RupeesSchema,
+    gstPercent: z.number().min(0).max(100),
+    note: z.string().trim().max(280).optional(),
+  })
+  .strict();
+export type AdminPublishPricingInput = z.infer<typeof AdminPublishPricingSchema>;
+
+export interface AdminPricingView {
+  id: string;
+  category: string;
+  baseAmount: string;
+  gstRate: string;
+  version: number;
+  effectiveFrom: string;
+  effectiveTo: string | null;
+  note: string | null;
+  createdByAdminId: string | null;
+  createdAt: string;
+}
+
+/**
+ * Section 28: grant a contact unlock without a payment.
+ *
+ * One field names the profile; the owner is resolved server-side, so a caller
+ * cannot grant an unlock against a user id that does not own the profile. The
+ * reason is mandatory: this is the one path that discloses contact information
+ * with no money behind it, and the audit is the only thing that can explain it.
+ */
+export const AdminGrantUnlockSchema = z
+  .object({
+    profileId: z.string().trim().min(1),
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+export type AdminGrantUnlockInput = z.infer<typeof AdminGrantUnlockSchema>;
+
+export interface AdminGrantUnlockView {
+  profileId: string;
+  targetUserId: string;
+  grantedAt: string;
+  expiresAt: string;
+  reason: string;
+}
+
+// ---------------------------------------------------------------------------
+// Data-subject requests (sections 21, 32)
+// ---------------------------------------------------------------------------
+
+export const AdminListDataRequestsQuerySchema = z.object({
+  status: z.enum(DATA_REQUEST_STATUSES).optional(),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+  cursor: z.string().min(1).optional(),
+});
+export type AdminListDataRequestsQuery = z.infer<typeof AdminListDataRequestsQuerySchema>;
+
+/**
+ * Resolving a data request.
+ *
+ * Only `COMPLETED` and `REJECTED` are terminal, so only those are accepted: a
+ * request cannot be moved back to `REQUESTED` once an administrator has touched
+ * it. A rejection must carry notes, because a refused erasure request is exactly
+ * the decision a data subject is entitled to see explained.
+ */
+export const AdminResolveDataRequestSchema = z
+  .object({
+    status: z.enum(['COMPLETED', 'REJECTED']),
+    resolutionNotes: z.string().trim().max(2000).optional(),
+  })
+  .strict()
+  .refine((value) => value.status !== 'REJECTED' || (value.resolutionNotes ?? '').length > 0, {
+    message: 'A rejection requires resolution notes',
+    path: ['resolutionNotes'],
+  });
+export type AdminResolveDataRequestInput = z.infer<typeof AdminResolveDataRequestSchema>;
+
+export interface AdminDataRequestView {
+  id: string;
+  userId: string;
+  type: DataRequestType;
+  status: DataRequestStatus;
+  requestedAt: string;
+  dueAt: string;
+  completedAt: string | null;
+  resolutionNotes: string | null;
+  handledByAdminId: string | null;
 }

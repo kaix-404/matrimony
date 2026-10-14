@@ -126,6 +126,22 @@ export const NOTIFICATION_CHANNELS = ['PUSH', 'SMS', 'EMAIL', 'IN_APP'] as const
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 /**
+ * Section 21/32 data-subject requests. `EXPORT` produces an archive of the
+ * caller's data; `ERASURE` is the right-to-be-forgotten path. Handled by an
+ * administrator against a statutory deadline (`DataRequest.dueAt`).
+ */
+export const DATA_REQUEST_TYPES = ['EXPORT', 'ERASURE'] as const;
+export type DataRequestType = (typeof DATA_REQUEST_TYPES)[number];
+
+export const DATA_REQUEST_STATUSES = [
+  'REQUESTED',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'REJECTED',
+] as const;
+export type DataRequestStatus = (typeof DATA_REQUEST_STATUSES)[number];
+
+/**
  * Section 42 notification events. Kept as constants rather than a union so the
  * admin notification composer (section 31) can enumerate them at runtime.
  */

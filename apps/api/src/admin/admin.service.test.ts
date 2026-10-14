@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { FrozenClock } from '../common/clock/clock.service';
 import { verifyPassword } from '../common/crypto/password';
 
 /**
@@ -87,8 +88,117 @@ function setup() {
     { adminId: 'admin_target', roleId: 'role_fin' },
   ];
 
+  const categories = [
+    { key: 'BELOW_2CR', isActive: true, isDiscoverable: true },
+    { key: 'ABOVE_10CR', isActive: true, isDiscoverable: true },
+    { key: 'PENDING_REVIEW', isActive: true, isDiscoverable: false },
+  ];
+
+  const users = [{ id: 'user_1', networthCategory: 'BELOW_2CR' }];
+
+  const pricing: Array<{
+    id: string;
+    category: string;
+    baseAmount: string;
+    gstRate: string;
+    version: number;
+    effectiveFrom: Date;
+    effectiveTo: Date | null;
+    note: string | null;
+    createdByAdminId: string | null;
+    createdAt: Date;
+  }> = [
+    {
+      id: 'price_old',
+      category: 'BELOW_2CR',
+      baseAmount: '50.00',
+      gstRate: '0.1800',
+      version: 1,
+      effectiveFrom: new Date('2026-01-01T00:00:00.000Z'),
+      effectiveTo: null,
+      note: null,
+      createdByAdminId: null,
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    },
+  ];
+
+  const dataRequests = [
+    {
+      id: 'dr_1',
+      userId: 'user_1',
+      type: 'EXPORT',
+      status: 'REQUESTED',
+      requestedAt: new Date('2026-10-01T00:00:00.000Z'),
+      dueAt: new Date('2026-10-31T00:00:00.000Z'),
+      completedAt: null as Date | null,
+      resolutionNotes: null as string | null,
+      handledByAdminId: null as string | null,
+    },
+  ];
+
   const prisma = {
-    user: { findMany: async () => [] },
+    user: {
+      findMany: async () => [],
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        users.find((u) => u.id === where.id) ?? null,
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const user = users.find((u) => u.id === where.id)!;
+        Object.assign(user, data);
+        return user;
+      }),
+    },
+    netWorthCategoryRef: {
+      findUnique: async ({ where }: { where: { key: string } }) =>
+        categories.find((c) => c.key === where.key) ?? null,
+    },
+    pricingConfig: {
+      findFirst: async ({ where }: { where: { category: string; effectiveTo: null } }) =>
+        pricing.find((p) => p.category === where.category && p.effectiveTo === null) ?? null,
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: { effectiveTo: Date } }) => {
+        const row = pricing.find((p) => p.id === where.id)!;
+        row.effectiveTo = data.effectiveTo;
+        return row;
+      }),
+      aggregate: async ({ where }: { where: { category: string } }) => ({
+        _max: {
+          version: pricing
+            .filter((p) => p.category === where.category)
+            .reduce((max, p) => Math.max(max, p.version), 0),
+        },
+      }),
+      create: jest.fn(async ({ data }: { data: Omit<(typeof pricing)[number], 'id' | 'createdAt'> }) => {
+        const row = {
+          id: `price_${pricing.length + 1}`,
+          ...data,
+          createdAt: new Date('2026-10-14T12:00:00.000Z'),
+        };
+        pricing.push(row);
+        return row;
+      }),
+    },
+    profile: {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        where.id === 'profile_1' ? { id: 'profile_1', userId: 'user_1' } : null,
+    },
+    adminGrantAudit: {
+      create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
+        id: 'grant_1',
+        ...data,
+        createdAt: new Date('2026-10-14T12:00:00.000Z'),
+      })),
+    },
+    dataRequest: {
+      findMany: async ({ where }: { where?: { status?: string } } = {}) =>
+        where?.status ? dataRequests.filter((r) => r.status === where.status) : dataRequests,
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        dataRequests.find((r) => r.id === where.id) ?? null,
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = dataRequests.find((r) => r.id === where.id)!;
+        Object.assign(row, data);
+        return row;
+      }),
+    },
+    $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => fn(prisma),
     adminRole: {
       findMany: async ({ where }: { where?: { slug?: { in: string[] } } } = {}) => {
         const list = where?.slug?.in ? roles.filter((r) => where.slug!.in.includes(r.slug)) : roles;
@@ -146,9 +256,10 @@ function setup() {
   };
 
   const audit = { record: jest.fn(async () => undefined) };
-  const service = new AdminService(prisma as never, audit as never);
+  const clock = new FrozenClock(new Date('2026-10-14T12:00:00.000Z'));
+  const service = new AdminService(prisma as never, audit as never, clock);
 
-  return { service, prisma, audit, admins, assignments };
+  return { service, prisma, audit, admins, assignments, users, pricing, dataRequests };
 }
 
 describe('AdminService.listRoles', () => {
@@ -306,5 +417,180 @@ describe('AdminService.revokeRole', () => {
     await expect(service.revokeRole('admin_actor', 'FINANCE_ADMIN', 'admin_target')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+});
+
+describe('AdminService.changeCategory', () => {
+  it('moves the user, clears the review note and audits with the reason', async () => {
+    const { service, prisma, audit } = setup();
+
+    const result = await service.changeCategory(
+      'user_1',
+      { category: 'ABOVE_10CR', reason: 'Documents supplied' },
+      'admin_actor',
+    );
+
+    expect(result).toEqual({
+      userId: 'user_1',
+      previousCategory: 'BELOW_2CR',
+      networthCategory: 'ABOVE_10CR',
+      changedAt: '2026-10-14T12:00:00.000Z',
+      changedByAdminId: 'admin_actor',
+    });
+    expect(prisma.user.update.mock.calls[0]![0].data).toMatchObject({
+      networthCategory: 'ABOVE_10CR',
+      categoryReviewNote: null,
+      categoryChangedByAdminId: 'admin_actor',
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'user:category:change',
+        resourceId: 'user_1',
+        reason: 'Documents supplied',
+      }),
+    );
+  });
+
+  it('refuses a category that is not a real, discoverable band', async () => {
+    const { service, prisma } = setup();
+
+    await expect(
+      service.changeCategory('user_1', { category: 'PENDING_REVIEW', reason: 'x' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses a move to the category the user already holds', async () => {
+    const { service } = setup();
+    await expect(
+      service.changeCategory('user_1', { category: 'BELOW_2CR', reason: 'x' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('reports a missing user', async () => {
+    const { service } = setup();
+    await expect(
+      service.changeCategory('nobody', { category: 'ABOVE_10CR', reason: 'x' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminService.publishPricing', () => {
+  it('closes the active version and opens the next in one transaction', async () => {
+    const { service, prisma, audit, pricing } = setup();
+
+    const result = await service.publishPricing(
+      { category: 'BELOW_2CR', baseAmount: '99.00', gstPercent: 18 },
+      'admin_actor',
+    );
+
+    expect(prisma.pricingConfig.update).toHaveBeenCalledWith({
+      where: { id: 'price_old' },
+      data: { effectiveTo: new Date('2026-10-14T12:00:00.000Z') },
+    });
+    expect(prisma.pricingConfig.create.mock.calls[0]![0].data).toMatchObject({
+      category: 'BELOW_2CR',
+      baseAmount: '99.00',
+      gstRate: '0.1800',
+      version: 2,
+      createdByAdminId: 'admin_actor',
+    });
+    expect(result.version).toBe(2);
+    expect(result.gstRate).toBe('0.1800');
+    expect(pricing.find((p) => p.id === 'price_old')!.effectiveTo).toEqual(
+      new Date('2026-10-14T12:00:00.000Z'),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'pricing:publish', resourceType: 'PricingConfig' }),
+    );
+  });
+
+  it('rejects an unknown category before touching pricing', async () => {
+    const { service, prisma } = setup();
+
+    await expect(
+      service.publishPricing({ category: 'NOPE', baseAmount: '1.00', gstPercent: 18 }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.pricingConfig.create).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdminService.grantUnlock', () => {
+  it('records the grant, resolves the owner from the profile and audits it', async () => {
+    const { service, prisma, audit } = setup();
+
+    const result = await service.grantUnlock({ profileId: 'profile_1', reason: 'Goodwill' }, 'admin_actor');
+
+    expect(prisma.adminGrantAudit.create).toHaveBeenCalledWith({
+      data: {
+        adminId: 'admin_actor',
+        targetUserId: 'user_1',
+        targetProfileId: 'profile_1',
+        reason: 'Goodwill',
+      },
+    });
+    expect(result).toEqual({
+      profileId: 'profile_1',
+      targetUserId: 'user_1',
+      grantedAt: '2026-10-14T12:00:00.000Z',
+      expiresAt: '2026-10-15T12:00:00.000Z',
+      reason: 'Goodwill',
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'unlock:grant', resourceId: 'profile_1', reason: 'Goodwill' }),
+    );
+  });
+
+  it('reports a missing profile', async () => {
+    const { service } = setup();
+    await expect(
+      service.grantUnlock({ profileId: 'nobody', reason: 'x' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminService.listDataRequests', () => {
+  it('lists requests and filters by status', async () => {
+    const { service } = setup();
+
+    const all = await service.listDataRequests();
+    expect(all.hasMore).toBe(false);
+    expect(all.requests[0]).toMatchObject({ id: 'dr_1', type: 'EXPORT', status: 'REQUESTED' });
+
+    const none = await service.listDataRequests(20, undefined, 'COMPLETED');
+    expect(none.requests).toEqual([]);
+  });
+});
+
+describe('AdminService.resolveDataRequest', () => {
+  it('completes a request and audits it', async () => {
+    const { service, audit } = setup();
+
+    const result = await service.resolveDataRequest('dr_1', { status: 'COMPLETED' }, 'admin_actor');
+
+    expect(result).toMatchObject({
+      status: 'COMPLETED',
+      completedAt: '2026-10-14T12:00:00.000Z',
+      handledByAdminId: 'admin_actor',
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'data_request:resolve', resourceId: 'dr_1' }),
+    );
+  });
+
+  it('refuses to resolve a request twice', async () => {
+    const { service } = setup();
+    await service.resolveDataRequest('dr_1', { status: 'COMPLETED' }, 'admin_actor');
+
+    await expect(
+      service.resolveDataRequest('dr_1', { status: 'REJECTED', resolutionNotes: 'no' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('reports a missing request', async () => {
+    const { service } = setup();
+    await expect(
+      service.resolveDataRequest('nobody', { status: 'COMPLETED' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

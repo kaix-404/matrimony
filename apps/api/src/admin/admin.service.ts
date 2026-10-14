@@ -5,14 +5,31 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  computeUnlockWindow,
+  money,
+  roundMoney,
+  toDecimal,
+  toGstRate,
+} from '@matrimony/shared';
 import type {
+  AdminCategoryChangeView,
+  AdminChangeCategoryInput,
   AdminCreateInput,
+  AdminDataRequestView,
+  AdminGrantUnlockInput,
+  AdminGrantUnlockView,
   AdminPermissionKey,
+  AdminPricingView,
+  AdminPublishPricingInput,
+  AdminResolveDataRequestInput,
   AdminRoleSlug,
   AdminRoleView,
   AdminUserView,
+  DataRequestStatus,
 } from '@matrimony/shared';
-import { PrismaClient } from '../prisma/prisma-client';
+import { PrismaClient, Prisma } from '../prisma/prisma-client';
+import { ClockService } from '../common/clock/clock.service';
 import { AuditService } from './audit.service';
 import { hashPassword } from '../common/crypto/password';
 
@@ -54,11 +71,78 @@ function toAdminView(row: AdminRow): AdminUserView {
   };
 }
 
+const DATA_REQUEST_SELECT = {
+  id: true,
+  userId: true,
+  type: true,
+  status: true,
+  requestedAt: true,
+  dueAt: true,
+  completedAt: true,
+  resolutionNotes: true,
+  handledByAdminId: true,
+} as const;
+
+interface DataRequestRow {
+  id: string;
+  userId: string;
+  type: string;
+  status: string;
+  requestedAt: Date;
+  dueAt: Date;
+  completedAt: Date | null;
+  resolutionNotes: string | null;
+  handledByAdminId: string | null;
+}
+
+function toDataRequestView(row: DataRequestRow): AdminDataRequestView {
+  return {
+    id: row.id,
+    userId: row.userId,
+    type: row.type as AdminDataRequestView['type'],
+    status: row.status as DataRequestStatus,
+    requestedAt: row.requestedAt.toISOString(),
+    dueAt: row.dueAt.toISOString(),
+    completedAt: row.completedAt ? row.completedAt.toISOString() : null,
+    resolutionNotes: row.resolutionNotes,
+    handledByAdminId: row.handledByAdminId,
+  };
+}
+
+interface PricingRow {
+  id: string;
+  category: string;
+  baseAmount: Prisma.Decimal | string | number;
+  gstRate: Prisma.Decimal | string | number;
+  version: number;
+  effectiveFrom: Date;
+  effectiveTo: Date | null;
+  note: string | null;
+  createdByAdminId: string | null;
+  createdAt: Date;
+}
+
+function toPricingView(row: PricingRow): AdminPricingView {
+  return {
+    id: row.id,
+    category: row.category,
+    baseAmount: money(row.baseAmount),
+    gstRate: toDecimal(row.gstRate).toFixed(4),
+    version: row.version,
+    effectiveFrom: row.effectiveFrom.toISOString(),
+    effectiveTo: row.effectiveTo ? row.effectiveTo.toISOString() : null,
+    note: row.note,
+    createdByAdminId: row.createdByAdminId,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
 @Injectable()
 export class AdminService {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly audit: AuditService,
+    private readonly clock: ClockService,
   ) {}
 
   async listUsers(limit = 20, cursor?: string) {
@@ -259,6 +343,259 @@ export class AdminService {
     });
 
     return this.getAdminView(adminId);
+  }
+
+  /**
+   * Section 25 / F2(a): move a user between net-worth categories.
+   *
+   * Only a real, discoverable band is assignable. `PENDING_REVIEW` is the bucket
+   * a boundary value lands in and is not itself a category, so moving a user
+   * *out* of it is the whole point of this action while moving one *into* it
+   * would be a demotion to "invisible"; both are refused only for the latter.
+   * The write and the audit happen together: a category move without a reason is
+   * precisely the unchecked access-control change section 3 forbids.
+   */
+  async changeCategory(
+    userId: string,
+    input: AdminChangeCategoryInput,
+    actingAdminId: string,
+  ): Promise<AdminCategoryChangeView> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, networthCategory: true },
+    });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const category = await this.prisma.netWorthCategoryRef.findUnique({
+      where: { key: input.category },
+      select: { key: true, isActive: true, isDiscoverable: true },
+    });
+    if (!category || !category.isActive || !category.isDiscoverable) {
+      throw new BadRequestException(`Unknown or non-assignable category: ${input.category}`);
+    }
+    if (category.key === user.networthCategory) {
+      throw new BadRequestException('User is already in that category');
+    }
+
+    // Captured before the write: the row object returned by the update is not
+    // guaranteed to be distinct from the one just read.
+    const previousCategory = user.networthCategory;
+    const now = this.clock.now();
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        networthCategory: category.key,
+        // The boundary note only explains why PENDING_REVIEW was assigned; once
+        // an administrator overrides the category it no longer describes the row.
+        categoryReviewNote: null,
+        categoryChangedAt: now,
+        categoryChangedByAdminId: actingAdminId,
+      },
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'user:category:change',
+      resourceType: 'User',
+      resourceId: userId,
+      previousValue: { networthCategory: previousCategory },
+      newValue: { networthCategory: category.key },
+      reason: input.reason,
+    });
+
+    return {
+      userId,
+      previousCategory,
+      networthCategory: category.key,
+      changedAt: now.toISOString(),
+      changedByAdminId: actingAdminId,
+    };
+  }
+
+  /**
+   * Section 29: publish a new pricing version.
+   *
+   * Append-only, so the currently-active row is closed and a new version opened
+   * in one transaction — a publish that closed the old row and then failed
+   * before inserting would leave the band with no active price, and every
+   * locked-profile render for that band fails closed.
+   */
+  async publishPricing(
+    input: AdminPublishPricingInput,
+    actingAdminId: string,
+  ): Promise<AdminPricingView> {
+    const category = await this.prisma.netWorthCategoryRef.findUnique({
+      where: { key: input.category },
+      select: { key: true, isActive: true, isDiscoverable: true },
+    });
+    if (!category || !category.isActive || !category.isDiscoverable) {
+      throw new BadRequestException(`Unknown or non-purchasable category: ${input.category}`);
+    }
+
+    const baseAmount = roundMoney(input.baseAmount).toFixed(2);
+    const gstRate = toGstRate(input.gstPercent).toFixed(4);
+    const now = this.clock.now();
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      const current = await tx.pricingConfig.findFirst({
+        where: { category: input.category, effectiveTo: null },
+        orderBy: { effectiveFrom: 'desc' },
+        select: { id: true },
+      });
+      if (current) {
+        await tx.pricingConfig.update({ where: { id: current.id }, data: { effectiveTo: now } });
+      }
+
+      const highest = await tx.pricingConfig.aggregate({
+        where: { category: input.category },
+        _max: { version: true },
+      });
+
+      return tx.pricingConfig.create({
+        data: {
+          category: input.category,
+          baseAmount,
+          gstRate,
+          version: (highest._max.version ?? 0) + 1,
+          effectiveFrom: now,
+          note: input.note ?? null,
+          createdByAdminId: actingAdminId,
+        },
+      });
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'pricing:publish',
+      resourceType: 'PricingConfig',
+      resourceId: created.id,
+      newValue: { category: input.category, baseAmount, gstRate, version: created.version },
+      reason: input.note ?? `Published pricing v${created.version} for ${input.category}`,
+    });
+
+    return toPricingView(created);
+  }
+
+  /**
+   * Section 28 / F2(a): grant a contact unlock without a payment.
+   *
+   * The grant is recorded in `AdminGrantAudit` — the payment-less channel the
+   * schema reserves for this — and not as a `ContactUnlock`, because that row
+   * requires a verified payment. `UnlockService` reads the grant and honours it
+   * for the standard window, so the audit record is also the access decision.
+   */
+  async grantUnlock(
+    input: AdminGrantUnlockInput,
+    actingAdminId: string,
+  ): Promise<AdminGrantUnlockView> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: input.profileId },
+      select: { id: true, userId: true },
+    });
+    if (!profile) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    const now = this.clock.now();
+    const { unlockedAt, unlockExpiresAt } = computeUnlockWindow(now);
+
+    await this.prisma.adminGrantAudit.create({
+      data: {
+        adminId: actingAdminId,
+        targetUserId: profile.userId,
+        targetProfileId: profile.id,
+        reason: input.reason,
+      },
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'unlock:grant',
+      resourceType: 'Profile',
+      resourceId: profile.id,
+      newValue: { targetUserId: profile.userId, expiresAt: unlockExpiresAt.toISOString() },
+      reason: input.reason,
+    });
+
+    return {
+      profileId: profile.id,
+      targetUserId: profile.userId,
+      grantedAt: unlockedAt.toISOString(),
+      expiresAt: unlockExpiresAt.toISOString(),
+      reason: input.reason,
+    };
+  }
+
+  /**
+   * The data-subject request queue, most urgent first.
+   *
+   * Ordered by the statutory deadline rather than arrival so the request closest
+   * to breaching its due date is the one at the top.
+   */
+  async listDataRequests(limit = 20, cursor?: string, status?: DataRequestStatus) {
+    const take = Math.min(limit, 100);
+    const items = await this.prisma.dataRequest.findMany({
+      take: take + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      where: status ? { status } : undefined,
+      orderBy: [{ dueAt: 'asc' }, { requestedAt: 'asc' }],
+      select: DATA_REQUEST_SELECT,
+    });
+    const hasMore = items.length > take;
+    const rows = hasMore ? items.slice(0, take) : items;
+    const requests = rows.map(toDataRequestView);
+    const nextCursor = hasMore ? requests[requests.length - 1]?.id ?? null : null;
+    return { requests, nextCursor, hasMore };
+  }
+
+  /**
+   * Section 21/32: complete or reject a data request.
+   *
+   * Resolution is terminal: a request that has already been answered cannot be
+   * answered again, so a double-click cannot rewrite a completed decision.
+   */
+  async resolveDataRequest(
+    id: string,
+    input: AdminResolveDataRequestInput,
+    actingAdminId: string,
+  ): Promise<AdminDataRequestView> {
+    const request = await this.prisma.dataRequest.findUnique({
+      where: { id },
+      select: { id: true, status: true },
+    });
+    if (!request) {
+      throw new NotFoundException('Data request not found');
+    }
+    if (request.status === 'COMPLETED' || request.status === 'REJECTED') {
+      throw new ConflictException('Data request is already resolved');
+    }
+
+    const now = this.clock.now();
+    const updated = await this.prisma.dataRequest.update({
+      where: { id },
+      data: {
+        status: input.status,
+        completedAt: now,
+        resolutionNotes: input.resolutionNotes ?? null,
+        handledByAdminId: actingAdminId,
+      },
+      select: DATA_REQUEST_SELECT,
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'data_request:resolve',
+      resourceType: 'DataRequest',
+      resourceId: id,
+      previousValue: { status: request.status },
+      newValue: { status: input.status },
+      reason: input.resolutionNotes ?? null,
+    });
+
+    return toDataRequestView(updated);
   }
 
   private async getAdminView(adminId: string): Promise<AdminUserView> {

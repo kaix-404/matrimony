@@ -1,15 +1,29 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
 import {
   AdminAssignRoleSchema,
+  AdminChangeCategorySchema,
   AdminCreateSchema,
+  AdminGrantUnlockSchema,
   AdminListAdminsQuerySchema,
+  AdminListDataRequestsQuerySchema,
   AdminListUsersQuerySchema,
+  AdminPublishPricingSchema,
+  AdminResolveDataRequestSchema,
   AdminRoleSlugSchema,
   type AdminAssignRoleInput,
+  type AdminCategoryChangeView,
+  type AdminChangeCategoryInput,
   type AdminCreateInput,
+  type AdminDataRequestView,
+  type AdminGrantUnlockInput,
+  type AdminGrantUnlockView,
   type AdminListAdminsQuery,
+  type AdminListDataRequestsQuery,
   type AdminListUsersQuery,
+  type AdminPricingView,
   type AdminPrincipal,
+  type AdminPublishPricingInput,
+  type AdminResolveDataRequestInput,
   type AdminRoleSlug,
   type AdminRoleView,
   type AdminUserView,
@@ -89,5 +103,63 @@ export class AdminController {
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminUserView> {
     return this.adminService.revokeRole(id, role, principal.id);
+  }
+
+  /**
+   * F2(a): move a user between net-worth categories. Super-Admin-only in
+   * practice because only the Super Admin role holds `user:change_category`.
+   */
+  @Post('users/:id/category')
+  @RequirePermission('user:change_category')
+  @HttpCode(200)
+  async changeCategory(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminChangeCategorySchema)) body: AdminChangeCategoryInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminCategoryChangeView> {
+    return this.adminService.changeCategory(id, body, principal.id);
+  }
+
+  /** F2(a) / section 29: publish a new pricing version for one band. */
+  @Post('pricing')
+  @RequirePermission('pricing:write')
+  @HttpCode(201)
+  async publishPricing(
+    @Body(new ZodValidationPipe(AdminPublishPricingSchema)) body: AdminPublishPricingInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminPricingView> {
+    return this.adminService.publishPricing(body, principal.id);
+  }
+
+  /** F2(a) / section 28: grant a payment-less contact unlock, always audited. */
+  @Post('unlocks')
+  @RequirePermission('unlock:grant')
+  @HttpCode(201)
+  async grantUnlock(
+    @Body(new ZodValidationPipe(AdminGrantUnlockSchema)) body: AdminGrantUnlockInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminGrantUnlockView> {
+    return this.adminService.grantUnlock(body, principal.id);
+  }
+
+  /** Section 21/32: the data-subject request queue. */
+  @Get('data-requests')
+  @RequirePermission('data_request:handle')
+  async listDataRequests(
+    @Query(new ZodValidationPipe(AdminListDataRequestsQuerySchema)) query: AdminListDataRequestsQuery,
+  ) {
+    return this.adminService.listDataRequests(query.limit, query.cursor, query.status);
+  }
+
+  /** Section 21/32: complete or reject a data request. */
+  @Post('data-requests/:id/resolve')
+  @RequirePermission('data_request:handle')
+  @HttpCode(200)
+  async resolveDataRequest(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminResolveDataRequestSchema)) body: AdminResolveDataRequestInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminDataRequestView> {
+    return this.adminService.resolveDataRequest(id, body, principal.id);
   }
 }

@@ -1,10 +1,15 @@
 import {
   ADMIN_PERMISSIONS,
   AdminAssignRoleSchema,
+  AdminChangeCategorySchema,
   AdminCreateSchema,
+  AdminGrantUnlockSchema,
   AdminListAdminsQuerySchema,
+  AdminListDataRequestsQuerySchema,
   AdminListUsersQuerySchema,
   AdminLoginSchema,
+  AdminPublishPricingSchema,
+  AdminResolveDataRequestSchema,
   AdminRoleSlugSchema,
   permissionCatalogueRows,
 } from './admin.js';
@@ -147,5 +152,68 @@ describe('AdminListAdminsQuerySchema', () => {
   it('defaults and caps the page size', () => {
     expect(AdminListAdminsQuerySchema.parse({}).limit).toBe(20);
     expect(AdminListAdminsQuerySchema.safeParse({ limit: 0 }).success).toBe(false);
+  });
+});
+
+describe('AdminChangeCategorySchema', () => {
+  it('requires a category and a reason', () => {
+    expect(
+      AdminChangeCategorySchema.parse({ category: 'BELOW_2CR', reason: 'Evidence reviewed' }),
+    ).toEqual({ category: 'BELOW_2CR', reason: 'Evidence reviewed' });
+    expect(AdminChangeCategorySchema.safeParse({ category: 'BELOW_2CR' }).success).toBe(false);
+    expect(AdminChangeCategorySchema.safeParse({ category: '', reason: 'x' }).success).toBe(false);
+  });
+});
+
+describe('AdminPublishPricingSchema', () => {
+  it('accepts a rupee amount and a percentage GST rate', () => {
+    expect(
+      AdminPublishPricingSchema.parse({ category: 'BELOW_2CR', baseAmount: '99.00', gstPercent: 18 }),
+    ).toEqual({ category: 'BELOW_2CR', baseAmount: '99.00', gstPercent: 18 });
+  });
+
+  it('rejects a malformed amount and an out-of-range rate', () => {
+    expect(
+      AdminPublishPricingSchema.safeParse({ category: 'X', baseAmount: '9.999', gstPercent: 18 }).success,
+    ).toBe(false);
+    expect(
+      AdminPublishPricingSchema.safeParse({ category: 'X', baseAmount: '99', gstPercent: 101 }).success,
+    ).toBe(false);
+  });
+});
+
+describe('AdminGrantUnlockSchema', () => {
+  it('requires a profile and a reason', () => {
+    expect(AdminGrantUnlockSchema.parse({ profileId: 'p1', reason: 'Goodwill' })).toEqual({
+      profileId: 'p1',
+      reason: 'Goodwill',
+    });
+    expect(AdminGrantUnlockSchema.safeParse({ profileId: 'p1', reason: '' }).success).toBe(false);
+  });
+});
+
+describe('AdminListDataRequestsQuerySchema', () => {
+  it('defaults the page size and accepts a status filter', () => {
+    expect(AdminListDataRequestsQuerySchema.parse({}).limit).toBe(20);
+    expect(AdminListDataRequestsQuerySchema.parse({ status: 'COMPLETED' }).status).toBe('COMPLETED');
+    expect(AdminListDataRequestsQuerySchema.safeParse({ status: 'NOPE' }).success).toBe(false);
+  });
+});
+
+describe('AdminResolveDataRequestSchema', () => {
+  it('accepts a completion without notes', () => {
+    expect(AdminResolveDataRequestSchema.parse({ status: 'COMPLETED' }).status).toBe('COMPLETED');
+  });
+
+  it('requires notes to reject', () => {
+    expect(AdminResolveDataRequestSchema.safeParse({ status: 'REJECTED' }).success).toBe(false);
+    expect(
+      AdminResolveDataRequestSchema.safeParse({ status: 'REJECTED', resolutionNotes: 'Not eligible' })
+        .success,
+    ).toBe(true);
+  });
+
+  it('rejects a non-terminal status', () => {
+    expect(AdminResolveDataRequestSchema.safeParse({ status: 'REQUESTED' }).success).toBe(false);
   });
 });

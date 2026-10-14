@@ -32,6 +32,7 @@ import { ClockService } from '../common/clock/clock.service';
 import { StorageService } from '../storage/s3.service';
 import { VisibilityPreferenceService } from '../discovery/visibility-preference.service';
 import {
+  computeUnlockWindow,
   isUnlockActive,
   quotePayment,
   remainingMs,
@@ -75,21 +76,44 @@ export class UnlockService {
   ): Promise<UnlockedProfileResponse | LockedProfileResponse | ExpiredUnlockResponse> {
     const target = await this.loadTarget(viewerId, profileId);
     const photos = await this.photosFor(target.id);
-
-    const unlock = await this.prisma.contactUnlock.findFirst({
-      where: { userId: viewerId, profileId: target.id },
-      orderBy: { createdAt: 'desc' },
-    });
-
     const now = this.clock.now();
+
+    const [unlock, grant] = await Promise.all([
+      this.prisma.contactUnlock.findFirst({
+        where: { userId: viewerId, profileId: target.id },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.adminGrantAudit.findFirst({
+        where: { targetUserId: viewerId, targetProfileId: target.id },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    // Two independent sources of access: a paid unlock (section 15) and a
+    // payment-less admin grant (section 28). Both are windows over the same
+    // 24-hour rule, so the effective access ends at whichever closes later — a
+    // later grant extends a paid window and a paid unlock extends a grant.
+    const activeExpiries: number[] = [];
     if (unlock && isUnlockActive(unlock.unlockExpiresAt, now, unlock.status)) {
+      activeExpiries.push(unlock.unlockExpiresAt.getTime());
+    }
+    if (grant) {
+      const { unlockExpiresAt } = computeUnlockWindow(grant.createdAt);
+      if (isUnlockActive(unlockExpiresAt, now)) {
+        activeExpiries.push(unlockExpiresAt.getTime());
+      }
+    }
+
+    if (activeExpiries.length > 0) {
+      const expiresAt = new Date(Math.max(...activeExpiries));
       return {
         profile_id: target.id,
         photos,
         full_profile: this.fullProfile(target),
         contact: this.contactFor(target),
         profile_locked: false,
-        unlock_expires_at: unlock.unlockExpiresAt.toISOString(),
+        unlock_expires_at: expiresAt.toISOString(),
       };
     }
 
@@ -108,32 +132,49 @@ export class UnlockService {
     };
 
     // Section 38's `previously_unlocked` lets the app show "expired" copy rather
-    // than a first-time paywall for someone who has paid before.
-    return unlock ? { ...locked, previously_unlocked: true as const } : locked;
+    // than a first-time paywall for someone who has paid — or been granted a
+    // window — before.
+    const previouslyUnlocked = Boolean(unlock) || Boolean(grant);
+    return previouslyUnlocked ? { ...locked, previously_unlocked: true as const } : locked;
   }
 
-  /** The caller's own unlocks, newest first. */
+  /**
+   * The caller's own unlocks, newest first.
+   *
+   * Two sources feed this list: paid unlocks and payment-less admin grants
+   * (section 28). They are keyed by profile so a profile that is both bought and
+   * granted appears once, carrying the later expiry, and the list's display name
+   * is suppressed exactly as before once the effective window has closed.
+   */
   async listUnlocks(viewerId: string): Promise<UnlockListResponse> {
     const now = this.clock.now();
-    const rows = await this.prisma.contactUnlock.findMany({
-      where: { userId: viewerId },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        profile: {
-          select: {
-            firstName: true,
-            lastName: true,
-            status: true,
-            visibility: true,
-            deletedAt: true,
+    const [rows, grants] = await Promise.all([
+      this.prisma.contactUnlock.findMany({
+        where: { userId: viewerId },
+        orderBy: { createdAt: 'desc' },
+        include: {
+          profile: {
+            select: {
+              firstName: true,
+              lastName: true,
+              status: true,
+              visibility: true,
+              deletedAt: true,
+            },
           },
         },
-      },
-    });
+      }),
+      this.prisma.adminGrantAudit.findMany({
+        where: { targetUserId: viewerId },
+        orderBy: { createdAt: 'desc' },
+        select: { targetProfileId: true, createdAt: true },
+      }),
+    ]);
 
-    const items: UnlockSummary[] = rows.map((row) => {
+    const byProfile = new Map<string, UnlockSummary>();
+    for (const row of rows) {
       const active = isUnlockActive(row.unlockExpiresAt, now, row.status);
-      return {
+      byProfile.set(row.profileId, {
         profile_id: row.profileId,
         // Suppressed once inactive, and suppressed entirely if the profile is
         // gone: the list must not outlive the privacy decision that created it.
@@ -145,8 +186,52 @@ export class UnlockService {
         unlocked_at: row.unlockedAt.toISOString(),
         unlock_expires_at: row.unlockExpiresAt.toISOString(),
         remaining_ms: remainingMs(row.unlockExpiresAt, now),
-      };
-    });
+      });
+    }
+
+    const grantProfileIds = [...new Set(grants.map((g) => g.targetProfileId))];
+    if (grantProfileIds.length > 0) {
+      const profiles = await this.prisma.profile.findMany({
+        where: { id: { in: grantProfileIds } },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          status: true,
+          visibility: true,
+          deletedAt: true,
+        },
+      });
+      const profileById = new Map(profiles.map((p) => [p.id, p] as const));
+
+      for (const grant of grants) {
+        const { unlockedAt, unlockExpiresAt } = computeUnlockWindow(grant.createdAt);
+        const existing = byProfile.get(grant.targetProfileId);
+        if (
+          existing &&
+          new Date(existing.unlock_expires_at).getTime() >= unlockExpiresAt.getTime()
+        ) {
+          continue;
+        }
+        const profile = profileById.get(grant.targetProfileId) ?? null;
+        const active = isUnlockActive(unlockExpiresAt, now);
+        byProfile.set(grant.targetProfileId, {
+          profile_id: grant.targetProfileId,
+          display_name:
+            active && profile && this.profileIsReadable(profile)
+              ? [profile.firstName, profile.lastName].filter(Boolean).join(' ')
+              : null,
+          status: this.effectiveStatus(unlockExpiresAt, now, 'ACTIVE'),
+          unlocked_at: unlockedAt.toISOString(),
+          unlock_expires_at: unlockExpiresAt.toISOString(),
+          remaining_ms: remainingMs(unlockExpiresAt, now),
+        });
+      }
+    }
+
+    const items = [...byProfile.values()].sort(
+      (a, b) => new Date(b.unlocked_at).getTime() - new Date(a.unlocked_at).getTime(),
+    );
 
     return { items };
   }
