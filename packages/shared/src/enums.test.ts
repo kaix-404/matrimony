@@ -23,6 +23,7 @@ import {
   GENDER_PREFERENCES,
   MARITAL_STATUSES,
   NOTIFICATION_EVENTS,
+  ADMIN_ROLE_SLUGS,
   UNLOCK_EXPIRY_REMINDER_HOURS,
 } from './enums.js';
 
@@ -60,6 +61,7 @@ describe('shared enums match the Prisma schema', () => {
     ['Gender', GENDERS],
     ['GenderPreference', GENDER_PREFERENCES],
     ['MaritalStatus', MARITAL_STATUSES],
+    ['AdminRoleSlug', ADMIN_ROLE_SLUGS],
   ])('%s', (prismaName, shared) => {
     expect([...shared].sort()).toEqual(schemaEnum(prismaName).sort());
   });

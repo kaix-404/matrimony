@@ -177,3 +177,16 @@ export const ADMIN_DASHBOARD_WIDGETS = [
   'openDataRequests',
 ] as const;
 export type AdminDashboardWidget = (typeof ADMIN_DASHBOARD_WIDGETS)[number];
+
+/**
+ * Section 33 role catalogue. Roles are a fixed set; what changes is the
+ * permissions each holds. Guards check permissions, never these slugs, so a role
+ * can be re-scoped in the database without a deploy.
+ */
+export const ADMIN_ROLE_SLUGS = [
+  'SUPER_ADMIN',
+  'ADMIN',
+  'MODERATION_ADMIN',
+  'FINANCE_ADMIN',
+] as const;
+export type AdminRoleSlug = (typeof ADMIN_ROLE_SLUGS)[number];

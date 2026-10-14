@@ -14,6 +14,7 @@ import { PaymentsModule } from './payments/payments.module';
 import { UnlockModule } from './unlock/unlock.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { AdminModule } from './admin/admin.module';
 import type { Env } from './config/env';
 
 /**
@@ -42,6 +43,7 @@ import type { Env } from './config/env';
     UnlockModule,
     ModerationModule,
     NotificationsModule,
+    AdminModule,
     ThrottlerModule.forRootAsync({
       inject: ['ENV'],
       useFactory: (env: Env) => ({

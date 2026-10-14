@@ -38,6 +38,11 @@ import type { Env } from '../config/env';
   // `OtpService` is exported for account deletion (section 21), which has to
   // consume the DELETE_ACCOUNT code itself rather than having `otp/verify`
   // spend it — see the branch in `AuthController.verifyOtp`.
-  exports: [TokenService, RegistrationService, OtpService, JwtAuthGuard],
+  //
+  // `JwtModule` is exported so feature modules that must verify a token their own
+  // way — the admin module issues `admin_access` tokens — share one signing
+  // configuration instead of registering a second JwtModule against the same
+  // secret and risking the two drifting apart.
+  exports: [TokenService, RegistrationService, OtpService, JwtAuthGuard, JwtModule],
 })
 export class AuthModule {}

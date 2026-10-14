@@ -22,6 +22,7 @@ import {
   NET_WORTH_BANDS,
   NET_WORTH_PENDING_REVIEW_KEY,
   classifyNetWorth,
+  permissionCatalogueRows,
   quotePayment,
   toGstRate,
   type PricedBandKey,
@@ -232,29 +233,12 @@ async function seedReportReasons(): Promise<void> {
 // Section 33 — permissions and roles, per client answer F2(a)
 // ---------------------------------------------------------------------------
 
-const PERMISSIONS = [
-  { key: 'user:read', resource: 'user', action: 'read', isSensitive: false },
-  { key: 'user:suspend', resource: 'user', action: 'suspend', isSensitive: true },
-  { key: 'user:delete', resource: 'user', action: 'delete', isSensitive: true },
-  { key: 'user:change_category', resource: 'user', action: 'change_category', isSensitive: true },
-  { key: 'profile:read', resource: 'profile', action: 'read', isSensitive: false },
-  { key: 'profile:approve', resource: 'profile', action: 'approve', isSensitive: false },
-  { key: 'profile:reject', resource: 'profile', action: 'reject', isSensitive: false },
-  { key: 'profile:suspend', resource: 'profile', action: 'suspend', isSensitive: true },
-  { key: 'photo:review', resource: 'photo', action: 'review', isSensitive: false },
-  { key: 'payment:read', resource: 'payment', action: 'read', isSensitive: false },
-  { key: 'payment:refund', resource: 'payment', action: 'refund', isSensitive: true },
-  { key: 'unlock:read', resource: 'unlock', action: 'read', isSensitive: false },
-  { key: 'unlock:grant', resource: 'unlock', action: 'grant', isSensitive: true },
-  { key: 'report:review', resource: 'report', action: 'review', isSensitive: false },
-  { key: 'pricing:read', resource: 'pricing', action: 'read', isSensitive: false },
-  { key: 'pricing:write', resource: 'pricing', action: 'write', isSensitive: true },
-  { key: 'notification:send', resource: 'notification', action: 'send', isSensitive: false },
-  { key: 'audit:read', resource: 'audit', action: 'read', isSensitive: false },
-  { key: 'data_request:handle', resource: 'data_request', action: 'handle', isSensitive: true },
-  { key: 'identity_verify:review', resource: 'identity_verify', action: 'review', isSensitive: true },
-  { key: 'admin:manage', resource: 'admin', action: 'manage', isSensitive: true },
-] as const;
+/**
+ * The catalogue is imported, not restated. Guards in the API can only require a
+ * key from `ADMIN_PERMISSIONS`, so seeding the same source means a key can never
+ * be required but ungrantable, nor seeded but uncheckable.
+ */
+const PERMISSIONS = permissionCatalogueRows();
 
 const ALL_PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
 
