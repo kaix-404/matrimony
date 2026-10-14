@@ -1129,6 +1129,11 @@ model ContactUnlock {
   /// Populated when the profile owner deleted/suspended mid-window.
   supersededByEvent String?
 
+  /// Section 15 / C3: set once the 2-hour pre-expiry reminder has been recorded,
+  /// so a sweep that runs twice (or a redeploy across the window) does not
+  /// notify the buyer twice.
+  reminderSentAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

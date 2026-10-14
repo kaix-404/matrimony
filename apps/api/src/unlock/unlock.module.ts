@@ -3,8 +3,10 @@ import { AuthModule } from '../auth/auth.module';
 import { ClockModule } from '../common/clock/clock.module';
 import { StorageModule } from '../storage/storage.module';
 import { DiscoveryModule } from '../discovery/discovery.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { UnlockService } from './unlock.service';
 import { UnlockExpirySweeper } from './unlock-expiry.sweeper';
+import { UnlockExpiryReminder } from './unlock-expiry-reminder.service';
 import { ProfilesController, UnlocksController } from './unlock.controller';
 
 /**
@@ -19,11 +21,15 @@ import { ProfilesController, UnlocksController } from './unlock.controller';
  * is scoped here by exactly the rule the feed used. Re-deriving visibility would
  * be the most likely way for a paid feature to end up showing a profile that the
  * free feed would have hidden.
+ *
+ * `NotificationsModule` is imported for the section 15 reminder. It already
+ * imports `AuthModule`, so importing it back here adds no cycle — this module
+ * only reaches `NotificationsService`, never the other way round.
  */
 @Module({
-  imports: [AuthModule, ClockModule, StorageModule, DiscoveryModule],
+  imports: [AuthModule, ClockModule, StorageModule, DiscoveryModule, NotificationsModule],
   controllers: [UnlocksController, ProfilesController],
-  providers: [UnlockService, UnlockExpirySweeper],
+  providers: [UnlockService, UnlockExpirySweeper, UnlockExpiryReminder],
   // Exported so an admin reconciliation job or a later phase can expire a
   // single unlock without reaching into the controller layer.
   exports: [UnlockService],

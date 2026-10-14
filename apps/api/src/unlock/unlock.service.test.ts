@@ -150,8 +150,8 @@ function makeService(
     contactUnlock: {
       findFirst: async ({ where }: { where: { userId: string; profileId: string } }) =>
         unlocks.find((u) => u.userId === where.userId && u.profileId === where.profileId) ?? null,
-      findMany: async () =>
-        unlocks.map((u) => ({
+      findMany: async (args: { where?: Record<string, unknown> } = {}) => {
+        const mapped = unlocks.map((u) => ({
           ...u,
           // The list resolves each unlock's target; a row whose profile is gone
           // keeps the unlock but resolves to nothing.
@@ -164,17 +164,41 @@ function makeService(
               visibility: 'ACTIVE',
               deletedAt: null,
             } as ProfileRow),
-        })),
-      updateMany: async ({
-        where,
-      }: {
-        where: { status: string; unlockExpiresAt: { lte: Date } };
+        }));
+        const where = args.where;
+        // The reminder claim is the only caller that filters on `reminderSentAt`;
+        // the list read passes no `where` at all.
+        if (where && 'reminderSentAt' in where) {
+          const range = where.unlockExpiresAt as { gt?: Date; lte?: Date } | undefined;
+          return mapped.filter(
+            (u) =>
+              u.status === where.status &&
+              !u.reminderSentAt &&
+              (!range?.gt || (u.unlockExpiresAt as Date).getTime() > range.gt.getTime()) &&
+              (!range?.lte || (u.unlockExpiresAt as Date).getTime() <= range.lte.getTime()),
+          );
+        }
+        return mapped;
+      },
+      updateMany: async (args: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
       }) => {
+        const { where, data } = args;
         const at = clock.now();
-        const matched = unlocks.filter(
-          (u) => u.status === where.status && (u.unlockExpiresAt as Date).getTime() <= at.getTime(),
-        );
-        for (const u of matched) u.status = 'EXPIRED';
+        // Expiry pass: `status` + `unlockExpiresAt.lte`.
+        if ('unlockExpiresAt' in where) {
+          const matched = unlocks.filter(
+            (u) =>
+              u.status === where.status && (u.unlockExpiresAt as Date).getTime() <= at.getTime(),
+          );
+          for (const u of matched) u.status = 'EXPIRED';
+          return { count: matched.length };
+        }
+        // Reminder claim: conditional on `reminderSentAt` still being null, so a
+        // second pass matches nothing.
+        const matched = unlocks.filter((u) => u.id === where.id && !u.reminderSentAt);
+        for (const u of matched) u.reminderSentAt = data.reminderSentAt;
         return { count: matched.length };
       },
     },
@@ -591,6 +615,67 @@ describe('UnlockService', () => {
 
       expect(await service.expireDue()).toBe(1);
       expect(await service.expireDue()).toBe(0);
+    });
+  });
+
+  /**
+   * Section 15 / C3: the pre-expiry reminder window.
+   *
+   * These tests are about the *claim* — one unlock, one reminder — because the
+   * notification itself is recorded by `UnlockExpiryReminder`. If the claim
+   * double-counts, the buyer gets nagged on every sweep; if it under-counts, the
+   * reminder never happens at all.
+   */
+  describe('the pre-expiry reminder window', () => {
+    const HOUR = 60 * 60 * 1000;
+    const inHours = (h: number) => new Date(new Date(NOW).getTime() + h * HOUR);
+
+    it('claims an unlock that is inside the lead time', async () => {
+      const rows = [unlock({ unlockExpiresAt: inHours(1) })];
+      const { service } = makeService({ unlocks: rows });
+
+      const claimed = await service.claimDueReminders(2 * HOUR);
+
+      expect(claimed).toEqual([
+        {
+          unlockId: 'unlock_1',
+          userId: VIEWER,
+          profileId: PROFILE,
+          displayName: 'Ananya Sharma',
+          unlockExpiresAt: inHours(1),
+        },
+      ]);
+      // Claimed means stamped, so the notification has something to be idempotent
+      // against.
+      expect(rows[0].reminderSentAt).toEqual(new Date(NOW));
+    });
+
+    it('ignores an unlock further away than the lead time', async () => {
+      const { service } = makeService({ unlocks: [unlock({ unlockExpiresAt: inHours(3) })] });
+
+      expect(await service.claimDueReminders(2 * HOUR)).toEqual([]);
+    });
+
+    it('ignores an unlock whose window has already passed', async () => {
+      const { service } = makeService({ unlocks: [unlock({ unlockExpiresAt: inHours(-1) })] });
+
+      // A reminder for a dead window is noise; the expiry pass owns that row.
+      expect(await service.claimDueReminders(2 * HOUR)).toEqual([]);
+    });
+
+    it('ignores a non-active unlock', async () => {
+      const { service } = makeService({
+        unlocks: [unlock({ status: 'REVOKED', unlockExpiresAt: inHours(1) })],
+      });
+
+      expect(await service.claimDueReminders(2 * HOUR)).toEqual([]);
+    });
+
+    it('never claims the same unlock twice', async () => {
+      const { service } = makeService({ unlocks: [unlock({ unlockExpiresAt: inHours(1) })] });
+
+      expect(await service.claimDueReminders(2 * HOUR)).toHaveLength(1);
+      expect(await service.claimDueReminders(2 * HOUR)).toHaveLength(0);
     });
   });
 

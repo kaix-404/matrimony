@@ -50,6 +50,19 @@ import {
 /** The profile row plus its owner, as both views need. */
 type Target = Awaited<ReturnType<UnlockService['loadTarget']>>;
 
+/**
+ * An unlock that has just entered the pre-expiry reminder window and been
+ * claimed for notification. Returned by `claimDueReminders` so the caller does
+ * not have to re-read the row to know who to notify.
+ */
+export interface DueUnlockReminder {
+  unlockId: string;
+  userId: string;
+  profileId: string;
+  displayName: string | null;
+  unlockExpiresAt: Date;
+}
+
 @Injectable()
 export class UnlockService {
   private readonly logger = new Logger(UnlockService.name);
@@ -256,6 +269,64 @@ export class UnlockService {
     });
     if (count > 0) this.logger.log(`Marked ${count} unlock(s) expired.`);
     return count;
+  }
+
+  /**
+   * Claim the unlocks that have entered the section 15 reminder window.
+   *
+   * A claim, not a read: each returned row has `reminderSentAt` stamped in the
+   * same breath, so the reminder is sent at most once even if the sweep is run
+   * twice concurrently or a redeploy replays the window. The conditional
+   * `updateMany` (rather than an unconditional `update`) is what makes the
+   * second caller see `count === 0` and skip the notification instead of
+   * duplicating it.
+   *
+   * Claiming rather than merely selecting also keeps the "who owns this table"
+   * rule: `ContactUnlock` is written here and nowhere else.
+   */
+  async claimDueReminders(leadMs: number, now: Date = this.clock.now()): Promise<DueUnlockReminder[]> {
+    if (!this.prisma?.contactUnlock?.findMany) {
+      return [];
+    }
+    const windowEnd = new Date(now.getTime() + leadMs);
+    const candidates = await this.prisma.contactUnlock.findMany({
+      where: {
+        status: 'ACTIVE',
+        reminderSentAt: null,
+        // `gt: now` excludes rows a missed sweep let lapse; the expiry pass owns
+        // those, and a reminder for an already-dead window is just noise.
+        unlockExpiresAt: { gt: now, lte: windowEnd },
+      },
+      select: {
+        id: true,
+        userId: true,
+        profileId: true,
+        unlockExpiresAt: true,
+        profile: { select: { firstName: true, lastName: true } },
+      },
+    });
+
+    const claimed: DueUnlockReminder[] = [];
+    for (const row of candidates) {
+      const { count } = await this.prisma.contactUnlock.updateMany({
+        where: { id: row.id, reminderSentAt: null },
+        data: { reminderSentAt: now },
+      });
+      if (count !== 1) continue;
+      claimed.push({
+        unlockId: row.id,
+        userId: row.userId,
+        profileId: row.profileId,
+        displayName:
+          [row.profile?.firstName, row.profile?.lastName].filter(Boolean).join(' ') || null,
+        unlockExpiresAt: row.unlockExpiresAt,
+      });
+    }
+
+    if (claimed.length > 0) {
+      this.logger.log(`Claimed ${claimed.length} unlock expiry reminder(s).`);
+    }
+    return claimed;
   }
 
   // -------------------------------------------------------------------------
