@@ -27,18 +27,18 @@
 </head>
 <body>
   <h1>Networth Matrimony &mdash; Project Status Report</h1>
-  <p class="meta"><strong>Report Date:</strong> October 14, 2026 &nbsp;|&nbsp; <strong>Branch:</strong> main (a6396a6) &nbsp;|&nbsp; <strong>Repository:</strong> D:\matrimony</p>
+  <p class="meta"><strong>Report Date:</strong> October 14, 2026 &nbsp;|&nbsp; <strong>Branch:</strong> main (f18b79f) &nbsp;|&nbsp; <strong>Repository:</strong> D:\matrimony</p>
 
   <h2>Executive Summary</h2>
-  <p>The platform is feature-complete on the backend. Phases 0&ndash;8 are delivered: authentication, profile and discovery, payments and unlocks, trust and safety (including the report moderation queue), identity verification, notifications, and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, and the section-30 moderation queue. The remaining work is the Next.js admin dashboard and the Phase 9 mobile app. All gates are green with 744 automated tests passing.</p>
+  <p>The platform is feature-complete on the backend. Phases 0&ndash;8 are delivered: authentication, profile and discovery, payments and unlocks, trust and safety (including the report moderation queue), identity verification, notifications, and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. The remaining work is the Phase 9 mobile app. All gates are green with 773 automated tests passing.</p>
 
   <h2>Key Metrics</h2>
   <table>
     <tr><th>Metric</th><th>Value</th></tr>
-    <tr><td>Automated Tests</td><td>744 (512 API + 232 Shared)</td></tr>
-    <tr><td>Test Suites</td><td>40 (30 API + 10 Shared)</td></tr>
+    <tr><td>Automated Tests</td><td>773 (512 API + 29 Admin + 232 Shared)</td></tr>
+    <tr><td>Test Suites</td><td>44 (30 API + 4 Admin + 10 Shared)</td></tr>
     <tr><td>Admin Permission Keys</td><td>21</td></tr>
-    <tr><td>Current Commit</td><td>a6396a6</td></tr>
+    <tr><td>Current Commit</td><td>f18b79f</td></tr>
     <tr><td>Status</td><td>All Gates Green</td></tr>
   </table>
 
@@ -53,7 +53,7 @@
     <tr><td>5</td><td>Trust &amp; Safety</td><td><span class="pill done">Complete</span></td><td>Blocking, reporting, account deletion, report moderation queue</td></tr>
     <tr><td>6</td><td>KYC/Verification</td><td><span class="pill done">Complete</span></td><td>Contracts, service, controller, module</td></tr>
     <tr><td>7</td><td>Notifications</td><td><span class="pill done">Complete</span></td><td>Shared contracts, API module, list endpoint</td></tr>
-    <tr><td>8</td><td>Admin API</td><td><span class="pill wip">Dashboard pending</span></td><td>RBAC, audit, MFA, enrichment, moderation queue</td></tr>
+    <tr><td>8</td><td>Admin API</td><td><span class="pill done">Complete</span></td><td>RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard</td></tr>
     <tr><td>9</td><td>Mobile App</td><td><span class="pill plan">Planned</span></td><td>React Native</td></tr>
   </table>
 
@@ -82,18 +82,26 @@
     <li>Reuses the existing discovery eligibility and two-way acceptance scope</li>
   </ul>
 
+  <h3>Admin Dashboard (Next.js)</h3>
+  <ul>
+    <li><code>apps/admin</code> (<code>@matrimony/admin</code>): Next.js 16 App Router + React 19, talking only to the admin API</li>
+    <li>Backend-for-frontend auth: the token pair lives only in httpOnly cookies; an edge proxy guards every route and refreshes the access token before it expires</li>
+    <li>Password-then-TOTP login; session route handlers re-validate every API response with the shared Zod contracts</li>
+    <li>Pages: overview, the moderation queue (status filter + detail review form), member list, administrator/role list</li>
+    <li>Build pinned to webpack (the Next 16 Turbopack default panics writing this app's route chunks on Windows)</li>
+  </ul>
+
   <h2>Quality Assurance</h2>
   <ul>
-    <li>Tests: 744 passed (512 API + 232 Shared)</li>
+    <li>Tests: 773 passed (512 API + 29 Admin + 232 Shared)</li>
     <li>Typecheck: PASS (workspaces + tools, including the seed)</li>
     <li>Lint: PASS</li>
-    <li>Build: PASS (shared + API)</li>
+    <li>Build: PASS (shared + API + admin)</li>
     <li>Full verification: PASS</li>
   </ul>
 
   <h2>Next Steps</h2>
   <ul>
-    <li><strong>Phase 8 (remaining):</strong> the Next.js admin dashboard against the existing admin API</li>
     <li><strong>Phase 9:</strong> the React Native member app against the contracts in <code>packages/shared</code></li>
   </ul>
 </body>

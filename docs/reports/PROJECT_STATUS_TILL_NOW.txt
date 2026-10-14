@@ -1,17 +1,17 @@
 NETWORTH MATRIMONY - PROJECT STATUS REPORT
-Report Date: October 14, 2026 | Branch: main (a6396a6) | Repo: D:\matrimony
+Report Date: October 14, 2026 | Branch: main (f18b79f) | Repo: D:\matrimony
 
 SUMMARY:
   Backend is feature-complete. Phases 0-8 delivered: auth, profile/discovery,
   payments/unlocks, trust & safety (incl. the report moderation queue), identity
   verification, notifications, and the admin API (RBAC, audit, TOTP MFA,
-  enrichment, section-30 moderation queue). Remaining: the Next.js admin
-  dashboard and the Phase 9 mobile app. All gates green.
+  enrichment, section-30 moderation queue) with the Next.js admin dashboard.
+  Remaining: the Phase 9 mobile app. All gates green.
 
 KEY METRICS:
-  Tests: 744 (512 API + 232 Shared) across 40 suites
+  Tests: 773 (512 API + 29 Admin + 232 Shared) across 44 suites
   Admin permission keys: 21
-  Current Commit: a6396a6
+  Current Commit: f18b79f
   Status: All Gates Green
 
 PHASE STATUS:
@@ -23,7 +23,7 @@ PHASE STATUS:
   5 Trust & Safety - Complete (Blocking, Reports, Account Deletion, Moderation Queue)
   6 KYC/Verification - Complete
   7 Notifications - Complete
-  8 Admin API - Complete (dashboard pending)
+  8 Admin API - Complete (Next.js dashboard delivered)
   9 Mobile - Planned
 
 RECENT (Oct 14, 2026):
@@ -36,14 +36,17 @@ RECENT (Oct 14, 2026):
     review audited.
   AI recommendations (backend MVP) - curated interests, feature-flagged For You
     feed reusing discovery eligibility.
+  Admin dashboard - apps/admin (@matrimony/admin), Next.js 16 App Router + React
+    19; backend-for-frontend auth (tokens in httpOnly cookies only), edge proxy
+    refresh, password-then-TOTP login, moderation queue / members / admins pages;
+    build pinned to webpack.
 
 QUALITY ASSURANCE:
-  Tests: 744 passed (512 API + 232 Shared)
+  Tests: 773 passed (512 API + 29 Admin + 232 Shared)
   Typecheck: PASS
   Lint: PASS
-  Build: PASS (shared + API)
+  Build: PASS (shared + API + admin)
   Full verification: PASS
 
 NEXT STEPS:
-  Phase 8 (remaining): Next.js admin dashboard against the existing admin API.
   Phase 9: React Native member app against packages/shared contracts.

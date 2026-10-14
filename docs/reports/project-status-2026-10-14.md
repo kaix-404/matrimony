@@ -3,13 +3,13 @@ PROJECT STATUS TILL NOW
 Matrimony App - Monorepo Implementation
 
 Date: October 14, 2026
-Branch: main (255cb85)
+Branch: main (f18b79f)
 
 GATES
-- All 744 tests pass (232 shared + 512 API)
+- All 773 tests pass (232 shared + 29 admin + 512 API)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
-- Build: PASS (shared + API)
+- Build: PASS (shared + API + admin)
 - CI build blocker resolved: the shared barrel now exports the notifications and
   admin contracts, and the enum name collision that broke the shared build is fixed
 
@@ -72,6 +72,18 @@ COMPLETED PHASES
     recorded for the audit trail; every review writes a report:review audit row
   * Shared REPORT_STATUSES / REPORT_ACTION_TYPES enums and AdminReportView /
     AdminReviewReportSchema contracts
+- Phase 8 (Next.js admin dashboard): the in-repo operator console
+  * apps/admin, a Next.js 16 (App Router) + React 19 workspace (@matrimony/admin)
+    that talks only to the admin API and holds no business logic of its own
+  * Backend-for-frontend auth: the token pair lives only in httpOnly cookies, so the
+    browser never sees a token; an edge proxy (proxy.ts) guards every route and
+    refreshes the access token before it expires, making a 15-minute token invisible
+  * Password-then-TOTP login and session route handlers that re-validate every API
+    response with the shared Zod contracts before trusting it
+  * Pages: overview, the section-30 moderation queue (status filter plus a detail
+    view with a review form), the member list, and the administrator/role list
+  * Build pinned to webpack (Next 16 defaults to Turbopack, which panics writing
+    this app's route chunks on Windows); a small pure-helper suite runs under Jest
 
 PENDING
 - Phase 9: Mobile app (React Native)
@@ -89,4 +101,10 @@ NOTES
 - The moderation queue returns ids and the report text, never a name or photograph, so
   it cannot re-leak a section-13 hidden field; a resolution is terminal so a recorded
   sanction cannot be silently rewritten by a second reviewer
+- The dashboard holds no admin logic: every list and mutation is a thin call to the
+  API, so the permission checks and the audit trail that guard those routes stay the
+  only authority and a dashboard bug cannot widen what an operator can do
+- Admin tokens never reach client JavaScript - they live only in httpOnly cookies
+  that the server and the edge proxy read, so an XSS on the dashboard cannot lift a
+  session
 - No breaking changes

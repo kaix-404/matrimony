@@ -128,11 +128,22 @@ until this passes (D9).
 Section 42 event set across push (FCM HTTP v1), SMS (DLT-gated), email, and
 in-app, with the 2-hour unlock-expiry reminder.
 
-## Phase 8 — Admin API and dashboard
+## Phase 8 — Admin API and dashboard ✅
 
 RBAC by permission rather than role name (section 33), audit logging on every
 mutating admin action, master-data and pricing management, and the Next.js
 dashboard.
+
+The API side shipped first: the permission catalogue in `@matrimony/shared`, a
+`PermissionsGuard` that resolves grants on every request, separated `admin_access`
+tokens, password login with rotating refresh tokens, role management that refuses
+self-lockout and the loss of the last Super Admin, audited enrichment tooling,
+TOTP MFA (`admin-mfa-2026-10-14.md`), and the section-30 moderation queue.
+
+`apps/admin` is the console: a Next.js 16 App Router client whose tokens live only
+in `httpOnly` cookies and whose edge proxy refreshes them before they expire. It
+holds no business logic, so the API remains the only authority
+(`admin-dashboard-2026-10-14.md`).
 
 ## Phase 9 — Mobile app
 
