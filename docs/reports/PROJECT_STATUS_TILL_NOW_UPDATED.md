@@ -3,10 +3,10 @@ PROJECT STATUS TILL NOW
 Matrimony App - Monorepo Implementation
 
 Date: October 14, 2026
-Branch: main (e4d26f6)
+Branch: main (41f5fb3)
 
 GATES
-- All 583 tests pass (187 shared + 396 API)
+- All 600 tests pass (187 shared + 413 API)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
 - Build: PASS (shared + API)
@@ -24,17 +24,20 @@ COMPLETED PHASES
     role grants on every request)
   * AdminAuthGuard and AdminTokenService (`typ: admin_access`, separated from member
     tokens so the two can never be exchanged)
+  * Admin email/password login (scrypt-hashed), rotating admin refresh tokens with
+    reuse detection, logout, and an optional bootstrap Super Admin created from
+    SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
   * AuditService (append-only AuditLog writer, section 32)
   * AdminModule wired into the app; seed consumes the shared catalogue
 
 PENDING
-- Phase 8 (remaining): admin login/MFA and refresh tokens, role-management endpoints,
+- Phase 8 (remaining): admin MFA (schema field exists), role-management endpoints,
   moderation/pricing/data-request tooling
 - Phase 9: Mobile app (React Native)
 
 NOTES
-- Admin routes are deny-by-default until admin login lands: no admin access token can
-  yet be issued, so nothing is reachable
+- Admin routes are now reachable end to end: login issues a token that the
+  AdminAuthGuard accepts and the PermissionsGuard checks against seeded grants
 - The permission catalogue now lives in @matrimony/shared and is consumed by the seed,
   removing the drift between guard keys and seeded grants
 - No breaking changes
