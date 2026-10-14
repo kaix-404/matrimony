@@ -3,10 +3,10 @@ PROJECT STATUS TILL NOW
 Matrimony App - Monorepo Implementation
 
 Date: October 14, 2026
-Branch: main (4b020a7)
+Branch: main (6c14c08)
 
 GATES
-- All 685 tests pass (222 shared + 463 API)
+- All 729 tests pass (227 shared + 502 API)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
 - Build: PASS (shared + API)
@@ -47,9 +47,23 @@ COMPLETED PHASES
     eligibility and two-way acceptance scope, ranked by shared-interest overlap; cards
     expose shared_interests as an optional explanation (answers 4 and 6)
   * FeatureFlagsService (env-backed) and reusable DiscoveryService scope helpers
+- Phase 8 (admin MFA): TOTP second factor for administrators
+  * Hand-rolled RFC 6238 TOTP (SHA-1, 6 digits, 30-second step, +/-1 step
+    tolerance) on node:crypto, and an AES-256-GCM SecretBox for the secret at rest
+    under a dedicated MFA_ENCRYPTION_KEY - no new dependency
+  * Opt-in self-service enrollment: the pending secret rides a signed 10-minute
+    mfa_enroll token and is persisted only after a matching code, so a stored
+    secret always means a working second factor
+  * Login for an MFA-enabled admin returns a signed 5-minute challenge
+    (mfa_required / challenge_token / expires_in) instead of a token pair; only
+    POST /admin/auth/mfa/verify issues the pair
+  * A wrong code charges the same lockout counter as a wrong password (five total,
+    15-minute lock); disable requires a current code; token types are separated by
+    typ (admin_access / mfa_challenge / mfa_enroll)
+  * Lost-device recovery: POST /admin/admins/:id/mfa/reset (admin:manage, audited,
+    refuses self-reset); AdminUserView gains mfaEnabled
 
 PENDING
-- Phase 8 (remaining): admin MFA (schema field exists)
 - Phase 9: Mobile app (React Native)
 
 NOTES
@@ -59,4 +73,7 @@ NOTES
   removing the drift between guard keys and seeded grants
 - Recommendations inherit the discovery eligibility and two-way acceptance rules, so the
   For You feed can never surface a profile the member could not already see
+- Admin MFA fails closed: a rotated MFA_ENCRYPTION_KEY reads as "no usable secret"
+  rather than admitting a login with an unverifiable factor, and a session alone cannot
+  disable the second factor
 - No breaking changes
