@@ -63,9 +63,10 @@ export class UnlockExpiryReminder implements OnApplicationBootstrap, OnModuleDes
    * Claim every unlock now inside the reminder window and record one
    * notification per claim. Returns how many were reminded.
    *
-   * IN_APP rather than PUSH: no push transport is wired, and the in-app list is
-   * the surface a user actually sees, so recording it there is honest. A push
-   * provider added later can read the same rows.
+   * PUSH rather than IN_APP: Firebase was chosen for push (2026-10-01), and the
+   * dispatcher delivers a `PUSH` row to the buyer's devices. A member with no
+   * registered device simply keeps the row in their in-app list until one is
+   * registered, so the reminder is never lost.
    */
   async sweep(): Promise<number> {
     const hours = this.env.UNLOCK_EXPIRY_REMINDER_HOURS;
@@ -75,7 +76,7 @@ export class UnlockExpiryReminder implements OnApplicationBootstrap, OnModuleDes
       await this.notifications.create({
         userId: item.userId,
         event: NOTIFICATION_EVENTS.UNLOCK_EXPIRING_IN_2H,
-        channel: 'IN_APP',
+        channel: 'PUSH',
         title: 'Your unlock is about to expire',
         body: this.body(item.displayName, hours),
         payload: {

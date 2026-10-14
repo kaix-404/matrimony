@@ -227,8 +227,18 @@ enum NotificationChannel {
   IN_APP
 }
 
+/// Section 42 push: the store a device belongs to. Firebase (FCM) was chosen
+/// 2026-10-01, so a registered token is an FCM token.
+enum DevicePlatform {
+  ANDROID
+  IOS
+  WEB
+}
+
 enum NotificationStatus {
   PENDING
+  /// In-flight claim: a dispatcher owns this row and is calling the provider.
+  SENDING
   SENT
   FAILED
   SUPPRESSED
@@ -558,6 +568,7 @@ model User {
   reportsAgainst    Report[]               @relation("ReportedUser")
   notifications     Notification[]
   refreshTokens     RefreshToken[]
+  deviceTokens      DeviceToken[]
 
   // -- two-way net-worth visibility (see visibility-discoverability-2026-10-03)
   discoveryCategories UserDiscoveryCategory[]
@@ -1252,6 +1263,34 @@ model Notification {
   @@index([userId, createdAt(sort: Desc)])
   @@index([status, createdAt])
   @@index([event, createdAt(sort: Desc)])
+  /// The dispatch sweep reads by channel + status, oldest first.
+  @@index([channel, status, createdAt])
+}
+
+/// Section 42 push registration. One row per device that has registered an FCM
+/// token. Firestore-style pruning is ours to do: FCM tells us a token is dead
+/// with `UNREGISTERED`, and the dispatcher deletes the row then.
+///
+/// `token` is unique because FCM issues one token per app instance; the same
+/// token can move between accounts if a device is reused, so registration
+/// upserts on the token and reassigns `userId` rather than creating a duplicate.
+model DeviceToken {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  token    String         @unique
+  platform DevicePlatform
+  /// App-supplied stable device id, used to replace a stale token on reinstall.
+  deviceId String?
+
+  /// Refreshed on every registration so an unused token can be aged out later.
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
 }
 
 // ===========================================================================

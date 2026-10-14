@@ -12,7 +12,13 @@ import { NOTIFICATION_CHANNELS, NOTIFICATION_EVENTS } from '../enums.js';
  */
 export const NotificationChannelSchema = z.enum(NOTIFICATION_CHANNELS);
 
-export const NotificationStatusSchema = z.enum(['PENDING', 'SENT', 'FAILED', 'SUPPRESSED']);
+/**
+ * Delivery states. `SENDING` is a short-lived in-flight claim: a dispatcher
+ * flips a `PENDING` row to `SENDING` before it calls the provider, so two
+ * workers cannot both send the same notification. A row left `SENDING` by a
+ * crashed worker is requeued once it goes stale.
+ */
+export const NotificationStatusSchema = z.enum(['PENDING', 'SENDING', 'SENT', 'FAILED', 'SUPPRESSED']);
 export type NotificationStatus = z.infer<typeof NotificationStatusSchema>;
 
 /** Free-form event key as stored on the row; may be any section-42 string. */

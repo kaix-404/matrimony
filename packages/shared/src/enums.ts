@@ -142,6 +142,15 @@ export const NOTIFICATION_CHANNELS = ['PUSH', 'SMS', 'EMAIL', 'IN_APP'] as const
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
 /**
+ * Section 42 push delivery (client decision 2026-10-01: Firebase). The platform
+ * a device belongs to, recorded so a send can be scoped or metered per store and
+ * so an iOS-only or Android-only credential change is visible. `WEB` is included
+ * because FCM serves web push too, even though the first client is mobile.
+ */
+export const DEVICE_PLATFORMS = ['ANDROID', 'IOS', 'WEB'] as const;
+export type DevicePlatform = (typeof DEVICE_PLATFORMS)[number];
+
+/**
  * Section 21/32 data-subject requests. `EXPORT` produces an archive of the
  * caller's data; `ERASURE` is the right-to-be-forgotten path. Handled by an
  * administrator against a statutory deadline (`DataRequest.dueAt`).

@@ -61,7 +61,7 @@ describe('UnlockExpiryReminder', () => {
     expect(unlocks.claimDueReminders).toHaveBeenCalledWith(5 * 60 * 60 * 1000, NOW);
   });
 
-  it('records one in-app notification per claimed unlock', async () => {
+  it('records one push notification per claimed unlock', async () => {
     const { service, notifications } = make({ due: [due(), due({ unlockId: 'unlock_2' })] });
 
     const count = await service.sweep();
@@ -71,7 +71,7 @@ describe('UnlockExpiryReminder', () => {
     expect(notifications[0]).toMatchObject({
       userId: 'user_viewer',
       event: NOTIFICATION_EVENTS.UNLOCK_EXPIRING_IN_2H,
-      channel: 'IN_APP',
+      channel: 'PUSH',
       payload: {
         unlock_id: 'unlock_1',
         profile_id: 'profile_target',

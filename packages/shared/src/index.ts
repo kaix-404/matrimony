@@ -10,6 +10,7 @@ export * from './contracts/payments.js';
 export * from './contracts/trust-safety.js';
 export * from './contracts/verification.js';
 export * from './contracts/notifications.js';
+export * from './contracts/devices.js';
 export * from './contracts/recommendations.js';
 export * from './contracts/admin.js';
 

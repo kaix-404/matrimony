@@ -48,8 +48,8 @@ describe('NotificationEventEnumSchema', () => {
 });
 
 describe('NotificationStatusSchema', () => {
-  it('allows only the four delivery states', () => {
-    for (const status of ['PENDING', 'SENT', 'FAILED', 'SUPPRESSED']) {
+  it('allows only the known delivery states', () => {
+    for (const status of ['PENDING', 'SENDING', 'SENT', 'FAILED', 'SUPPRESSED']) {
       expect(NotificationStatusSchema.parse(status)).toBe(status);
     }
     expect(NotificationStatusSchema.safeParse('DELIVERED').success).toBe(false);

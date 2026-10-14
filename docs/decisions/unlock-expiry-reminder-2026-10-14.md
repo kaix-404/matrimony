@@ -16,10 +16,13 @@ the last explicit Phase 7 left-over.
   sweep, or a redeploy across the boundary therefore cannot notify twice. The
   alternative — trusting that a single in-process timer runs once — breaks the
   moment the API is scaled past one instance.
-- **Channel is `IN_APP`.** No push transport is wired, and the in-app list is the
-  surface a user actually reads, so recording the reminder there is honest. A push
-  provider added later reads the same `Notification` rows; the event key does not
-  change.
+- **Channel was `IN_APP`, now `PUSH`.** No push transport existed when this shipped,
+  so the in-app list was the surface a user actually reads and recording the reminder
+  there was honest. Once the Firebase transport landed
+  ([push-firebase-2026-10-14.md](push-firebase-2026-10-14.md)) the channel was switched
+  to `PUSH`; the event key did not change, and the row still appears in the in-app
+  list, which is not filtered by channel. A member with no registered device keeps the
+  row `PENDING` until one is registered, so the reminder is never lost.
 - **A dedicated timer, not a cron.** `UnlockExpiryReminder` follows the existing
   `UnlockExpirySweeper` / `ClockDriftGuard` shape: a `setInterval` (5 min) with
   `unref()`, a boot sweep, and every failure caught and logged so a background
@@ -43,15 +46,15 @@ approaches.
   `20261014130000_unlock_reminder_sent` (a single nullable `TIMESTAMP(3)` column).
 - `UnlockService.claimDueReminders(leadMs, now) -> DueUnlockReminder[]`, unit-tested
   for the claim/once-only boundary.
-- `UnlockExpiryReminder` (own module provider in `UnlockModule`) records one
-  `IN_APP` notification per claim, keyed off `UNLOCK_EXPIRY_REMINDER_HOURS`.
+- `UnlockExpiryReminder` (own module provider in `UnlockModule`) records one `PUSH`
+  notification per claim, keyed off `UNLOCK_EXPIRY_REMINDER_HOURS`.
 
 ## Open / follow-ups
 
-- **Delivery is recorded, not pushed.** The notification is stored `PENDING` in the
-  in-app list; there is still no push (FCM/APNs) transport, so the "reminder" is only
-  visible when the buyer opens the app. Client decision needed on whether push is in
-  scope for launch.
+- **Delivery is recorded, then pushed.** The notification is stored `PENDING` and
+  delivered by the push dispatcher once the buyer's device is registered
+  ([push-firebase-2026-10-14.md](push-firebase-2026-10-14.md)); until FCM credentials
+  are in the environment it simply stays visible in the in-app list.
 - **The sweep is per-instance.** With more than one API instance every instance runs
   a sweep; the row claim keeps that correct, but it is worth noting that the timer is
   a scheduler, not a distributed one.
