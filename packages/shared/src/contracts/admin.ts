@@ -17,7 +17,7 @@
  */
 
 import { z } from 'zod';
-import { ADMIN_ROLE_SLUGS } from '../enums.js';
+import { ADMIN_ROLE_SLUGS, type AdminRoleSlug } from '../enums.js';
 
 export interface AdminPermissionDescriptor {
   /** The noun being acted on, e.g. `user`, `pricing`. */
@@ -225,3 +225,64 @@ export const AdminListUsersQuerySchema = z.object({
   cursor: z.string().min(1).optional(),
 });
 export type AdminListUsersQuery = z.infer<typeof AdminListUsersQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// Admin management (section 24: roles and administrators)
+// ---------------------------------------------------------------------------
+
+/**
+ * Creating an administrator.
+ *
+ * The password floor is 12 here, above the 8 on login: a login only has to match
+ * an existing secret, while a create is where a weak secret is first accepted,
+ * and a weak admin credential is the single most valuable thing to guess. At
+ * least one role is required — an administrator with no role can sign in and do
+ * nothing, which is a support ticket rather than an account.
+ */
+export const AdminCreateSchema = z
+  .object({
+    email: z.string().trim().toLowerCase().email(),
+    name: z.string().trim().min(1).max(120),
+    password: z.string().min(12).max(200),
+    roles: z.array(AdminRoleSlugSchema).min(1).max(ADMIN_ROLE_SLUGS.length),
+  })
+  .strict()
+  .refine((value) => new Set(value.roles).size === value.roles.length, {
+    message: 'roles must not repeat',
+    path: ['roles'],
+  });
+export type AdminCreateInput = z.infer<typeof AdminCreateSchema>;
+
+export const AdminAssignRoleSchema = z.object({ role: AdminRoleSlugSchema }).strict();
+export type AdminAssignRoleInput = z.infer<typeof AdminAssignRoleSchema>;
+
+export const AdminListAdminsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+  cursor: z.string().min(1).optional(),
+});
+export type AdminListAdminsQuery = z.infer<typeof AdminListAdminsQuerySchema>;
+
+/** A role and the permissions it currently grants, as the role screen shows it. */
+export interface AdminRoleView {
+  id: string;
+  slug: AdminRoleSlug;
+  name: string;
+  description: string | null;
+  permissions: Array<{
+    key: AdminPermissionKey;
+    resource: string;
+    action: string;
+    sensitive: boolean;
+  }>;
+}
+
+/** An administrator as the admin-management list shows them. Never carries a hash. */
+export interface AdminUserView {
+  id: string;
+  email: string;
+  name: string;
+  status: string;
+  roles: AdminRoleSlug[];
+  lastLoginAt: string | null;
+  createdAt: string;
+}

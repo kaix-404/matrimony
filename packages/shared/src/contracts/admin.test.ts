@@ -1,5 +1,8 @@
 import {
   ADMIN_PERMISSIONS,
+  AdminAssignRoleSchema,
+  AdminCreateSchema,
+  AdminListAdminsQuerySchema,
   AdminListUsersQuerySchema,
   AdminLoginSchema,
   AdminRoleSlugSchema,
@@ -100,5 +103,49 @@ describe('AdminListUsersQuerySchema', () => {
   it('defaults and caps the page size', () => {
     expect(AdminListUsersQuerySchema.parse({}).limit).toBe(20);
     expect(AdminListUsersQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
+  });
+});
+
+describe('AdminCreateSchema', () => {
+  it('normalises the email and name and accepts a valid administrator', () => {
+    const parsed = AdminCreateSchema.parse({
+      email: ' New.Admin@Example.COM ',
+      name: ' New Admin ',
+      password: 'a-strong-password',
+      roles: ['ADMIN', 'FINANCE_ADMIN'],
+    });
+    expect(parsed.email).toBe('new.admin@example.com');
+    expect(parsed.name).toBe('New Admin');
+    expect(parsed.roles).toEqual(['ADMIN', 'FINANCE_ADMIN']);
+  });
+
+  it('requires a password of at least 12 characters', () => {
+    const result = AdminCreateSchema.safeParse({
+      email: 'a@b.com',
+      name: 'A',
+      password: 'short',
+      roles: ['ADMIN'],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('requires at least one role and rejects duplicates', () => {
+    const base = { email: 'a@b.com', name: 'A', password: 'long-enough-1' };
+    expect(AdminCreateSchema.safeParse({ ...base, roles: [] }).success).toBe(false);
+    expect(AdminCreateSchema.safeParse({ ...base, roles: ['ADMIN', 'ADMIN'] }).success).toBe(false);
+  });
+});
+
+describe('AdminAssignRoleSchema', () => {
+  it('accepts a known role and rejects anything else', () => {
+    expect(AdminAssignRoleSchema.parse({ role: 'MODERATION_ADMIN' }).role).toBe('MODERATION_ADMIN');
+    expect(AdminAssignRoleSchema.safeParse({ role: 'ROOT' }).success).toBe(false);
+  });
+});
+
+describe('AdminListAdminsQuerySchema', () => {
+  it('defaults and caps the page size', () => {
+    expect(AdminListAdminsQuerySchema.parse({}).limit).toBe(20);
+    expect(AdminListAdminsQuerySchema.safeParse({ limit: 0 }).success).toBe(false);
   });
 });
