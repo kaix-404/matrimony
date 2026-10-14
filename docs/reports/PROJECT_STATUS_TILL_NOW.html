@@ -27,18 +27,18 @@
 </head>
 <body>
   <h1>Networth Matrimony &mdash; Project Status Report</h1>
-  <p class="meta"><strong>Report Date:</strong> October 14, 2026 &nbsp;|&nbsp; <strong>Branch:</strong> main (f18b79f) &nbsp;|&nbsp; <strong>Repository:</strong> D:\matrimony</p>
+  <p class="meta"><strong>Report Date:</strong> October 14, 2026 &nbsp;|&nbsp; <strong>Branch:</strong> main (18bc0fb) &nbsp;|&nbsp; <strong>Repository:</strong> D:\matrimony</p>
 
   <h2>Executive Summary</h2>
-  <p>The platform is feature-complete on the backend. Phases 0&ndash;8 are delivered: authentication, profile and discovery, payments and unlocks, trust and safety (including the report moderation queue), identity verification, notifications, and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. The remaining work is the Phase 9 mobile app. All gates are green with 773 automated tests passing.</p>
+  <p>The platform is feature-complete on the backend. Phases 0&ndash;8 are delivered: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks, trust and safety (including the report moderation queue), identity verification, notifications, and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. The remaining work is the Phase 9 mobile app. All gates are green with 782 automated tests passing.</p>
 
   <h2>Key Metrics</h2>
   <table>
     <tr><th>Metric</th><th>Value</th></tr>
-    <tr><td>Automated Tests</td><td>773 (512 API + 29 Admin + 232 Shared)</td></tr>
-    <tr><td>Test Suites</td><td>44 (30 API + 4 Admin + 10 Shared)</td></tr>
+    <tr><td>Automated Tests</td><td>782 (521 API + 29 Admin + 232 Shared)</td></tr>
+    <tr><td>Test Suites</td><td>45 (31 API + 4 Admin + 10 Shared)</td></tr>
     <tr><td>Admin Permission Keys</td><td>21</td></tr>
-    <tr><td>Current Commit</td><td>f18b79f</td></tr>
+    <tr><td>Current Commit</td><td>18bc0fb</td></tr>
     <tr><td>Status</td><td>All Gates Green</td></tr>
   </table>
 
@@ -58,6 +58,14 @@
   </table>
 
   <h2>Recent Accomplishments</h2>
+
+  <h3>SMS OTP Delivery (MSG91, resolves GAP-12)</h3>
+  <ul>
+    <li><code>SmsGateway</code> seam (abstract class) with a <code>Msg91SmsGateway</code> on MSG91's Flow API, bound like the payment gateway so tests substitute it without the network; a small <code>SmsModule</code> keeps the module graph acyclic</li>
+    <li><code>AuthController.requestOtp</code> sends the code via MSG91 in production and fails closed (401) when MSG91 is unconfigured; outside production it still echoes <code>dev_code</code> so the flow stays testable without a provider account</li>
+    <li>Flow API rather than MSG91's SendOTP API, because the platform owns OTP state (hashed, attempt-counted, expired, consumed at later steps); the code travels as a template variable and MSG91 only delivers it</li>
+    <li>New config <code>SMS_TEMPLATE_ID</code> / <code>SMS_OTP_TEMPLATE_VAR</code> / <code>SMS_COUNTRY_CODE</code>; 9 gateway tests</li>
+  </ul>
 
   <h3>Admin MFA (TOTP)</h3>
   <ul>
@@ -93,7 +101,7 @@
 
   <h2>Quality Assurance</h2>
   <ul>
-    <li>Tests: 773 passed (512 API + 29 Admin + 232 Shared)</li>
+    <li>Tests: 782 passed (521 API + 29 Admin + 232 Shared)</li>
     <li>Typecheck: PASS (workspaces + tools, including the seed)</li>
     <li>Lint: PASS</li>
     <li>Build: PASS (shared + API + admin)</li>

@@ -3,10 +3,10 @@ PROJECT STATUS TILL NOW
 Matrimony App - Monorepo Implementation
 
 Date: October 14, 2026
-Branch: main (f18b79f)
+Branch: main (18bc0fb)
 
 GATES
-- All 773 tests pass (232 shared + 29 admin + 512 API)
+- All 782 tests pass (232 shared + 29 admin + 521 API)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
@@ -18,6 +18,17 @@ COMPLETED PHASES
 - Phase 6: Identity Verification (KYC) - contracts, service, controller, module aligned
 - Phase 7: Notifications - shared contracts, API service/controller/module, wired into
   the app; member list endpoint (GET /notifications); tests added
+- Phase 1 (OTP delivery): MSG91 SMS sender - resolves GAP-12
+  * SmsGateway seam (abstract class) with a Msg91SmsGateway on MSG91's Flow API,
+    bound like the payment gateway so tests substitute it without the network; a
+    small SmsModule keeps the graph acyclic for both Auth and Notifications
+  * AuthController.requestOtp sends the code via MSG91 in production and fails
+    closed (401) when MSG91 is unconfigured; outside production it still echoes
+    dev_code so the flow stays testable without a provider account
+  * Flow API rather than MSG91's SendOTP API, because the platform already owns OTP
+    state (hashed, attempt-counted, expired, consumed at later steps); the code
+    travels as a template variable and MSG91 only delivers it
+  * New config SMS_TEMPLATE_ID / SMS_OTP_TEMPLATE_VAR / SMS_COUNTRY_CODE; 9 gateway tests
 - Phase 8 (foundation): Admin RBAC
   * Shared permission catalogue (21 keys) plus ADMIN_ROLE_SLUGS, single source of truth
   * @RequirePermission decorator and PermissionsGuard (permission-based, resolved from
@@ -107,4 +118,10 @@ NOTES
 - Admin tokens never reach client JavaScript - they live only in httpOnly cookies
   that the server and the edge proxy read, so an XSS on the dashboard cannot lift a
   session
+- OTP delivery fails closed: with MSG91 unconfigured a production request is refused
+  rather than answered 200 for a code that never left, and the vendor never sees the
+  OTP hash, attempts or expiry - it is handed only a bare code to deliver
+- The MSG91 authkey was shared out of band and should be rotated before production;
+  the MSG91 sender id, template id and DLT registration are the client's to supply,
+  so a real send has not yet been exercised end to end
 - No breaking changes

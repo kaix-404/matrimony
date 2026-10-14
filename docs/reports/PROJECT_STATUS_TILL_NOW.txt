@@ -1,17 +1,17 @@
 NETWORTH MATRIMONY - PROJECT STATUS REPORT
-Report Date: October 14, 2026 | Branch: main (f18b79f) | Repo: D:\matrimony
+Report Date: October 14, 2026 | Branch: main (18bc0fb) | Repo: D:\matrimony
 
 SUMMARY:
-  Backend is feature-complete. Phases 0-8 delivered: auth, profile/discovery,
-  payments/unlocks, trust & safety (incl. the report moderation queue), identity
-  verification, notifications, and the admin API (RBAC, audit, TOTP MFA,
-  enrichment, section-30 moderation queue) with the Next.js admin dashboard.
-  Remaining: the Phase 9 mobile app. All gates green.
+  Backend is feature-complete. Phases 0-8 delivered: auth (with OTP delivery over
+  MSG91), profile/discovery, payments/unlocks, trust & safety (incl. the report
+  moderation queue), identity verification, notifications, and the admin API (RBAC,
+  audit, TOTP MFA, enrichment, section-30 moderation queue) with the Next.js admin
+  dashboard. Remaining: the Phase 9 mobile app. All gates green.
 
 KEY METRICS:
-  Tests: 773 (512 API + 29 Admin + 232 Shared) across 44 suites
+  Tests: 782 (521 API + 29 Admin + 232 Shared) across 45 suites
   Admin permission keys: 21
-  Current Commit: f18b79f
+  Current Commit: 18bc0fb
   Status: All Gates Green
 
 PHASE STATUS:
@@ -27,6 +27,10 @@ PHASE STATUS:
   9 Mobile - Planned
 
 RECENT (Oct 14, 2026):
+  SMS OTP delivery (MSG91, resolves GAP-12) - SmsGateway seam with a
+    Msg91SmsGateway on MSG91's Flow API; requestOtp sends in production and fails
+    closed (401) when unconfigured, still echoes dev_code outside production;
+    Flow API chosen over MSG91's SendOTP API so the platform keeps OTP state.
   Admin MFA - hand-rolled RFC 6238 TOTP + AES-256-GCM secret at rest, opt-in
     self-service enrollment, challenge-then-session login, shared lockout, audited
     reset.
@@ -42,7 +46,7 @@ RECENT (Oct 14, 2026):
     build pinned to webpack.
 
 QUALITY ASSURANCE:
-  Tests: 773 passed (512 API + 29 Admin + 232 Shared)
+  Tests: 782 passed (521 API + 29 Admin + 232 Shared)
   Typecheck: PASS
   Lint: PASS
   Build: PASS (shared + API + admin)
