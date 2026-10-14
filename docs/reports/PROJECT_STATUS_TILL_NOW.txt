@@ -1,18 +1,18 @@
 NETWORTH MATRIMONY - PROJECT STATUS REPORT
-Report Date: October 14, 2026 | Branch: main (39b1864) | Repo: D:\matrimony
+Report Date: October 14, 2026 | Branch: main (06f47d3) | Repo: D:\matrimony
 
 SUMMARY:
   Backend is feature-complete. Phases 0-8 delivered: auth (with OTP delivery over
   MSG91), profile/discovery, payments/unlocks (incl. the section-15 pre-expiry
   reminder), trust & safety (incl. the report moderation queue), identity
-  verification, notifications, and the admin API (RBAC, audit, TOTP MFA,
-  enrichment, section-30 moderation queue) with the Next.js admin dashboard.
-  Remaining: the Phase 9 mobile app. All gates green.
+  verification, notifications (with Firebase push delivery), and the admin API
+  (RBAC, audit, TOTP MFA, enrichment, section-30 moderation queue) with the
+  Next.js admin dashboard. Remaining: the Phase 9 mobile app. All gates green.
 
 KEY METRICS:
-  Tests: 793 (532 API + 29 Admin + 232 Shared) across 46 suites
+  Tests: 824 (559 API + 29 Admin + 236 Shared) across 50 suites
   Admin permission keys: 21
-  Current Commit: 39b1864
+  Current Commit: 06f47d3
   Status: All Gates Green
 
 PHASE STATUS:
@@ -23,15 +23,24 @@ PHASE STATUS:
   4 Payments & Unlocks - Complete
   5 Trust & Safety - Complete (Blocking, Reports, Account Deletion, Moderation Queue)
   6 KYC/Verification - Complete
-  7 Notifications - Complete (includes the unlock pre-expiry reminder)
+  7 Notifications - Complete (unlock pre-expiry reminder, Firebase push delivery)
   8 Admin API - Complete (Next.js dashboard delivered)
   9 Mobile - Planned
 
 RECENT (Oct 14, 2026):
-  Unlock pre-expiry reminder (section 15 / C3) - a sweep records one IN_APP
-    notification per unlock about two hours before it expires; ContactUnlock
-    .reminderSentAt plus a conditional-update claim make it once-only across
-    restarts/redeploys; UnlockExpiryReminder reuses the sweeper timer shape.
+  Unlock pre-expiry reminder (section 15 / C3) - a sweep records one notification
+    per unlock about two hours before it expires; ContactUnlock.reminderSentAt plus
+    a conditional-update claim make it once-only across restarts/redeploys;
+    UnlockExpiryReminder reuses the sweeper timer shape; channel is PUSH and the
+    row still shows in the in-app list.
+  Push delivery over Firebase (section 42, resolves GAP-12's push half) - PushGateway
+    seam with an FcmPushGateway on FCM HTTP v1 (service-account RS256 assertion
+    swapped for a cached OAuth2 token, on node:crypto; no legacy server key, no
+    firebase-admin); DeviceToken model + DevicePlatform enum and a SENDING claim
+    status; POST/GET /devices and DELETE /devices/:token; PushDispatchService claims
+    PENDING->SENDING conditionally (at-least-once, never twice-per-worker), requeues
+    a stale SENDING row, prunes UNREGISTERED tokens, and a 60-second sweeper drains
+    the queue; fails closed when unconfigured.
   SMS OTP delivery (MSG91, resolves GAP-12) - SmsGateway seam with a
     Msg91SmsGateway on MSG91's Flow API; requestOtp sends in production and fails
     closed (401) when unconfigured, still echoes dev_code outside production;
@@ -51,7 +60,7 @@ RECENT (Oct 14, 2026):
     build pinned to webpack.
 
 QUALITY ASSURANCE:
-  Tests: 793 passed (532 API + 29 Admin + 232 Shared)
+  Tests: 824 passed (559 API + 29 Admin + 236 Shared)
   Typecheck: PASS
   Lint: PASS
   Build: PASS (shared + API + admin)
@@ -59,3 +68,4 @@ QUALITY ASSURANCE:
 
 NEXT STEPS:
   Phase 9: React Native member app against packages/shared contracts.
+  Email provider still open (the remaining half of GAP-12; SMS and push resolved).

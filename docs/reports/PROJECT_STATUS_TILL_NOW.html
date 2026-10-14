@@ -27,18 +27,18 @@
 </head>
 <body>
   <h1>Networth Matrimony &mdash; Project Status Report</h1>
-  <p class="meta"><strong>Report Date:</strong> October 14, 2026 &nbsp;|&nbsp; <strong>Branch:</strong> main (39b1864) &nbsp;|&nbsp; <strong>Repository:</strong> D:\matrimony</p>
+  <p class="meta"><strong>Report Date:</strong> October 14, 2026 &nbsp;|&nbsp; <strong>Branch:</strong> main (06f47d3) &nbsp;|&nbsp; <strong>Repository:</strong> D:\matrimony</p>
 
   <h2>Executive Summary</h2>
-  <p>The platform is feature-complete on the backend. Phases 0&ndash;8 are delivered: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications, and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. The remaining work is the Phase 9 mobile app. All gates are green with 793 automated tests passing.</p>
+  <p>The platform is feature-complete on the backend. Phases 0&ndash;8 are delivered: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. The remaining work is the Phase 9 mobile app. All gates are green with 824 automated tests passing.</p>
 
   <h2>Key Metrics</h2>
   <table>
     <tr><th>Metric</th><th>Value</th></tr>
-    <tr><td>Automated Tests</td><td>793 (532 API + 29 Admin + 232 Shared)</td></tr>
-    <tr><td>Test Suites</td><td>46 (32 API + 4 Admin + 10 Shared)</td></tr>
+    <tr><td>Automated Tests</td><td>824 (559 API + 29 Admin + 236 Shared)</td></tr>
+    <tr><td>Test Suites</td><td>50 (35 API + 4 Admin + 11 Shared)</td></tr>
     <tr><td>Admin Permission Keys</td><td>21</td></tr>
-    <tr><td>Current Commit</td><td>39b1864</td></tr>
+    <tr><td>Current Commit</td><td>06f47d3</td></tr>
     <tr><td>Status</td><td>All Gates Green</td></tr>
   </table>
 
@@ -52,7 +52,7 @@
     <tr><td>4</td><td>Payments &amp; Unlocks</td><td><span class="pill done">Complete</span></td><td>Razorpay, webhooks, idempotency, expiry</td></tr>
     <tr><td>5</td><td>Trust &amp; Safety</td><td><span class="pill done">Complete</span></td><td>Blocking, reporting, account deletion, report moderation queue</td></tr>
     <tr><td>6</td><td>KYC/Verification</td><td><span class="pill done">Complete</span></td><td>Contracts, service, controller, module</td></tr>
-    <tr><td>7</td><td>Notifications</td><td><span class="pill done">Complete</span></td><td>Shared contracts, API module, list endpoint, unlock pre-expiry reminder</td></tr>
+    <tr><td>7</td><td>Notifications</td><td><span class="pill done">Complete</span></td><td>Shared contracts, API module, list endpoint, unlock pre-expiry reminder, Firebase push delivery</td></tr>
     <tr><td>8</td><td>Admin API</td><td><span class="pill done">Complete</span></td><td>RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard</td></tr>
     <tr><td>9</td><td>Mobile App</td><td><span class="pill plan">Planned</span></td><td>React Native</td></tr>
   </table>
@@ -61,10 +61,19 @@
 
   <h3>Unlock Pre-Expiry Reminder (Section 15 / C3)</h3>
   <ul>
-    <li><code>UNLOCK_EXPIRY_REMINDER_HOURS</code> was configured but unused; a sweep now records one <code>IN_APP</code> notification per unlock about two hours before it expires</li>
+    <li><code>UNLOCK_EXPIRY_REMINDER_HOURS</code> was configured but unused; a sweep now records one notification per unlock about two hours before it expires</li>
     <li><code>ContactUnlock.reminderSentAt</code> marks a reminder sent and the claim is a conditional update, so a restart, redeploy or second instance cannot notify a buyer twice</li>
     <li><code>UnlockExpiryReminder</code> follows the existing sweeper/<code>ClockDriftGuard</code> timer shape (5-minute interval, <code>unref</code>, boot sweep, failures logged not thrown)</li>
-    <li>Channel is <code>IN_APP</code> because no push transport is wired; a push provider added later can read the same rows</li>
+    <li>Channel is <code>PUSH</code>; the row also remains in the in-app list, which is not filtered by channel</li>
+  </ul>
+
+  <h3>Push Delivery over Firebase (Section 42, resolves GAP-12's push half)</h3>
+  <ul>
+    <li><code>PushGateway</code> seam with an <code>FcmPushGateway</code> on FCM HTTP v1: a service-account RS256 assertion is exchanged for a cached OAuth2 token, on <code>node:crypto</code> &mdash; no legacy server key and no <code>firebase-admin</code>; fails closed when unconfigured</li>
+    <li><code>DeviceToken</code> model + <code>DevicePlatform</code> enum and a <code>SENDING</code> claim status; migration <code>20261014140000_device_tokens_push</code></li>
+    <li><code>POST/GET /devices</code> and <code>DELETE /devices/:token</code> under <code>JwtAuthGuard</code>; registration upserts on the token and reassigns its owner, and the token is never echoed back</li>
+    <li><code>PushDispatchService</code> claims a row <code>PENDING</code> &rarr; <code>SENDING</code> with a conditional update (at-least-once, never twice-per-worker), requeues a stale <code>SENDING</code> row, prunes a token FCM reports <code>UNREGISTERED</code>, and marks <code>SENT</code>/<code>FAILED</code>; <code>PushDispatchSweeper</code> runs on a 60-second timer</li>
+    <li>A <code>PUSH</code> row for a member with no device stays <code>PENDING</code> and is delivered once one is registered</li>
   </ul>
 
   <h3>SMS OTP Delivery (MSG91, resolves GAP-12)</h3>
@@ -109,7 +118,7 @@
 
   <h2>Quality Assurance</h2>
   <ul>
-    <li>Tests: 793 passed (532 API + 29 Admin + 232 Shared)</li>
+    <li>Tests: 824 passed (559 API + 29 Admin + 236 Shared)</li>
     <li>Typecheck: PASS (workspaces + tools, including the seed)</li>
     <li>Lint: PASS</li>
     <li>Build: PASS (shared + API + admin)</li>
@@ -119,6 +128,7 @@
   <h2>Next Steps</h2>
   <ul>
     <li><strong>Phase 9:</strong> the React Native member app against the contracts in <code>packages/shared</code></li>
+    <li>Email provider is still open (the remaining half of GAP-12; SMS and push are resolved)</li>
   </ul>
 </body>
 </html>

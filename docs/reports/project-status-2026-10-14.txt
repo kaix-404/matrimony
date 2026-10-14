@@ -3,10 +3,10 @@ PROJECT STATUS TILL NOW
 Matrimony App - Monorepo Implementation
 
 Date: October 14, 2026
-Branch: main (39b1864)
+Branch: main (06f47d3)
 
 GATES
-- All 793 tests pass (232 shared + 29 admin + 532 API)
+- All 824 tests pass (236 shared + 29 admin + 559 API)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
@@ -20,14 +20,30 @@ COMPLETED PHASES
   the app; member list endpoint (GET /notifications); tests added
 - Phase 7 (section 15 / C3): unlock pre-expiry reminder
   * UNLOCK_EXPIRY_REMINDER_HOURS was configured but unused, so an unlock went quiet
-    until it lapsed; a sweep now records an IN_APP notification per unlock two hours
-    before it expires
+    until it lapsed; a sweep now records a notification per unlock two hours before it
+    expires
   * ContactUnlock.reminderSentAt marks a reminder sent; the claim is a conditional
     update, so a second sweep, a redeploy or a second instance cannot notify twice
   * UnlockExpiryReminder follows the existing sweeper/ClockDriftGuard timer shape
     (5-minute interval, unref, boot sweep, failures logged not thrown)
-  * Channel is IN_APP because no push transport is wired; a push provider added later
-    reads the same rows
+  * Channel is PUSH; once push delivery landed (below) the reminder moved off IN_APP so
+    a registered device is actually nudged, and the row still shows in the in-app list
+- Phase 7 (section 42): push delivery over Firebase - resolves GAP-12's push half
+  * The client chose Firebase on 2026-10-01; FCM HTTP v1 with a service-account
+    assertion (RS256 JWT exchanged for a cached OAuth2 token) on node:crypto, not the
+    deprecated legacy server key and not firebase-admin
+  * PushGateway seam bound to FcmPushGateway in PushModule (substitutable in tests, so
+    nothing outside the gateway reaches FCM); fails closed when unconfigured
+  * DeviceToken model + DevicePlatform enum; NotificationStatus gains SENDING for the
+    in-flight claim; migration 20261014140000_device_tokens_push
+  * POST/GET /devices and DELETE /devices/:token under JwtAuthGuard; registration
+    upserts on the token and reassigns its owner, and the token is never echoed back
+  * PushDispatchService claims a row PENDING -> SENDING with a conditional update so two
+    workers (or instances) cannot both send it, requeues a stale SENDING row, prunes a
+    token FCM reports UNREGISTERED, and marks SENT/FAILED; PushDispatchSweeper runs on a
+    60-second timer
+  * A PUSH row for a member with no device stays PENDING and is delivered once one is
+    registered, so nothing is lost
 - Phase 1 (OTP delivery): MSG91 SMS sender - resolves GAP-12
   * SmsGateway seam (abstract class) with a Msg91SmsGateway on MSG91's Flow API,
     bound like the payment gateway so tests substitute it without the network; a
@@ -108,6 +124,7 @@ COMPLETED PHASES
 
 PENDING
 - Phase 9: Mobile app (React Native)
+- Email provider still open (the remaining half of GAP-12; SMS and push are resolved)
 
 NOTES
 - Admin routes are now reachable end to end: login issues a token that the
@@ -137,6 +154,20 @@ NOTES
 - The unlock reminder is idempotent on the row, not on the timer: reminderSentAt is
   stamped by a conditional update, so a restart or a second instance cannot send the
   same reminder twice
-- The reminder is recorded, not pushed: with no push transport wired the buyer sees it
-  only when they open the app, so whether push is in scope for launch is a client call
+- Push delivery is at-least-once and never twice-per-worker: a notification is only
+  sent after a conditional PENDING -> SENDING claim wins, and a row stranded by a
+  crashed worker is requeued once it is stale, so scaling the API past one instance
+  cannot double-send
+- A dead push token is a lifecycle event, not an outage: FCM's UNREGISTERED answer
+  prunes the device rather than marking the notification FAILED, so an uninstalled app
+  cannot strand the queue
+- Push content passes through Google, so it carries ids and event keys, never a name or
+  photograph; the device token is never echoed in a response, keeping it out of bodies
+  and access logs
+- Push and the registration endpoints fail closed: with FCM_SERVICE_ACCOUNT_JSON empty
+  the dispatcher leaves the queue untouched and a PUSH row stays visible in the in-app
+  list
+- No real FCM send has been exercised: the credential is not in the environment, so the
+  gateway is unit-tested against a mocked fetch; the client has an Admin SDK JSON on
+  hand for a live check, and the MSG91 authkey should still be rotated before production
 - No breaking changes
