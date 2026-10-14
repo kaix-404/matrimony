@@ -22,13 +22,17 @@ import type {
   AdminPermissionKey,
   AdminPricingView,
   AdminPublishPricingInput,
+  AdminReportView,
   AdminResolveDataRequestInput,
+  AdminReviewReportInput,
   AdminRoleSlug,
   AdminRoleView,
   AdminUserView,
   DataRequestStatus,
+  ReportActionType,
+  ReportStatus,
 } from '@matrimony/shared';
-import { PrismaClient, Prisma } from '../prisma/prisma-client';
+import { PrismaClient, Prisma, UserStatus } from '../prisma/prisma-client';
 import { ClockService } from '../common/clock/clock.service';
 import { AuditService } from './audit.service';
 import { hashPassword } from '../common/crypto/password';
@@ -110,6 +114,56 @@ function toDataRequestView(row: DataRequestRow): AdminDataRequestView {
     completedAt: row.completedAt ? row.completedAt.toISOString() : null,
     resolutionNotes: row.resolutionNotes,
     handledByAdminId: row.handledByAdminId,
+  };
+}
+
+const REPORT_SELECT = {
+  id: true,
+  status: true,
+  description: true,
+  reviewNotes: true,
+  actionTaken: true,
+  resolvedAt: true,
+  resolvedByAdminId: true,
+  createdAt: true,
+  updatedAt: true,
+  reporterId: true,
+  reportedProfileId: true,
+  reportedUserId: true,
+  reason: { select: { code: true } },
+} as const;
+
+interface ReportRow {
+  id: string;
+  status: string;
+  description: string | null;
+  reviewNotes: string | null;
+  actionTaken: string | null;
+  resolvedAt: Date | null;
+  resolvedByAdminId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  reporterId: string;
+  reportedProfileId: string | null;
+  reportedUserId: string | null;
+  reason: { code: string };
+}
+
+function toReportView(row: ReportRow): AdminReportView {
+  return {
+    id: row.id,
+    status: row.status as ReportStatus,
+    reason_code: row.reason.code,
+    reporter_user_id: row.reporterId,
+    reported_profile_id: row.reportedProfileId,
+    reported_user_id: row.reportedUserId,
+    description: row.description,
+    review_notes: row.reviewNotes,
+    action_taken: row.actionTaken ? (row.actionTaken as ReportActionType) : null,
+    resolved_at: row.resolvedAt ? row.resolvedAt.toISOString() : null,
+    resolved_by_admin_id: row.resolvedByAdminId,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
   };
 }
 
@@ -600,6 +654,100 @@ export class AdminService {
     });
 
     return toDataRequestView(updated);
+  }
+
+  /**
+   * Section 30: the moderation queue.
+   *
+   * Ordered newest-first, matching the report intake: a fresh complaint is the
+   * one most likely to need a response, and an old one that has gone unhandled
+   * this long is not made more urgent by being shown first.
+   */
+  async listReports(limit = 20, cursor?: string, status?: ReportStatus) {
+    const take = Math.min(limit, 100);
+    const items = await this.prisma.report.findMany({
+      take: take + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      select: REPORT_SELECT,
+    });
+    const hasMore = items.length > take;
+    const rows = hasMore ? items.slice(0, take) : items;
+    const reports = rows.map(toReportView);
+    const nextCursor = hasMore ? reports[reports.length - 1]?.id ?? null : null;
+    return { reports, nextCursor, hasMore };
+  }
+
+  /** One report in full, as a moderation deep link opens it. */
+  async getReport(id: string): Promise<AdminReportView> {
+    const report = await this.prisma.report.findUnique({ where: { id }, select: REPORT_SELECT });
+    if (!report) {
+      throw new NotFoundException('Report not found');
+    }
+    return toReportView(report);
+  }
+
+  /**
+   * Section 30: resolve a report.
+   *
+   * Terminal, like the data-request queue: a report already dismissed or actioned
+   * has been decided, so a second call is a conflict rather than a rewrite that
+   * could silently change a sanction. `SUSPEND` suspends the reported account as
+   * its only side effect, and it is guarded on the account not already being
+   * deleted — a moderation decision must not resurrect an erasure into a
+   * suspension. The report write, the suspension and the audit are one step.
+   */
+  async reviewReport(
+    id: string,
+    input: AdminReviewReportInput,
+    actingAdminId: string,
+  ): Promise<AdminReportView> {
+    const report = await this.prisma.report.findUnique({
+      where: { id },
+      select: { id: true, status: true, reportedUserId: true },
+    });
+    if (!report) {
+      throw new NotFoundException('Report not found');
+    }
+    if (report.status === 'DISMISSED' || report.status === 'ACTIONED') {
+      throw new ConflictException('Report is already resolved');
+    }
+
+    const now = this.clock.now();
+    const updated = await this.prisma.report.update({
+      where: { id },
+      data: {
+        status: input.status,
+        actionTaken: input.action,
+        reviewNotes: input.notes ?? null,
+        resolvedAt: now,
+        resolvedByAdminId: actingAdminId,
+      },
+      select: REPORT_SELECT,
+    });
+
+    let suspended = false;
+    if (input.action === 'SUSPEND' && report.reportedUserId) {
+      const result = await this.prisma.user.updateMany({
+        where: { id: report.reportedUserId, status: { not: UserStatus.DELETED } },
+        data: { status: UserStatus.SUSPENDED },
+      });
+      suspended = result.count > 0;
+    }
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'report:review',
+      resourceType: 'Report',
+      resourceId: id,
+      previousValue: { status: report.status },
+      newValue: { status: input.status, action: input.action, suspended },
+      reason: input.notes ?? null,
+    });
+
+    return toReportView(updated);
   }
 
   /**

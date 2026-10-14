@@ -6,9 +6,11 @@ import {
   AdminGrantUnlockSchema,
   AdminListAdminsQuerySchema,
   AdminListDataRequestsQuerySchema,
+  AdminListReportsQuerySchema,
   AdminListUsersQuerySchema,
   AdminPublishPricingSchema,
   AdminResolveDataRequestSchema,
+  AdminReviewReportSchema,
   AdminRoleSlugSchema,
   type AdminAssignRoleInput,
   type AdminCategoryChangeView,
@@ -19,11 +21,14 @@ import {
   type AdminGrantUnlockView,
   type AdminListAdminsQuery,
   type AdminListDataRequestsQuery,
+  type AdminListReportsQuery,
   type AdminListUsersQuery,
   type AdminPricingView,
   type AdminPrincipal,
   type AdminPublishPricingInput,
+  type AdminReportView,
   type AdminResolveDataRequestInput,
+  type AdminReviewReportInput,
   type AdminRoleSlug,
   type AdminRoleView,
   type AdminUserView,
@@ -172,5 +177,33 @@ export class AdminController {
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminDataRequestView> {
     return this.adminService.resolveDataRequest(id, body, principal.id);
+  }
+
+  /** Section 30: the moderation queue, optionally filtered by status. */
+  @Get('reports')
+  @RequirePermission('report:review')
+  async listReports(
+    @Query(new ZodValidationPipe(AdminListReportsQuerySchema)) query: AdminListReportsQuery,
+  ) {
+    return this.adminService.listReports(query.limit, query.cursor, query.status);
+  }
+
+  /** Section 30: one report in full. */
+  @Get('reports/:id')
+  @RequirePermission('report:review')
+  async getReport(@Param('id') id: string): Promise<AdminReportView> {
+    return this.adminService.getReport(id);
+  }
+
+  /** Section 30: dismiss or action a report (suspending the target on SUSPEND). */
+  @Post('reports/:id/review')
+  @RequirePermission('report:review')
+  @HttpCode(200)
+  async reviewReport(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminReviewReportSchema)) body: AdminReviewReportInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminReportView> {
+    return this.adminService.reviewReport(id, body, principal.id);
   }
 }

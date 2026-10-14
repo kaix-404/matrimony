@@ -20,9 +20,13 @@ import { z } from 'zod';
 import {
   ADMIN_ROLE_SLUGS,
   DATA_REQUEST_STATUSES,
+  REPORT_ACTION_TYPES,
+  REPORT_STATUSES,
   type AdminRoleSlug,
   type DataRequestStatus,
   type DataRequestType,
+  type ReportActionType,
+  type ReportStatus,
 } from '../enums.js';
 
 export interface AdminPermissionDescriptor {
@@ -500,3 +504,70 @@ export interface AdminDataRequestView {
   resolutionNotes: string | null;
   handledByAdminId: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Report review queue (sections 20, 30)
+// ---------------------------------------------------------------------------
+
+/** Paging plus an optional lifecycle filter for the moderation queue. */
+export const AdminListReportsQuerySchema = z.object({
+  status: z.enum(REPORT_STATUSES).optional(),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+  cursor: z.string().min(1).optional(),
+});
+export type AdminListReportsQuery = z.infer<typeof AdminListReportsQuerySchema>;
+
+/**
+ * A report as the moderation queue shows it.
+ *
+ * It carries the reporter and reported **ids** and the free-text description,
+ * because an administrator triaging the queue has to be able to decide without a
+ * second request — that is the whole point of a queue. It carries no name or
+ * photograph: those live on the profile and user endpoints, which are separately
+ * permission-checked, so this view cannot leak a section-13 hidden field through
+ * a side door.
+ */
+export interface AdminReportView {
+  id: string;
+  status: ReportStatus;
+  reason_code: string;
+  reporter_user_id: string;
+  reported_profile_id: string | null;
+  reported_user_id: string | null;
+  description: string | null;
+  review_notes: string | null;
+  action_taken: ReportActionType | null;
+  resolved_at: string | null;
+  resolved_by_admin_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Resolving a report.
+ *
+ * Only the two terminal states are accepted: a resolution *is* a decision, so
+ * "still open" is not something this call can set, exactly as the data-request
+ * queue refuses a non-terminal status. `DISMISS` must pair with `DISMISSED` and
+ * every other action with `ACTIONED`, so the recorded action and the lifecycle
+ * status cannot disagree. Notes are required to action, because a sanction with
+ * no recorded reason cannot be reviewed or appealed. `SUSPEND` additionally
+ * suspends the reported account; the remaining actions are recorded on the
+ * report for the audit trail without an automatic side effect yet.
+ */
+export const AdminReviewReportSchema = z
+  .object({
+    status: z.enum(['DISMISSED', 'ACTIONED']),
+    action: z.enum(REPORT_ACTION_TYPES),
+    notes: z.string().trim().max(2000).optional(),
+  })
+  .strict()
+  .refine((value) => (value.action === 'DISMISS') === (value.status === 'DISMISSED'), {
+    message: 'A dismissal is filed as DISMISSED; every other action as ACTIONED',
+    path: ['status'],
+  })
+  .refine((value) => value.status !== 'ACTIONED' || (value.notes ?? '').length > 0, {
+    message: 'An actioned report requires review notes',
+    path: ['notes'],
+  });
+export type AdminReviewReportInput = z.infer<typeof AdminReviewReportSchema>;

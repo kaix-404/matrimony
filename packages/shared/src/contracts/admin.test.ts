@@ -6,6 +6,7 @@ import {
   AdminGrantUnlockSchema,
   AdminListAdminsQuerySchema,
   AdminListDataRequestsQuerySchema,
+  AdminListReportsQuerySchema,
   AdminListUsersQuerySchema,
   AdminLoginResponseSchema,
   AdminLoginSchema,
@@ -16,6 +17,7 @@ import {
   AdminMfaVerifySchema,
   AdminPublishPricingSchema,
   AdminResolveDataRequestSchema,
+  AdminReviewReportSchema,
   AdminRoleSlugSchema,
   permissionCatalogueRows,
 } from './admin.js';
@@ -221,6 +223,48 @@ describe('AdminResolveDataRequestSchema', () => {
 
   it('rejects a non-terminal status', () => {
     expect(AdminResolveDataRequestSchema.safeParse({ status: 'REQUESTED' }).success).toBe(false);
+  });
+});
+
+describe('AdminListReportsQuerySchema', () => {
+  it('defaults the page size and accepts a status filter', () => {
+    expect(AdminListReportsQuerySchema.parse({}).limit).toBe(20);
+    expect(AdminListReportsQuerySchema.parse({ status: 'OPEN' }).status).toBe('OPEN');
+    expect(AdminListReportsQuerySchema.safeParse({ status: 'PENDING' }).success).toBe(false);
+    expect(AdminListReportsQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
+  });
+});
+
+describe('AdminReviewReportSchema', () => {
+  it('pairs a dismissal with DISMISSED and needs no notes', () => {
+    expect(AdminReviewReportSchema.safeParse({ status: 'DISMISSED', action: 'DISMISS' }).success).toBe(true);
+  });
+
+  it('requires notes to action', () => {
+    expect(AdminReviewReportSchema.safeParse({ status: 'ACTIONED', action: 'SUSPEND' }).success).toBe(false);
+    expect(
+      AdminReviewReportSchema.safeParse({
+        status: 'ACTIONED',
+        action: 'SUSPEND',
+        notes: 'Evidence of fraud',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('refuses a status and action that disagree', () => {
+    expect(
+      AdminReviewReportSchema.safeParse({ status: 'DISMISSED', action: 'SUSPEND', notes: 'x' }).success,
+    ).toBe(false);
+    expect(
+      AdminReviewReportSchema.safeParse({ status: 'ACTIONED', action: 'DISMISS', notes: 'x' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a non-terminal status and an unknown action', () => {
+    expect(AdminReviewReportSchema.safeParse({ status: 'OPEN', action: 'DISMISS' }).success).toBe(false);
+    expect(
+      AdminReviewReportSchema.safeParse({ status: 'ACTIONED', action: 'NUKE', notes: 'x' }).success,
+    ).toBe(false);
   });
 });
 

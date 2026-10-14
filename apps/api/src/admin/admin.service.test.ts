@@ -96,7 +96,28 @@ function setup() {
     { key: 'PENDING_REVIEW', isActive: true, isDiscoverable: false },
   ];
 
-  const users = [{ id: 'user_1', networthCategory: 'BELOW_2CR' }];
+  const users = [
+    { id: 'user_1', networthCategory: 'BELOW_2CR', status: 'ACTIVE' as string },
+    { id: 'user_2', networthCategory: 'BELOW_2CR', status: 'ACTIVE' as string },
+  ];
+
+  const reports = [
+    {
+      id: 'rep_1',
+      status: 'OPEN' as string,
+      description: 'Suspected fake profile',
+      reviewNotes: null as string | null,
+      actionTaken: null as string | null,
+      resolvedAt: null as Date | null,
+      resolvedByAdminId: null as string | null,
+      createdAt: new Date('2026-10-10T00:00:00.000Z'),
+      updatedAt: new Date('2026-10-10T00:00:00.000Z'),
+      reporterId: 'user_1',
+      reportedProfileId: 'profile_2',
+      reportedUserId: 'user_2' as string | null,
+      reason: { code: 'FAKE_PROFILE' },
+    },
+  ];
 
   const pricing: Array<{
     id: string;
@@ -148,6 +169,21 @@ function setup() {
         Object.assign(user, data);
         return user;
       }),
+      updateMany: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string; status?: { not: string } };
+          data: Record<string, unknown>;
+        }) => {
+          const user = users.find((u) => u.id === where.id);
+          if (!user) return { count: 0 };
+          if (where.status?.not && user.status === where.status.not) return { count: 0 };
+          Object.assign(user, data);
+          return { count: 1 };
+        },
+      ),
     },
     netWorthCategoryRef: {
       findUnique: async ({ where }: { where: { key: string } }) =>
@@ -196,6 +232,17 @@ function setup() {
         dataRequests.find((r) => r.id === where.id) ?? null,
       update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
         const row = dataRequests.find((r) => r.id === where.id)!;
+        Object.assign(row, data);
+        return row;
+      }),
+    },
+    report: {
+      findMany: async ({ where }: { where?: { status?: string } } = {}) =>
+        where?.status ? reports.filter((r) => r.status === where.status) : reports,
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        reports.find((r) => r.id === where.id) ?? null,
+      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+        const row = reports.find((r) => r.id === where.id)!;
         Object.assign(row, data);
         return row;
       }),
@@ -266,7 +313,7 @@ function setup() {
   const clock = new FrozenClock(new Date('2026-10-14T12:00:00.000Z'));
   const service = new AdminService(prisma as never, audit as never, clock);
 
-  return { service, prisma, audit, admins, assignments, users, pricing, dataRequests };
+  return { service, prisma, audit, admins, assignments, users, pricing, dataRequests, reports };
 }
 
 describe('AdminService.listRoles', () => {
@@ -637,6 +684,140 @@ describe('AdminService.resolveDataRequest', () => {
     const { service } = setup();
     await expect(
       service.resolveDataRequest('nobody', { status: 'COMPLETED' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminService.listReports', () => {
+  it('maps the queue and does not leak raw column names', async () => {
+    const { service } = setup();
+
+    const { reports, hasMore, nextCursor } = await service.listReports();
+
+    expect(hasMore).toBe(false);
+    expect(nextCursor).toBeNull();
+    expect(reports[0]).toMatchObject({
+      id: 'rep_1',
+      status: 'OPEN',
+      reason_code: 'FAKE_PROFILE',
+      reporter_user_id: 'user_1',
+      reported_user_id: 'user_2',
+    });
+    // The view is snake_case only; a raw column name would mean a spread leaked in.
+    expect(JSON.stringify(reports)).not.toContain('reportedUserId');
+    expect(JSON.stringify(reports)).not.toContain('reporterId');
+  });
+
+  it('filters by status', async () => {
+    const { service } = setup();
+    const { reports } = await service.listReports(20, undefined, 'DISMISSED');
+    expect(reports).toEqual([]);
+  });
+});
+
+describe('AdminService.getReport', () => {
+  it('returns one report', async () => {
+    const { service } = setup();
+    await expect(service.getReport('rep_1')).resolves.toMatchObject({ id: 'rep_1', status: 'OPEN' });
+  });
+
+  it('reports a missing report', async () => {
+    const { service } = setup();
+    await expect(service.getReport('nobody')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminService.reviewReport', () => {
+  it('dismisses a report, records the decision and audits it', async () => {
+    const { service, audit, users, reports } = setup();
+
+    const result = await service.reviewReport(
+      'rep_1',
+      { status: 'DISMISSED', action: 'DISMISS' },
+      'admin_actor',
+    );
+
+    expect(result).toMatchObject({
+      status: 'DISMISSED',
+      action_taken: 'DISMISS',
+      resolved_at: '2026-10-14T12:00:00.000Z',
+      resolved_by_admin_id: 'admin_actor',
+    });
+    // A dismissal is not a sanction: the reported account is untouched.
+    expect(users.find((u) => u.id === 'user_2')!.status).toBe('ACTIVE');
+    expect(reports[0]!.status).toBe('DISMISSED');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'report:review', resourceId: 'rep_1' }),
+    );
+  });
+
+  it('suspends the reported account on SUSPEND', async () => {
+    const { service, audit, users } = setup();
+
+    const result = await service.reviewReport(
+      'rep_1',
+      { status: 'ACTIONED', action: 'SUSPEND', notes: 'Confirmed fake profile' },
+      'admin_actor',
+    );
+
+    expect(result).toMatchObject({ status: 'ACTIONED', action_taken: 'SUSPEND' });
+    expect(users.find((u) => u.id === 'user_2')!.status).toBe('SUSPENDED');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'report:review',
+        newValue: expect.objectContaining({ suspended: true }),
+      }),
+    );
+  });
+
+  it('records a warning without suspending anyone', async () => {
+    const { service, users } = setup();
+
+    await service.reviewReport(
+      'rep_1',
+      { status: 'ACTIONED', action: 'WARN', notes: 'First warning' },
+      'admin_actor',
+    );
+
+    expect(users.find((u) => u.id === 'user_2')!.status).toBe('ACTIVE');
+  });
+
+  it('leaves an already-deleted account deleted rather than resurrecting it', async () => {
+    const { service, audit, users } = setup();
+    users.find((u) => u.id === 'user_2')!.status = 'DELETED';
+
+    await service.reviewReport(
+      'rep_1',
+      { status: 'ACTIONED', action: 'SUSPEND', notes: 'Confirmed fake profile' },
+      'admin_actor',
+    );
+
+    expect(users.find((u) => u.id === 'user_2')!.status).toBe('DELETED');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'report:review',
+        newValue: expect.objectContaining({ suspended: false }),
+      }),
+    );
+  });
+
+  it('refuses to resolve a report twice', async () => {
+    const { service } = setup();
+    await service.reviewReport('rep_1', { status: 'DISMISSED', action: 'DISMISS' }, 'admin_actor');
+
+    await expect(
+      service.reviewReport(
+        'rep_1',
+        { status: 'ACTIONED', action: 'SUSPEND', notes: 'changed my mind' },
+        'admin_actor',
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('reports a missing report', async () => {
+    const { service } = setup();
+    await expect(
+      service.reviewReport('nobody', { status: 'DISMISSED', action: 'DISMISS' }, 'admin_actor'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

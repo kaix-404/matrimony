@@ -122,6 +122,22 @@ export const DEFAULT_REPORT_REASON_CODES = [
 ] as const;
 export type ReportReasonCode = (typeof DEFAULT_REPORT_REASON_CODES)[number];
 
+/**
+ * Section 30 report lifecycle. `OPEN` is intake, `IN_REVIEW` is an administrator
+ * having picked it up, and `DISMISSED`/`ACTIONED` are the two terminal states a
+ * moderation decision lands on.
+ */
+export const REPORT_STATUSES = ['OPEN', 'IN_REVIEW', 'DISMISSED', 'ACTIONED'] as const;
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
+
+/**
+ * Section 30 moderation actions. Only `SUSPEND` currently carries an automatic
+ * side effect (the reported account is suspended); the rest are recorded on the
+ * report for the audit trail.
+ */
+export const REPORT_ACTION_TYPES = ['DISMISS', 'WARN', 'SUSPEND', 'BLOCK', 'DELETE'] as const;
+export type ReportActionType = (typeof REPORT_ACTION_TYPES)[number];
+
 export const NOTIFICATION_CHANNELS = ['PUSH', 'SMS', 'EMAIL', 'IN_APP'] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 
