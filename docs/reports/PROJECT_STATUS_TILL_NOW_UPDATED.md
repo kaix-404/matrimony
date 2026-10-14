@@ -3,10 +3,10 @@ PROJECT STATUS TILL NOW
 Matrimony App - Monorepo Implementation
 
 Date: October 14, 2026
-Branch: main (6c14c08)
+Branch: main (255cb85)
 
 GATES
-- All 729 tests pass (227 shared + 502 API)
+- All 744 tests pass (232 shared + 512 API)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
 - Build: PASS (shared + API)
@@ -62,6 +62,16 @@ COMPLETED PHASES
     typ (admin_access / mfa_challenge / mfa_enroll)
   * Lost-device recovery: POST /admin/admins/:id/mfa/reset (admin:manage, audited,
     refuses self-reset); AdminUserView gains mfaEnabled
+- Phase 5 (trust and safety, section 30): report moderation queue
+  * GET /admin/reports (status filter + cursor pages), GET /admin/reports/:id and
+    POST /admin/reports/:id/review, all behind report:review
+  * A resolution is terminal and pairs action with status (DISMISS<->DISMISSED,
+    other actions<->ACTIONED); notes are required to action
+  * SUSPEND suspends the reported account as its only side effect, guarded so a
+    moderation decision cannot revive a DELETED account; WARN/BLOCK/DELETE are
+    recorded for the audit trail; every review writes a report:review audit row
+  * Shared REPORT_STATUSES / REPORT_ACTION_TYPES enums and AdminReportView /
+    AdminReviewReportSchema contracts
 
 PENDING
 - Phase 9: Mobile app (React Native)
@@ -76,4 +86,7 @@ NOTES
 - Admin MFA fails closed: a rotated MFA_ENCRYPTION_KEY reads as "no usable secret"
   rather than admitting a login with an unverifiable factor, and a session alone cannot
   disable the second factor
+- The moderation queue returns ids and the report text, never a name or photograph, so
+  it cannot re-leak a section-13 hidden field; a resolution is terminal so a recorded
+  sanction cannot be silently rewritten by a second reviewer
 - No breaking changes
