@@ -4,12 +4,14 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ConfigModule } from './config/config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ClockModule } from './common/clock/clock.module';
+import { FeatureFlagsModule } from './common/features/feature-flags.service';
 import { HealthModule } from './health/health.module';
 import { AuthModule } from './auth/auth.module';
 import { StorageModule } from './storage/storage.module';
 import { MasterDataModule } from './master-data/master-data.module';
 import { ProfileModule } from './profile/profile.module';
 import { DiscoveryModule } from './discovery/discovery.module';
+import { RecommendationModule } from './recommendations/recommendation.module';
 import { PaymentsModule } from './payments/payments.module';
 import { UnlockModule } from './unlock/unlock.module';
 import { ModerationModule } from './moderation/moderation.module';
@@ -32,6 +34,7 @@ import type { Env } from './config/env';
   imports: [
     ConfigModule,
     ClockModule,
+    FeatureFlagsModule,
     PrismaModule,
     HealthModule,
     AuthModule,
@@ -39,6 +42,7 @@ import type { Env } from './config/env';
     MasterDataModule,
     ProfileModule,
     DiscoveryModule,
+    RecommendationModule,
     PaymentsModule,
     UnlockModule,
     ModerationModule,

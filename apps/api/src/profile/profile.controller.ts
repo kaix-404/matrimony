@@ -7,6 +7,7 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { AuthUser, JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -17,10 +18,13 @@ import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
 import {
   CreateProfileSchema,
   UpdateProfileSchema,
+  UpdateInterestsSchema,
   type AccessTokenClaims,
   type CreateProfileInput,
   type MyProfile,
   type ProfileCompleteness,
+  type ProfileInterests,
+  type UpdateInterestsInput,
   type UpdateProfileInput,
 } from '@matrimony/shared';
 import {
@@ -90,6 +94,23 @@ export class ProfileController {
     @Body(new ZodValidationPipe(SetVisibilitySchema)) body: SetVisibilityInput,
   ): Promise<MyProfile> {
     return this.profiles.setVisibility(claims.sub, body.visibility as ProfileVisibility);
+  }
+
+  // -- interests (AI recommendations, section 27) ---------------------------
+
+  /** The caller's curated interests plus the catalogue, for the picker. */
+  @Get('interests')
+  async interests(@AuthUser() claims: AccessTokenClaims): Promise<ProfileInterests> {
+    return this.profiles.interests(claims.sub);
+  }
+
+  /** Replaces the caller's interest selection (whole-set). */
+  @Put('interests')
+  async setInterests(
+    @AuthUser() claims: AccessTokenClaims,
+    @Body(new ZodValidationPipe(UpdateInterestsSchema)) body: UpdateInterestsInput,
+  ): Promise<ProfileInterests> {
+    return this.profiles.setInterests(claims.sub, body);
   }
 
   // -- photos (section 9) ----------------------------------------------------

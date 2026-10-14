@@ -17,6 +17,8 @@ import type {
   CreateProfileInput,
   MyProfile,
   ProfileCompleteness,
+  ProfileInterests,
+  UpdateInterestsInput,
   UpdateProfileInput,
 } from '@matrimony/shared';
 
@@ -244,6 +246,87 @@ export class ProfileService {
     await this.assertEditable(userId);
     await this.prisma.profile.update({ where: { userId }, data: { visibility } });
     return this.myProfile(userId);
+  }
+
+  /**
+   * The caller's curated interests plus the catalogue (AI recommendations,
+   * client answer 1).
+   *
+   * The catalogue is returned alongside the selection so the picker needs one
+   * request and cannot render a choice the server would reject.
+   */
+  async interests(userId: string): Promise<ProfileInterests> {
+    const profile = await this.requireProfile(userId);
+
+    const [available, selected] = await Promise.all([
+      this.prisma.interest.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        select: { key: true, label: true, sortOrder: true },
+      }),
+      this.prisma.profileInterest.findMany({
+        where: { profileId: profile.id },
+        select: { interestKey: true },
+      }),
+    ]);
+
+    return {
+      selected: selected.map((r) => r.interestKey),
+      available: available.map((i) => ({ key: i.key, label: i.label, sort_order: i.sortOrder })),
+    };
+  }
+
+  /**
+   * Replaces the caller's interest selection.
+   *
+   * Whole-set replacement, like the net-worth visibility lists: the picker
+   * submits the complete selection, and an empty array is a deliberate "none"
+   * that a delta could not express. Membership is validated against the active
+   * catalogue here because the contract cannot enumerate keys without turning
+   * every new interest into a client release.
+   */
+  async setInterests(userId: string, input: UpdateInterestsInput): Promise<ProfileInterests> {
+    const profile = await this.requireProfile(userId);
+    await this.assertEditable(userId);
+
+    const keys = [...new Set(input.interests)];
+    await this.assertInterestsExist(keys);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.profileInterest.deleteMany({ where: { profileId: profile.id } });
+      if (keys.length > 0) {
+        await tx.profileInterest.createMany({
+          data: keys.map((interestKey) => ({ profileId: profile.id, interestKey })),
+        });
+      }
+    });
+
+    return this.interests(userId);
+  }
+
+  /**
+   * Rejects a key that is not an active interest.
+   *
+   * Same role as `VisibilityPreferenceService.assertBandsExist`: the contract
+   * checks shape, the database checks membership, and without this an unknown
+   * key would surface as a raw foreign-key violation rather than a 400 naming
+   * the field.
+   */
+  private async assertInterestsExist(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+
+    const found = await this.prisma.interest.findMany({
+      where: { key: { in: keys }, isActive: true },
+      select: { key: true },
+    });
+    const missing = keys.filter((k) => !found.some((f) => f.key === k));
+
+    if (missing.length > 0) {
+      throw new BadRequestException({
+        message: 'Validation failed',
+        errors: [{ field: 'interests', messages: [`unknown or inactive interest: ${missing.join(', ')}`] }],
+      });
+    }
   }
 
   /**

@@ -14,6 +14,16 @@ import {
 /** Bumped if the cursor's shape ever changes; older tokens then reset paging. */
 const CURSOR_PREFIX = 'v1:';
 
+/** The viewer's resolved two-way scope, priced. See `resolveViewerScope`. */
+export interface ViewerScope {
+  /** The viewer's own band, needed for the acceptance half of the two-way rule. */
+  viewerBand: string;
+  /** Bands both sides accept, that also have an active price. Empty = nothing. */
+  scope: string[];
+  /** Active price per band in `scope`. */
+  pricing: Record<string, UnlockPrice>;
+}
+
 /**
  * Section 12 discovery.
  *
@@ -48,28 +58,12 @@ export class DiscoveryService {
   ) {}
 
   async search(viewerId: string, query: DiscoveryQuery): Promise<DiscoveryResponse> {
-    const discover = await this.preferences.effectiveDiscoveryCategories(viewerId);
+    const { viewerBand, scope, pricing } = await this.resolveViewerScope(viewerId);
 
-    // An empty effective list means the user saved "nobody", i.e. discovery is
-    // paused. Answering here keeps that from looking like a search that failed,
-    // and skips a pointless query on what would otherwise be the hot path.
-    if (discover.length === 0) {
-      return { items: [], next_cursor: null, applied_categories: [], preference_applied: true };
-    }
-
-    const viewer = await this.prisma.user.findUniqueOrThrow({
-      where: { id: viewerId },
-      select: { networthCategory: true },
-    });
-
-    const accepted = await this.bandsThatAcceptViewer(discover, viewerId, viewer.networthCategory);
-
-    // A band that cannot be priced is not searchable: a card without a quote
-    // cannot be rendered, and returning the band in `applied_categories` while
-    // omitting its users would claim coverage the response does not have.
-    const pricing = await this.pricingFor(accepted);
-    const scope = accepted.filter((band) => pricing[band] !== undefined);
-
+    // An empty scope means the user saved "nobody" (i.e. discovery is paused) or
+    // no candidate band accepts the viewer. Answering here keeps that from
+    // looking like a search that failed, and skips a pointless query on what
+    // would otherwise be the hot path.
     if (scope.length === 0) {
       return { items: [], next_cursor: null, applied_categories: [], preference_applied: true };
     }
@@ -77,47 +71,8 @@ export class DiscoveryService {
     const cursor = decodeCursor(query.cursor);
     const rows = await this.prisma.profile.findMany({
       where: {
-        status: 'APPROVED',
-        // Section 21/36: a paused or deleted profile stays private.
-        visibility: 'ACTIVE',
-        deletedAt: null,
+        ...this.candidateWhere(viewerId, viewerBand, scope),
         ...this.temporaryFilter(query),
-        user: {
-          is: {
-            id: { not: viewerId },
-            networthCategory: { in: scope },
-            // Eligibility. Verified, paid and active, plus not deleted or
-            // anonymised — a suspended or purged account is never browsable.
-            status: 'ACTIVE',
-            identityVerifiedAt: { not: null },
-            setupFeePaidAt: { not: null },
-            isAnonymised: false,
-            deletedAt: null,
-            // Section 12: a block hides the pair in both directions. `none`
-            // rather than a join, so a duplicate row cannot resurface a blocked
-            // user through the join.
-            blocksInitiated: { none: { blockedId: viewerId } },
-            blockedBy: { none: { blockerId: viewerId } },
-            // Two-way acceptance, evaluated per candidate and not per band.
-            // `scope` only records which bands contain at least one user who
-            // accepts the viewer, so filtering on the band alone would also
-            // return same-band users who have explicitly opted this viewer out:
-            // one accepting stranger in a band was enough to expose every
-            // rejecting member of it.
-            OR: [
-              // Explicitly opted in to the viewer's band.
-              { visibilityCategories: { some: { category: viewer.networthCategory } } },
-              // Never configured, so the default applies: their own band.
-              {
-                networthCategory: viewer.networthCategory,
-                OR: [
-                  { partnerPreference: { is: { visibilityConfigured: false } } },
-                  { partnerPreference: { is: null } },
-                ],
-              },
-            ],
-          },
-        },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: query.limit + 1,
@@ -187,6 +142,95 @@ export class DiscoveryService {
       // `use_saved_preference=false` produce a response claiming preferences were
       // ignored while every returned card had in fact been filtered by them.
       preference_applied: true,
+    };
+  }
+
+  /**
+   * The viewer's two-way scope, priced, shared by discovery and recommendations.
+   *
+   * Both endpoints must apply the identical eligibility and visibility rule, so
+   * they resolve it here rather than each restating it — a rule expressed twice
+   * is a rule that can drift. Returns the viewer's own band (needed for the
+   * acceptance half of the two-way check) and only bands that have a price,
+   * since a band that cannot be quoted cannot be served.
+   */
+  async resolveViewerScope(viewerId: string): Promise<ViewerScope> {
+    const discover = await this.preferences.effectiveDiscoveryCategories(viewerId);
+
+    // Empty effective list = the user saved "nobody". No candidate is in scope.
+    if (discover.length === 0) {
+      return { viewerBand: '', scope: [], pricing: {} };
+    }
+
+    const viewer = await this.prisma.user.findUniqueOrThrow({
+      where: { id: viewerId },
+      select: { networthCategory: true },
+    });
+
+    const accepted = await this.bandsThatAcceptViewer(discover, viewerId, viewer.networthCategory);
+
+    // A band that cannot be priced is not searchable: a card without a quote
+    // cannot be rendered, and returning the band in `applied_categories` while
+    // omitting its users would claim coverage the response does not have.
+    const pricing = await this.pricingFor(accepted);
+    const scope = accepted.filter((band) => pricing[band] !== undefined);
+
+    return { viewerBand: viewer.networthCategory, scope, pricing };
+  }
+
+  /**
+   * The shared candidate predicate: eligibility, two-way acceptance and blocks.
+   *
+   * The one definition of "is a discoverable candidate for this viewer". Both
+   * discovery and recommendations spread it and then add their own filters, so
+   * a recommendation can never surface a profile the viewer could not discover.
+   */
+  candidateWhere(
+    viewerId: string,
+    viewerBand: string,
+    scope: string[],
+  ): Prisma.ProfileWhereInput {
+    return {
+      status: 'APPROVED',
+      // Section 21/36: a paused or deleted profile stays private.
+      visibility: 'ACTIVE',
+      deletedAt: null,
+      user: {
+        is: {
+          id: { not: viewerId },
+          networthCategory: { in: scope },
+          // Eligibility. Verified, paid and active, plus not deleted or
+          // anonymised — a suspended or purged account is never browsable.
+          status: 'ACTIVE',
+          identityVerifiedAt: { not: null },
+          setupFeePaidAt: { not: null },
+          isAnonymised: false,
+          deletedAt: null,
+          // Section 12: a block hides the pair in both directions. `none`
+          // rather than a join, so a duplicate row cannot resurface a blocked
+          // user through the join.
+          blocksInitiated: { none: { blockedId: viewerId } },
+          blockedBy: { none: { blockerId: viewerId } },
+          // Two-way acceptance, evaluated per candidate and not per band.
+          // `scope` only records which bands contain at least one user who
+          // accepts the viewer, so filtering on the band alone would also
+          // return same-band users who have explicitly opted this viewer out:
+          // one accepting stranger in a band was enough to expose every
+          // rejecting member of it.
+          OR: [
+            // Explicitly opted in to the viewer's band.
+            { visibilityCategories: { some: { category: viewerBand } } },
+            // Never configured, so the default applies: their own band.
+            {
+              networthCategory: viewerBand,
+              OR: [
+                { partnerPreference: { is: { visibilityConfigured: false } } },
+                { partnerPreference: { is: null } },
+              ],
+            },
+          ],
+        },
+      },
     };
   }
 
@@ -337,7 +381,7 @@ export class DiscoveryService {
    * allows. A signing failure degrades to an omitted photo rather than failing
    * the page — one unreadable object should not hide an otherwise valid profile.
    */
-  private async previewPhotos(
+  async previewPhotos(
     photos: {
       id: string;
       objectKey: string;

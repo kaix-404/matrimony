@@ -153,6 +153,15 @@ export function createEnvSchema(isProduction: boolean) {
     /** F6: retention before a deleted account is irreversibly erased. */
     DELETED_ACCOUNT_RETENTION_MONTHS: int(1, 120).default(6),
     UNLOCK_WINDOW_HOURS: int(1, 168).default(24),
+
+    // -- feature flags (client answer 7: feature flag + gradual rollout) ---
+    /**
+     * AI profile recommendations. Default OFF: the endpoint answers
+     * `{ enabled: false }` and queries nothing until a deployment turns it on,
+     * which is the gradual rollout the client asked for. Flagged rather than
+     * gated by a build because enabling it must not need a release.
+     */
+    FEATURE_AI_RECOMMENDATIONS: booleanish.default(false),
   });
 }
 

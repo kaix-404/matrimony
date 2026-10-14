@@ -15,12 +15,13 @@ import { DiscoveryController } from './discovery.controller';
  *
  * `VisibilityPreferenceService` is exported so later phases (unlock ordering,
  * unlock listing) can price a target the same way discovery does, rather than
- * re-deriving the scope.
+ * re-deriving the scope. `DiscoveryService` is exported so recommendations reuse
+ * the same eligibility/visibility predicate instead of restating it.
  */
 @Module({
   imports: [AuthModule, StorageModule],
   controllers: [VisibilityPreferenceController, DiscoveryController],
   providers: [VisibilityPreferenceService, DiscoveryService],
-  exports: [VisibilityPreferenceService],
+  exports: [VisibilityPreferenceService, DiscoveryService],
 })
 export class DiscoveryModule {}

@@ -19,6 +19,7 @@ import { hashPassword } from '../src/common/crypto/password';
 import {
   ACCOUNT_SETUP_FEE,
   CRORE_INR,
+  DEFAULT_INTERESTS,
   DEFAULT_PRICING,
   GST_PERCENT,
   NET_WORTH_BANDS,
@@ -232,6 +233,31 @@ async function seedReportReasons(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// Section 27 — curated interests (AI recommendations, client answer 1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Seeds the curated interest vocabulary from the shared catalogue.
+ *
+ * Upsert keyed on `key`. `isActive` is deliberately not in the update clause: an
+ * admin who retired an interest must not have the next seed run silently revive
+ * it. `label` and `sortOrder` are refreshed so a copy fix propagates.
+ */
+async function seedInterests(): Promise<void> {
+  for (const interest of DEFAULT_INTERESTS) {
+    await prisma.interest.upsert({
+      where: { key: interest.key },
+      update: { label: interest.label, sortOrder: interest.sortOrder },
+      create: {
+        key: interest.key,
+        label: interest.label,
+        sortOrder: interest.sortOrder,
+      },
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Section 33 — permissions and roles, per client answer F2(a)
 // ---------------------------------------------------------------------------
 
@@ -393,14 +419,16 @@ async function main(): Promise<void> {
   await seedPricing();
   await seedMasterListContainers();
   await seedReportReasons();
+  await seedInterests();
   await seedRolesAndPermissions();
   const bootstrapAdmin = await seedBootstrapAdmin();
 
-  const [bands, activePrices, lists, reasons, permissions, roles, admins] = await Promise.all([
+  const [bands, activePrices, lists, reasons, interests, permissions, roles, admins] = await Promise.all([
     prisma.netWorthCategoryRef.count(),
     prisma.pricingConfig.count({ where: { effectiveTo: null } }),
     prisma.masterList.count(),
     prisma.reportReason.count(),
+    prisma.interest.count(),
     prisma.permission.count(),
     prisma.adminRole.count(),
     prisma.adminUser.count(),
@@ -411,6 +439,7 @@ async function main(): Promise<void> {
   console.log(`  active price configs: ${activePrices} (review bucket excluded)`);
   console.log(`  master lists        : ${lists} (values are client-supplied)`);
   console.log(`  report reasons      : ${reasons}`);
+  console.log(`  interests           : ${interests}`);
   console.log(`  permissions         : ${permissions}`);
   console.log(`  roles               : ${roles}`);
   console.log(`  administrators      : ${admins}`);

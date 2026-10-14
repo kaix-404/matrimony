@@ -686,6 +686,7 @@ model Profile {
   paidUnlocks      Payment[]          @relation("PaymentTargetProfile")
   reportsAgainst    Report[]           @relation("ReportedProfile")
   attributes_       ProfileAttribute[]
+  interests         ProfileInterest[]
 
   // -- discovery index -----------------------------------------------------
   @@index([status, visibility, deletedAt])
@@ -915,6 +916,49 @@ model NetWorthCategoryRef {
   visibilityPreferences UserVisibilityCategory[]
 
   @@index([isActive, sortOrder])
+}
+
+// ===========================================================================
+// INTERESTS  (AI recommendations, client decision 2026-10-14)
+// ===========================================================================
+
+/// The curated interest vocabulary (client answer 1: curated list, no free text).
+///
+/// A row is a selectable tag, seeded from `DEFAULT_INTERESTS` in the shared
+/// package. Retirement is `isActive = false` rather than a delete: the FK from a
+/// user's selection is `Restrict`, so deleting a referenced row would fail and,
+/// worse, a cascade would silently erase every user's choice of it.
+model Interest {
+  key       String  @id
+  label     String
+  /// Retired interests stay referenceable but drop out of the picker.
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  profiles ProfileInterest[]
+
+  @@index([isActive, sortOrder])
+}
+
+/// A curated interest a profile has selected.
+///
+/// Keyed on the profile, not the user: interests describe the person, and a user
+/// without a profile has nothing to match on. Composite PK makes a duplicate
+/// selection impossible at the storage layer.
+model ProfileInterest {
+  profileId   String
+  profile     Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  interestKey String
+  interest    Interest @relation(fields: [interestKey], references: [key], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@id([profileId, interestKey])
+  /// Reverse lookup: which profiles share a key. This is the recommendation join.
+  @@index([interestKey])
 }
 
 // ===========================================================================

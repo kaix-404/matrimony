@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ProfileService } from './profile.service';
 import { PhotoService } from './photo.service';
@@ -143,6 +143,34 @@ class FakePrisma {
   $transaction = async (arg: Row[] | ((tx: FakePrisma) => Promise<unknown>)) => {
     if (typeof arg === 'function') return arg(this);
     return Promise.all(arg);
+  };
+
+  interestRows: { key: string; label: string; sortOrder: number; isActive: boolean }[] = [];
+  profileInterests: { profileId: string; interestKey: string }[] = [];
+
+  interest = {
+    findMany: async (
+      { where }: { where?: { key?: { in: string[] }; isActive?: boolean } } = {},
+    ) =>
+      this.interestRows
+        .filter((r) => (where?.isActive === undefined ? true : r.isActive === where.isActive))
+        .filter((r) => (where?.key?.in ? where.key.in.includes(r.key) : true))
+        .map((r) => ({ key: r.key, label: r.label, sortOrder: r.sortOrder })),
+  };
+
+  profileInterest = {
+    findMany: async ({ where }: { where: { profileId: string } }) =>
+      this.profileInterests
+        .filter((r) => r.profileId === where.profileId)
+        .map((r) => ({ interestKey: r.interestKey })),
+    deleteMany: async ({ where }: { where: { profileId: string } }) => {
+      this.profileInterests = this.profileInterests.filter((r) => r.profileId !== where.profileId);
+      return { count: 0 };
+    },
+    createMany: async ({ data }: { data: { profileId: string; interestKey: string }[] }) => {
+      this.profileInterests.push(...data);
+      return { count: data.length };
+    },
   };
 }
 
@@ -345,6 +373,55 @@ describe('ProfileService', () => {
 
   it('404s an unknown user rather than creating an orphan profile', async () => {
     await expect(service.create('nobody', base)).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  describe('curated interests (AI recommendations)', () => {
+    beforeEach(async () => {
+      await service.create('u1', base);
+      prisma.interestRows = [
+        { key: 'TRAVEL', label: 'Travel', sortOrder: 10, isActive: true },
+        { key: 'MUSIC', label: 'Music', sortOrder: 20, isActive: true },
+        { key: 'RETIRED', label: 'Retired', sortOrder: 30, isActive: false },
+      ];
+    });
+
+    it('returns the active catalogue and the initially empty selection', async () => {
+      const result = await service.interests('u1');
+
+      expect(result.selected).toEqual([]);
+      expect(result.available).toEqual([
+        { key: 'TRAVEL', label: 'Travel', sort_order: 10 },
+        { key: 'MUSIC', label: 'Music', sort_order: 20 },
+      ]);
+    });
+
+    it('replaces the whole selection', async () => {
+      await service.setInterests('u1', { interests: ['TRAVEL', 'MUSIC'] });
+      expect((await service.interests('u1')).selected.sort()).toEqual(['MUSIC', 'TRAVEL']);
+
+      await service.setInterests('u1', { interests: ['MUSIC'] });
+      expect((await service.interests('u1')).selected).toEqual(['MUSIC']);
+    });
+
+    it('treats an empty array as a deliberate none', async () => {
+      await service.setInterests('u1', { interests: ['TRAVEL'] });
+      await service.setInterests('u1', { interests: [] });
+      expect((await service.interests('u1')).selected).toEqual([]);
+    });
+
+    it('rejects an unknown or inactive interest rather than hitting the FK', async () => {
+      await expect(service.setInterests('u1', { interests: ['RETIRED'] })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+      await expect(service.setInterests('u1', { interests: ['NOPE'] })).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
+    });
+
+    it('requires a profile, since interests belong to one', async () => {
+      prisma.profileRow = null;
+      await expect(service.interests('u1')).rejects.toBeInstanceOf(NotFoundException);
+    });
   });
 });
 
