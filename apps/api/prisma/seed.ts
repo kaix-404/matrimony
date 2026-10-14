@@ -12,8 +12,10 @@
  *   docker compose -f infra/docker/docker-compose.yml up -d postgres
  */
 
+import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { AdminRoleSlug, PrismaClient } from '../src/prisma/prisma-client';
+import { hashPassword } from '../src/common/crypto/password';
 import {
   ACCOUNT_SETUP_FEE,
   CRORE_INR,
@@ -332,20 +334,76 @@ async function seedRolesAndPermissions(): Promise<void> {
   }
 }
 
+/**
+ * Optionally creates the first Super Admin from the environment.
+ *
+ * There is no default administrator and no default password: seeding a known
+ * credential into every environment is how a production database ends up with a
+ * published login. When `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` are both
+ * set the account is created (or the existing one is left untouched), hashed the
+ * same way login verifies it, and granted the Super Admin role.
+ *
+ * Re-running never rewrites an existing password, so rotating it through the
+ * application is not undone by the next `prisma db seed`. Returns true when a
+ * new administrator was created, false when one already existed or the step was
+ * skipped.
+ */
+async function seedBootstrapAdmin(): Promise<{ created: boolean; skipped: boolean }> {
+  const email = process.env.SEED_ADMIN_EMAIL?.trim().toLowerCase();
+  const password = process.env.SEED_ADMIN_PASSWORD;
+
+  if (!email || !password) {
+    return { created: false, skipped: true };
+  }
+
+  if (password.length < 12) {
+    throw new Error('SEED_ADMIN_PASSWORD must be at least 12 characters.');
+  }
+
+  const role = await prisma.adminRole.findUnique({ where: { slug: AdminRoleSlug.SUPER_ADMIN } });
+  if (!role) {
+    throw new Error('SUPER_ADMIN role is missing; roles and permissions must be seeded first.');
+  }
+
+  const existing = await prisma.adminUser.findUnique({ where: { email }, select: { id: true } });
+  const admin = await prisma.adminUser.upsert({
+    where: { email },
+    // An empty update means an existing administrator keeps its current password.
+    update: {},
+    create: {
+      id: randomUUID(),
+      email,
+      name: process.env.SEED_ADMIN_NAME?.trim() || 'Bootstrap Administrator',
+      passwordHash: hashPassword(password),
+    },
+    select: { id: true },
+  });
+
+  await prisma.adminRoleAssignment.upsert({
+    where: { adminId_roleId: { adminId: admin.id, roleId: role.id } },
+    update: {},
+    create: { adminId: admin.id, roleId: role.id },
+  });
+
+  return { created: existing === null, skipped: false };
+}
+
 async function main(): Promise<void> {
   await seedNetWorthCategories();
   await seedPricing();
   await seedMasterListContainers();
   await seedReportReasons();
   await seedRolesAndPermissions();
+  const bootstrapAdmin = await seedBootstrapAdmin();
 
-  const [bands, activePrices, lists, reasons, permissions, roles] = await Promise.all([
+  const [bands, activePrices, lists, reasons, permissions, roles, admins] = await Promise.all([
     prisma.netWorthCategoryRef.count(),
     prisma.pricingConfig.count({ where: { effectiveTo: null } }),
     prisma.masterList.count(),
     prisma.reportReason.count(),
     prisma.permission.count(),
     prisma.adminRole.count(),
+    prisma.adminUser.count(),
   ]);
 
   console.log('Seed complete.');
@@ -355,6 +413,12 @@ async function main(): Promise<void> {
   console.log(`  report reasons      : ${reasons}`);
   console.log(`  permissions         : ${permissions}`);
   console.log(`  roles               : ${roles}`);
+  console.log(`  administrators      : ${admins}`);
+  if (bootstrapAdmin.skipped) {
+    console.log('  bootstrap admin     : skipped (set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD to create one)');
+  } else {
+    console.log(`  bootstrap admin     : ${bootstrapAdmin.created ? 'created' : 'already present'}`);
+  }
   const setupQuote = quotePayment(ACCOUNT_SETUP_FEE, GST_PERCENT);
 console.log(
     `  setup fee           : \u20b9${setupQuote.baseAmount} + ${GST_PERCENT}% GST ` +
