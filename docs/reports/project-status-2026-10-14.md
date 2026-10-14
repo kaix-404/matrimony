@@ -3,10 +3,10 @@ PROJECT STATUS TILL NOW
 Matrimony App - Monorepo Implementation
 
 Date: October 14, 2026
-Branch: main (b487dfb)
+Branch: main (4b020a7)
 
 GATES
-- All 646 tests pass (202 shared + 444 API)
+- All 685 tests pass (222 shared + 463 API)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
 - Build: PASS (shared + API)
@@ -36,6 +36,17 @@ COMPLETED PHASES
     and lists it for the buyer), and data-request handling (data_request:handle)
   * AuditService (append-only AuditLog writer, section 32)
   * AdminModule wired into the app; seed consumes the shared catalogue
+- Phase 8 (AI recommendations, backend MVP): curated interests + feature-flagged For You feed
+  * Shared catalogue of lifestyle interest tags (DEFAULT_INTERESTS) and contracts for
+    interests and recommendations, with a 30-interest cap and whole-set replacement
+  * Interest and ProfileInterest tables plus migration; curated interests seeded
+  * Member endpoints GET/PUT /profile/interests (curated list only, client answer 1)
+  * GET /recommendations behind FEATURE_AI_RECOMMENDATIONS (answer 7); an empty enabled
+    feed is returned when the flag is off rather than an error
+  * Content-based hybrid ranking (answer 2): candidates reuse the existing discovery
+    eligibility and two-way acceptance scope, ranked by shared-interest overlap; cards
+    expose shared_interests as an optional explanation (answers 4 and 6)
+  * FeatureFlagsService (env-backed) and reusable DiscoveryService scope helpers
 
 PENDING
 - Phase 8 (remaining): admin MFA (schema field exists)
@@ -46,4 +57,6 @@ NOTES
   AdminAuthGuard accepts and the PermissionsGuard checks against seeded grants
 - The permission catalogue now lives in @matrimony/shared and is consumed by the seed,
   removing the drift between guard keys and seeded grants
+- Recommendations inherit the discovery eligibility and two-way acceptance rules, so the
+  For You feed can never surface a profile the member could not already see
 - No breaking changes
