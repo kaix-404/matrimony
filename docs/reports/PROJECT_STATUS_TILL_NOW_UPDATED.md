@@ -3,10 +3,10 @@ PROJECT STATUS TILL NOW
 Matrimony App - Monorepo Implementation
 
 Date: October 14, 2026
-Branch: main (a521e3b)
+Branch: main (b487dfb)
 
 GATES
-- All 619 tests pass (192 shared + 427 API)
+- All 646 tests pass (202 shared + 444 API)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
 - Build: PASS (shared + API)
@@ -29,12 +29,16 @@ COMPLETED PHASES
     SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
   * Role management (admin:manage): list roles/administrators, create an administrator,
     grant and revoke roles. Refuses self role-changes and revoking the last Super Admin
+  * Enrichment tooling, each audited: category change (user:change_category),
+    pricing publish (pricing:write, append-only versioning), manual unlock grant
+    (unlock:grant, recorded as AdminGrantAudit because ContactUnlock requires a
+    verified payment; UnlockService honours an active grant for the 24-hour window
+    and lists it for the buyer), and data-request handling (data_request:handle)
   * AuditService (append-only AuditLog writer, section 32)
   * AdminModule wired into the app; seed consumes the shared catalogue
 
 PENDING
-- Phase 8 (remaining): admin MFA (schema field exists), moderation/pricing/data-request
-  tooling (audited category change, manual unlock grant, pricing publish)
+- Phase 8 (remaining): admin MFA (schema field exists)
 - Phase 9: Mobile app (React Native)
 
 NOTES
