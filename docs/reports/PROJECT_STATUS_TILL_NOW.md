@@ -1,19 +1,19 @@
 # Networth Matrimony - Project Status Report
 
-**Report Date:** October 14, 2026  |  **Branch:** main (18bc0fb)  |  **Repository:** D:\matrimony
+**Report Date:** October 14, 2026  |  **Branch:** main (39b1864)  |  **Repository:** D:\matrimony
 
 ## Executive Summary
 
-The platform is feature-complete on the backend. Phases 0-8 are delivered: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks, trust and safety (including the report moderation queue), identity verification, notifications, and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. The remaining work is the Phase 9 mobile app. All gates are green with 782 automated tests passing.
+The platform is feature-complete on the backend. Phases 0-8 are delivered: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications, and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. The remaining work is the Phase 9 mobile app. All gates are green with 793 automated tests passing.
 
 ## Key Metrics
 
 | Metric | Value |
 |---|---|
-| Automated Tests | 782 (521 API + 29 Admin + 232 Shared) |
-| Test Suites | 45 (31 API + 4 Admin + 10 Shared) |
+| Automated Tests | 793 (532 API + 29 Admin + 232 Shared) |
+| Test Suites | 46 (32 API + 4 Admin + 10 Shared) |
 | Admin Permission Keys | 21 |
-| Current Commit | 18bc0fb |
+| Current Commit | 39b1864 |
 | Status | All Gates Green |
 
 ## Implementation Status by Phase
@@ -27,11 +27,17 @@ The platform is feature-complete on the backend. Phases 0-8 are delivered: authe
 | 4 | Payments & Unlocks | Complete | Razorpay, webhooks, idempotency, expiry |
 | 5 | Trust & Safety | Complete | Blocking, reporting, account deletion, report moderation queue |
 | 6 | KYC/Verification | Complete | Contracts, service, controller, module |
-| 7 | Notifications | Complete | Shared contracts, API module, list endpoint |
+| 7 | Notifications | Complete | Shared contracts, API module, list endpoint, unlock pre-expiry reminder |
 | 8 | Admin API | Complete | RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard |
 | 9 | Mobile App | Planned | React Native |
 
 ## Recent Accomplishments
+
+### Unlock Pre-Expiry Reminder (Section 15 / C3)
+- `UNLOCK_EXPIRY_REMINDER_HOURS` was configured but unused; a sweep now records one `IN_APP` notification per unlock about two hours before it expires
+- `ContactUnlock.reminderSentAt` marks a reminder sent and the claim is a conditional update, so a restart, redeploy or second instance cannot notify a buyer twice
+- `UnlockExpiryReminder` follows the existing sweeper/`ClockDriftGuard` timer shape (5-minute interval, `unref`, boot sweep, failures logged not thrown)
+- Channel is `IN_APP` because no push transport is wired; a push provider added later can read the same rows
 
 ### SMS OTP Delivery (MSG91, resolves GAP-12)
 - `SmsGateway` seam (abstract class) with a `Msg91SmsGateway` on MSG91's Flow API, bound like the payment gateway so tests substitute it without the network; a small `SmsModule` keeps the module graph acyclic
@@ -65,7 +71,7 @@ The platform is feature-complete on the backend. Phases 0-8 are delivered: authe
 
 ## Quality Assurance
 
-- Tests: 782 passed (521 API + 29 Admin + 232 Shared)
+- Tests: 793 passed (532 API + 29 Admin + 232 Shared)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
 - Build: PASS (shared + API + admin)

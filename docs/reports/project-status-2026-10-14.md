@@ -3,10 +3,10 @@ PROJECT STATUS TILL NOW
 Matrimony App - Monorepo Implementation
 
 Date: October 14, 2026
-Branch: main (18bc0fb)
+Branch: main (39b1864)
 
 GATES
-- All 782 tests pass (232 shared + 29 admin + 521 API)
+- All 793 tests pass (232 shared + 29 admin + 532 API)
 - Typecheck: PASS (workspaces + tools, including the seed)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
@@ -18,6 +18,16 @@ COMPLETED PHASES
 - Phase 6: Identity Verification (KYC) - contracts, service, controller, module aligned
 - Phase 7: Notifications - shared contracts, API service/controller/module, wired into
   the app; member list endpoint (GET /notifications); tests added
+- Phase 7 (section 15 / C3): unlock pre-expiry reminder
+  * UNLOCK_EXPIRY_REMINDER_HOURS was configured but unused, so an unlock went quiet
+    until it lapsed; a sweep now records an IN_APP notification per unlock two hours
+    before it expires
+  * ContactUnlock.reminderSentAt marks a reminder sent; the claim is a conditional
+    update, so a second sweep, a redeploy or a second instance cannot notify twice
+  * UnlockExpiryReminder follows the existing sweeper/ClockDriftGuard timer shape
+    (5-minute interval, unref, boot sweep, failures logged not thrown)
+  * Channel is IN_APP because no push transport is wired; a push provider added later
+    reads the same rows
 - Phase 1 (OTP delivery): MSG91 SMS sender - resolves GAP-12
   * SmsGateway seam (abstract class) with a Msg91SmsGateway on MSG91's Flow API,
     bound like the payment gateway so tests substitute it without the network; a
@@ -124,4 +134,9 @@ NOTES
 - The MSG91 authkey was shared out of band and should be rotated before production;
   the MSG91 sender id, template id and DLT registration are the client's to supply,
   so a real send has not yet been exercised end to end
+- The unlock reminder is idempotent on the row, not on the timer: reminderSentAt is
+  stamped by a conditional update, so a restart or a second instance cannot send the
+  same reminder twice
+- The reminder is recorded, not pushed: with no push transport wired the buyer sees it
+  only when they open the app, so whether push is in scope for launch is a client call
 - No breaking changes
