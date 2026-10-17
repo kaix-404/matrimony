@@ -1,25 +1,61 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import { AppShell } from '../components/AppShell';
 import { BottomNav } from '../components/BottomNav';
 import { FeedCard } from '../components/FeedCard';
 import { HeaderBar } from '../components/HeaderBar';
 import { HeroSection, type HeroVariant } from '../components/HeroSection';
-import { feedItems } from '../data/sample';
-import { spacing } from '../theme/tokens';
+import { useDiscoveryFeed } from '../lib/use-discovery-feed';
+import { colors, spacing, typography } from '../theme/tokens';
 
-/** Home screen: header, hero/search area, discovery feed, and floating nav. */
+/**
+ * Home screen: header, hero/search area, discovery feed, and floating nav.
+ *
+ * The feed reads the discovery API once a session exists (pull-to-refresh plus
+ * cursor-based infinite scroll) and falls back to the placeholder design
+ * content before sign-in, so the layout stays previewable on its own.
+ */
 export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant }) {
+  const { items, loading, refreshing, loadingMore, error, refresh, loadMore } = useDiscoveryFeed();
+
   return (
     <AppShell>
-      <HeaderBar />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <HeroSection variant={heroVariant} />
-        <View style={styles.feed}>
-          {feedItems.map((item) => (
-            <FeedCard key={item.id} item={item} />
-          ))}
-        </View>
-      </ScrollView>
+      <FlatList
+        data={items}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.primary} />
+        }
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <HeaderBar />
+            <HeroSection variant={heroVariant} />
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.state}>
+            {loading ? (
+              <ActivityIndicator color={colors.primary} />
+            ) : (
+              <Text style={styles.stateText}>No profiles to show yet.</Text>
+            )}
+          </View>
+        }
+        ListFooterComponent={
+          <View style={styles.footer}>
+            {error !== null && <Text style={styles.error}>{error}</Text>}
+            {loadingMore && <ActivityIndicator color={colors.primary} />}
+          </View>
+        }
+        renderItem={({ item }) => (
+          <View style={styles.cardWrap}>
+            <FeedCard item={item} />
+          </View>
+        )}
+        onEndReachedThreshold={0.4}
+        onEndReached={loadMore}
+      />
       <BottomNav />
     </AppShell>
   );
@@ -29,10 +65,31 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: spacing.sm,
     paddingBottom: spacing.navClearance,
-    gap: spacing.xl,
   },
-  feed: {
-    gap: spacing.lg,
+  header: {
+    marginBottom: spacing.xl,
+  },
+  cardWrap: {
     paddingHorizontal: spacing.screenX,
+    marginBottom: spacing.lg,
+  },
+  state: {
+    paddingVertical: spacing.xxl,
+    alignItems: 'center',
+  },
+  stateText: {
+    color: colors.textMuted,
+    ...typography.body,
+  },
+  footer: {
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.lg,
+  },
+  error: {
+    color: colors.textMuted,
+    ...typography.caption,
+    paddingHorizontal: spacing.screenX,
+    textAlign: 'center',
   },
 });
