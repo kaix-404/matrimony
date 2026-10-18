@@ -156,6 +156,14 @@ class ApiClient {
   async listDevices(token: string): Promise<{ devices: DeviceTokenResponse[] }> {
     return this.fetchJson('devices', { headers: { Authorization: 'Bearer ' + token } });
   }
+
+  /** Removes a stored push token on logout; `204` carries no body. */
+  async unregisterDevice(deviceToken: string, accessToken: string): Promise<void> {
+    await this.fetchJson('devices/' + encodeURIComponent(deviceToken), {
+      method: 'DELETE',
+      headers: { Authorization: 'Bearer ' + accessToken },
+    });
+  }
 }
 
 export const apiClient = new ApiClient();
