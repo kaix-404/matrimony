@@ -111,6 +111,15 @@ Recommendation: **option 2** if the cost saving is worth it, otherwise **option 
 option 1 — the mismatch is between two written commitments from the same client, and it
 should be resolved deliberately.
 
+**Resolved (2026-10-15): client chose option 1 — accept R2 fully.** The client's answer
+was "Use cloudflare R2 fully - they have india database." The India-database claim is
+the client's understanding, not a contractual guarantee from Cloudflare (R2 has no India
+jurisdiction, only a best-effort `apac` location hint). H3 therefore needs wording as
+"Asia-Pacific, best-effort" in the Privacy Policy, and the placement claim must not be
+promised to end users as India-only storage. Recorded in
+`docs/client/client-answers-2026-10-15.md` (answer 1) and flagged in
+`docs/client/clarifications-needed.md`.
+
 **GAP-12 — Resolved (2026-10-14): SMS provider chosen as MSG91.** The client confirmed
   using MSG91 for OTP delivery. The API now sends OTPs via MSG91's Flow API with a
   provider seam (`SmsGateway` / `Msg91SmsGateway`) that can be substituted for tests
