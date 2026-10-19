@@ -153,6 +153,12 @@ export default function ProfileScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
+      <PrimaryButton label="Edit profile" onPress={() => router.push('/profile-edit')} />
+      <PrimaryButton
+        variant="outline"
+        label="Manage photos"
+        onPress={() => router.push('/photos')}
+      />
       <PrimaryButton
         variant="outline"
         label="Settings & privacy"

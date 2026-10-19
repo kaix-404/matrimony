@@ -42,6 +42,31 @@ export type ViewedProfile =
   | UnlockedProfileResponse
   | ExpiredUnlockResponse;
 
+/** A reserved upload slot: the key to confirm with and the PUT to send bytes to. */
+export interface PhotoUploadTicket {
+  upload_url: string;
+  object_key: string;
+  expires_in_seconds: number;
+}
+
+/**
+ * The photo upload handshake is the API's alone (it lives in the API's `dto.ts`,
+ * not the shared package), so its two input shapes are mirrored here rather than
+ * imported. Kept structurally identical to the server schemas.
+ */
+export interface InitiatePhotoUploadInput {
+  mime_type: 'image/jpeg' | 'image/png' | 'image/webp';
+  byte_size: number;
+  photo_type: 'SINGLE' | 'FAMILY';
+}
+
+export interface CompletePhotoUploadInput {
+  object_key: string;
+  width_px: number;
+  height_px: number;
+  checksum?: string;
+}
+
 function authHeaders(token: string): Record<string, string> {
   return { Authorization: 'Bearer ' + token };
 }
@@ -232,6 +257,50 @@ class ApiClient {
     return this.fetchJson('profile/visibility', {
       method: 'PATCH',
       body: JSON.stringify({ visibility }),
+      headers: authHeaders(token),
+    });
+  }
+
+  // -- photos (section 9) ---------------------------------------------------
+
+  /** Reserves an upload slot and returns a presigned PUT. */
+  async initiatePhotoUpload(
+    input: InitiatePhotoUploadInput,
+    token: string,
+  ): Promise<PhotoUploadTicket> {
+    return this.fetchJson('profile/photos/upload', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: authHeaders(token),
+    });
+  }
+
+  /** Confirms the bytes landed; the photo then waits for moderation. */
+  async completePhotoUpload(
+    input: CompletePhotoUploadInput,
+    token: string,
+  ): Promise<MyProfile['photos']> {
+    return this.fetchJson('profile/photos/complete', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: authHeaders(token),
+    });
+  }
+
+  async listPhotos(token: string): Promise<MyProfile['photos']> {
+    return this.fetchJson('profile/photos', { headers: authHeaders(token) });
+  }
+
+  async setPrimaryPhoto(photoId: string, token: string): Promise<MyProfile['photos']> {
+    return this.fetchJson('profile/photos/' + encodeURIComponent(photoId) + '/primary', {
+      method: 'PATCH',
+      headers: authHeaders(token),
+    });
+  }
+
+  async deletePhoto(photoId: string, token: string): Promise<void> {
+    await this.fetchJson('profile/photos/' + encodeURIComponent(photoId), {
+      method: 'DELETE',
       headers: authHeaders(token),
     });
   }
