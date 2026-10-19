@@ -23,6 +23,7 @@ export default function RootLayout() {
           <Stack.Screen name="delete-account" />
           <Stack.Screen name="unlocks" />
           <Stack.Screen name="notifications" />
+          <Stack.Screen name="checkout" />
           <Stack.Screen name="variants" />
         </Stack>
       </AuthProvider>

@@ -281,6 +281,10 @@ class FakeGateway extends PaymentGateway {
     super();
   }
 
+  override publishableKeyId(): string {
+    return 'rzp_test_publishable';
+  }
+
   override verifyWebhookSignature(rawBody: string, signature: string | undefined): boolean {
     if (typeof signature !== 'string') return false;
     const expected = createHmac('sha256', this.secret)
@@ -390,6 +394,9 @@ describe('PaymentsService — order creation', () => {
     expect(order.amount.total_amount).toBe('116.82');
     expect(gateway.created[0].amountMinor).toBe(11682);
     expect(order.gateway_order_id).toBe('order_1');
+    // The client cannot open checkout without the publishable key, so it has to
+    // travel with the order rather than be configured into the app.
+    expect(order.key_id).toBe('rzp_test_publishable');
     expect(order.profile).toEqual({ profile_id: 'profile_target', first_name: 'Asha' });
 
     const payment = prisma.payments[0];

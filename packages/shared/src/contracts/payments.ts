@@ -56,6 +56,14 @@ export const PaymentOrderSchema = z
     purpose: z.enum(PAYMENT_PURPOSES),
     gateway: z.literal('RAZORPAY'),
     gateway_order_id: z.string().min(1),
+    /**
+     * The gateway's publishable key. It is safe to hand to a client — it
+     * identifies the merchant and cannot sign or capture anything, unlike the
+     * secret half — and checkout cannot be opened without it. Serving it on the
+     * order (rather than baking it into the app) keeps one source of truth and
+     * lets a key rotation take effect without an app release.
+     */
+    key_id: z.string().min(1),
     amount: UnlockPriceSchema,
     /** Present on unlock orders only: which profile was bought. */
     profile: z

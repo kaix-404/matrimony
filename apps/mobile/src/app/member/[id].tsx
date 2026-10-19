@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { FullProfile, PreviewPhoto } from '@matrimony/shared';
 import { PrimaryButton } from '../../components/PrimaryButton';
@@ -41,6 +41,7 @@ export default function MemberScreen() {
   const [profile, setProfile] = useState<ViewedProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [unlocking, setUnlocking] = useState(false);
 
   const load = useCallback(async () => {
     if (!token || !id) return;
@@ -52,11 +53,42 @@ export default function MemberScreen() {
     }
   }, [token, id]);
 
-  useEffect(() => {
-    if (!ready) return;
-    setLoading(true);
-    void load().finally(() => setLoading(false));
-  }, [ready, load]);
+  // Reloads on focus so returning from checkout shows the freshly unlocked
+  // contact without the user pulling to refresh.
+  useFocusEffect(
+    useCallback(() => {
+      if (!ready) return;
+      setLoading(true);
+      void load().finally(() => setLoading(false));
+    }, [ready, load]),
+  );
+
+  /** Open a Razorpay order for this member, then hand off to the checkout screen. */
+  const startUnlock = useCallback(async () => {
+    if (!token || !id) return;
+    setUnlocking(true);
+    setError(null);
+    try {
+      const order = await apiClient.createUnlockOrder(id, token);
+      router.push({
+        pathname: '/checkout',
+        params: {
+          payment_id: order.payment_id,
+          order_id: order.gateway_order_id,
+          key_id: order.key_id,
+          amount_minor: String(Math.round(Number(order.amount.total_amount) * 100)),
+          // The name is hidden before payment, so it is only known when the
+          // caller is re-purchasing an expired unlock.
+          name: profile && !profile.profile_locked ? profile.full_profile.first_name : '',
+          profile_id: id,
+        },
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not start the payment.');
+    } finally {
+      setUnlocking(false);
+    }
+  }, [token, id, profile]);
 
   if (!ready || loading) {
     return (
@@ -120,8 +152,15 @@ export default function MemberScreen() {
         </>
       )}
 
-      {locked ? (
-        <PrimaryButton label="Unlock contact" onPress={() => undefined} disabled />
+      {locked && token ? (
+        <>
+          <PrimaryButton
+            label="Unlock contact"
+            onPress={() => void startUnlock()}
+            loading={unlocking}
+          />
+          {error !== null ? <Text style={styles.error}>{error}</Text> : null}
+        </>
       ) : null}
     </Screen>
   );

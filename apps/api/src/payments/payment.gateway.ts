@@ -60,6 +60,16 @@ export abstract class PaymentGateway {
   abstract verifyWebhookSignature(rawBody: string, signature: string | undefined): boolean;
 
   abstract createOrder(input: CreateGatewayOrderInput): Promise<GatewayOrder>;
+
+  /**
+   * The publishable key a client needs to open checkout.
+   *
+   * Not a secret: it names the merchant and cannot authorise a charge, which is
+   * why it is the half of the credential pair that may travel to a browser or a
+   * phone. Exposed through the gateway rather than read from config by the
+   * service so that a provider swap changes one file.
+   */
+  abstract publishableKeyId(): string;
 }
 
 /**
@@ -115,6 +125,10 @@ export class RazorpayPaymentGateway extends PaymentGateway {
     this.client = configured
       ? new Razorpay({ key_id: this.keyId, key_secret: this.keySecret })
       : null;
+  }
+
+  publishableKeyId(): string {
+    return this.keyId;
   }
 
   verifyWebhookSignature(rawBody: string, signature: string | undefined): boolean {

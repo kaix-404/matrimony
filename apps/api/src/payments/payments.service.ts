@@ -201,6 +201,7 @@ export class PaymentsService {
       purpose: 'UNLOCK',
       gateway: 'RAZORPAY',
       gateway_order_id: gatewayOrder.gatewayOrderId,
+      key_id: this.gateway.publishableKeyId(),
       amount: priceOf(quote),
       profile: { profile_id: profile.id, first_name: profile.firstName },
       unlock_window_hours: UNLOCK_WINDOW_HOURS,
@@ -273,6 +274,7 @@ export class PaymentsService {
       purpose: 'SETUP_FEE',
       gateway: 'RAZORPAY',
       gateway_order_id: gatewayOrder.gatewayOrderId,
+      key_id: this.gateway.publishableKeyId(),
       amount: priceOf(quote),
       created_at: payment.createdAt.toISOString(),
     };
@@ -497,6 +499,7 @@ export class PaymentsService {
       purpose: existing.purpose,
       gateway: 'RAZORPAY',
       gateway_order_id: existing.gatewayOrderId,
+      key_id: this.gateway.publishableKeyId(),
       amount: {
         base_amount: money(existing.baseAmount),
         gst_rate: toDecimal(existing.gstRate).toFixed(4),
