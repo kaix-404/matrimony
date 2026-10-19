@@ -11,7 +11,7 @@ export function HeaderBar() {
     <View style={[styles.row, { paddingTop: insets.top + spacing.sm }]}>
       <View style={styles.brand}>
         <Ionicons name="flame" size={22} color={colors.primary} />
-        <Text style={styles.brandText}>Matrimony</Text>
+        <Text style={styles.brandText}>Networth Matrimony</Text>
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Notifications" hitSlop={8}>
         <Ionicons name="notifications-outline" size={22} color={colors.textStrong} />
