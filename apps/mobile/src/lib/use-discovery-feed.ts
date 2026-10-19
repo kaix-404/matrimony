@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DISCOVERY_PAGE_SIZE } from '@matrimony/shared';
+import {
+  DISCOVERY_PAGE_SIZE,
+  type DiscoverySort,
+  type TemporaryFilter,
+} from '@matrimony/shared';
 import { feedItems } from '../data/sample';
 import { apiClient } from './api-client';
 import { useAuth } from './auth-context';
 import { fromDiscoveryCard, fromSample, type FeedCardModel } from './feed-model';
+
+export interface DiscoveryFeedOptions {
+  /** Temporary filters (section 10): they narrow the saved preference, never replace it. */
+  filters?: TemporaryFilter;
+  sort?: DiscoverySort;
+}
 
 export interface DiscoveryFeed {
   items: FeedCardModel[];
@@ -28,7 +38,7 @@ export interface DiscoveryFeed {
  * Photo URLs are presigned and short-lived, so the feed refetches rather than
  * caching them across sessions.
  */
-export function useDiscoveryFeed(): DiscoveryFeed {
+export function useDiscoveryFeed(_options: DiscoveryFeedOptions = {}): DiscoveryFeed {
   const { token } = useAuth();
   const [items, setItems] = useState<FeedCardModel[]>(() => feedItems.map(fromSample));
   const [cursor, setCursor] = useState<string | null>(null);
