@@ -1,21 +1,50 @@
 import { config } from './config';
 import type {
+  AccountDeletionResult,
+  CreateProfileInput,
   CurrentUser,
   DeviceTokenResponse,
   DiscoveryResponse,
+  ExpiredUnlockResponse,
+  ListNotificationsResponse,
+  LockedProfileResponse,
   MasterListsResponse,
+  MyProfile,
   NetWorthCategoryOption,
+  NetWorthVisibilityPreference,
+  NetWorthVisibilityPreferenceState,
   OtpRequested,
+  PaymentOrderResponse,
+  PaymentStatusResponse,
+  ProfileCompleteness,
   TokenPair,
+  UnlockedProfileResponse,
+  UnlockListResponse,
+  UpdateProfileInput,
 } from '@matrimony/shared';
 import {
   CompleteRegistrationSchema,
+  CreateProfileSchema,
+  CreateUnlockOrderSchema,
   DiscoveryQuerySchema,
+  ListNotificationsQuerySchema,
+  NetWorthVisibilityPreferenceSchema,
   RefreshSchema,
   RegisterDeviceTokenSchema,
   RequestOtpSchema,
+  UpdateProfileSchema,
   VerifyOtpSchema,
 } from '@matrimony/shared';
+
+/** A profile seen through the unlock paywall: locked, expired or unlocked. */
+export type ViewedProfile =
+  | LockedProfileResponse
+  | UnlockedProfileResponse
+  | ExpiredUnlockResponse;
+
+function authHeaders(token: string): Record<string, string> {
+  return { Authorization: 'Bearer ' + token };
+}
 
 function buildUrl(path: string): string {
   const base = config.apiBaseUrl.replace(/\/+$/, '');
@@ -162,6 +191,120 @@ class ApiClient {
     await this.fetchJson('devices/' + encodeURIComponent(deviceToken), {
       method: 'DELETE',
       headers: { Authorization: 'Bearer ' + accessToken },
+    });
+  }
+
+  // -- own profile ----------------------------------------------------------
+
+  /** The caller's full record. Throws `404` until a profile has been created. */
+  async getMyProfile(token: string): Promise<MyProfile> {
+    return this.fetchJson('profile', { headers: authHeaders(token) });
+  }
+
+  /** Which section 8 fields are still outstanding. */
+  async getProfileCompleteness(token: string): Promise<ProfileCompleteness> {
+    return this.fetchJson('profile/completeness', { headers: authHeaders(token) });
+  }
+
+  async createProfile(input: CreateProfileInput, token: string): Promise<MyProfile> {
+    const body = CreateProfileSchema.parse(input);
+    return this.fetchJson('profile', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  async updateProfile(input: UpdateProfileInput, token: string): Promise<MyProfile> {
+    const body = UpdateProfileSchema.parse(input);
+    return this.fetchJson('profile', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  /** Pause or resume the caller's own visibility (section 12). */
+  async setProfileVisibility(
+    visibility: MyProfile['visibility'],
+    token: string,
+  ): Promise<MyProfile> {
+    return this.fetchJson('profile/visibility', {
+      method: 'PATCH',
+      body: JSON.stringify({ visibility }),
+      headers: authHeaders(token),
+    });
+  }
+
+  // -- net-worth visibility preferences -------------------------------------
+
+  async getVisibilityPreference(token: string): Promise<NetWorthVisibilityPreferenceState> {
+    return this.fetchJson('me/visibility', { headers: authHeaders(token) });
+  }
+
+  async saveVisibilityPreference(
+    input: NetWorthVisibilityPreference,
+    token: string,
+  ): Promise<NetWorthVisibilityPreferenceState> {
+    const body = NetWorthVisibilityPreferenceSchema.parse(input);
+    return this.fetchJson('me/visibility', {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  // -- unlocks and payments -------------------------------------------------
+
+  /** Both views of another user's profile, decided server-side. */
+  async viewProfile(profileId: string, token: string): Promise<ViewedProfile> {
+    return this.fetchJson('profiles/' + encodeURIComponent(profileId), {
+      headers: authHeaders(token),
+    });
+  }
+
+  async listUnlocks(token: string): Promise<UnlockListResponse> {
+    return this.fetchJson('unlocks', { headers: authHeaders(token) });
+  }
+
+  /**
+   * Opens a Razorpay order for one profile. The amount is never sent — the
+   * server derives it from the target's band, so a tampered app cannot name its
+   * own price.
+   */
+  async createUnlockOrder(profileId: string, token: string): Promise<PaymentOrderResponse> {
+    const body = CreateUnlockOrderSchema.parse({ profile_id: profileId });
+    return this.fetchJson('payments/unlocks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  /** Reconciles one of the caller's own payments (section 27). */
+  async getPaymentStatus(paymentId: string, token: string): Promise<PaymentStatusResponse> {
+    return this.fetchJson('payments/' + encodeURIComponent(paymentId), {
+      headers: authHeaders(token),
+    });
+  }
+
+  // -- notifications and account -------------------------------------------
+
+  async listNotifications(
+    token: string,
+    input: { limit?: number; cursor?: string } = {},
+  ): Promise<ListNotificationsResponse> {
+    const query = ListNotificationsQuerySchema.parse(input);
+    const qs = serializeQuery(query as unknown as Record<string, unknown>);
+    const path = qs ? `notifications?${qs}` : 'notifications';
+    return this.fetchJson(path, { headers: authHeaders(token) });
+  }
+
+  /** Section 21: erases the account. Requires a verified `DELETE_ACCOUNT` OTP. */
+  async deleteAccount(token: string): Promise<AccountDeletionResult> {
+    return this.fetchJson('me/delete-account', {
+      method: 'POST',
+      headers: authHeaders(token),
     });
   }
 }

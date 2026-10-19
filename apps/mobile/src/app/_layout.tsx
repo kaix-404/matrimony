@@ -14,6 +14,14 @@ export default function RootLayout() {
       <AuthProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
+          <Stack.Screen name="auth" options={{ presentation: 'modal' }} />
+          <Stack.Screen name="register" />
+          <Stack.Screen name="onboarding" />
+          <Stack.Screen name="profile" />
+          <Stack.Screen name="settings" />
+          <Stack.Screen name="delete-account" />
+          <Stack.Screen name="unlocks" />
+          <Stack.Screen name="notifications" />
           <Stack.Screen name="variants" />
         </Stack>
       </AuthProvider>

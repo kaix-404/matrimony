@@ -1,11 +1,20 @@
-import { ActivityIndicator, FlatList, RefreshControl, StyleSheet, Text, View } from 'react-native';
+import { router } from 'expo-router';
+import {
+  ActivityIndicator,
+  FlatList,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { AppShell } from '../components/AppShell';
 import { BottomNav } from '../components/BottomNav';
 import { FeedCard } from '../components/FeedCard';
 import { HeaderBar } from '../components/HeaderBar';
 import { HeroSection, type HeroVariant } from '../components/HeroSection';
 import { useDiscoveryFeed } from '../lib/use-discovery-feed';
-import { colors, spacing, typography } from '../theme/tokens';
+import { colors, radii, spacing, typography } from '../theme/tokens';
 
 /**
  * Home screen: header, hero/search area, discovery feed, and floating nav.
@@ -15,7 +24,8 @@ import { colors, spacing, typography } from '../theme/tokens';
  * content before sign-in, so the layout stays previewable on its own.
  */
 export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant }) {
-  const { items, loading, refreshing, loadingMore, error, refresh, loadMore } = useDiscoveryFeed();
+  const { items, isLive, loading, refreshing, loadingMore, error, refresh, loadMore } =
+    useDiscoveryFeed();
 
   return (
     <AppShell>
@@ -31,6 +41,7 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
           <View style={styles.header}>
             <HeaderBar />
             <HeroSection variant={heroVariant} />
+            {!isLive && <SignInBanner />}
           </View>
         }
         ListEmptyComponent={
@@ -61,7 +72,43 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
   );
 }
 
+/**
+ * Shown while the feed is still the design placeholder. Discovery needs a
+ * session — the API withholds a feed from an anonymous caller — so the preview
+ * is honest about being a preview and offers the way in.
+ */
+function SignInBanner() {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      style={styles.banner}
+      onPress={() => router.push('/auth')}
+    >
+      <Text style={styles.bannerTitle}>Sign in to see real profiles</Text>
+      <Text style={styles.bannerBody}>
+        This is a preview. Sign in with your mobile number to start matching.
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  banner: {
+    marginHorizontal: spacing.screenX,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radii.card,
+    backgroundColor: colors.surface,
+    gap: spacing.xs,
+  },
+  bannerTitle: {
+    color: colors.textPrimary,
+    ...typography.title,
+  },
+  bannerBody: {
+    color: colors.textMuted,
+    ...typography.caption,
+  },
   content: {
     paddingTop: spacing.sm,
     paddingBottom: spacing.navClearance,

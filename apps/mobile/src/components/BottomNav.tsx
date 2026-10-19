@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router, usePathname } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, radii, shadows, spacing } from '../theme/tokens';
@@ -7,26 +8,29 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 interface NavItem {
   key: string;
+  href: '/' | '/unlocks' | '/notifications' | '/profile';
   icon: IconName;
   label: string;
 }
 
 const ITEMS: NavItem[] = [
-  { key: 'home', icon: 'home', label: 'Home' },
-  { key: 'matches', icon: 'heart-outline', label: 'Matches' },
-  { key: 'messages', icon: 'chatbubble-outline', label: 'Messages' },
-  { key: 'profile', icon: 'person-outline', label: 'Profile' },
+  { key: 'home', href: '/', icon: 'home', label: 'Home' },
+  { key: 'matches', href: '/unlocks', icon: 'heart-outline', label: 'Matches' },
+  { key: 'messages', href: '/notifications', icon: 'chatbubble-outline', label: 'Messages' },
+  { key: 'profile', href: '/profile', icon: 'person-outline', label: 'Profile' },
 ];
 
 /**
  * Floating bottom navigation.
  *
- * Absolutely positioned over the canvas so it stays put while content scrolls.
- * The active item (index 0 by default) is a solid coral circle with an inverse
- * white icon; the rest are outlined monochrome strokes.
+ * The active item is derived from the current route rather than passed in, so a
+ * screen added later cannot forget to set the highlight — the pathname is the
+ * single source of truth. Tapping always replaces, so the tab bar does not grow
+ * an unbounded back stack.
  */
-export function BottomNav({ activeIndex = 0 }: { activeIndex?: number }) {
+export function BottomNav() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
 
   return (
     <View
@@ -35,8 +39,8 @@ export function BottomNav({ activeIndex = 0 }: { activeIndex?: number }) {
         { height: spacing.navHeight + insets.bottom, paddingBottom: insets.bottom },
       ]}
     >
-      {ITEMS.map((item, index) => {
-        const isActive = index === activeIndex;
+      {ITEMS.map((item) => {
+        const isActive = pathname === item.href;
         if (isActive) {
           return (
             <View key={item.key} style={styles.activeButton}>
@@ -50,6 +54,7 @@ export function BottomNav({ activeIndex = 0 }: { activeIndex?: number }) {
             accessibilityRole="button"
             accessibilityLabel={item.label}
             hitSlop={8}
+            onPress={() => router.replace(item.href)}
           >
             <Ionicons name={item.icon} size={24} color={colors.textMuted} />
           </Pressable>
