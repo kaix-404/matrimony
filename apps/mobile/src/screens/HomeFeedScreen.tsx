@@ -60,9 +60,13 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
           </View>
         }
         renderItem={({ item }) => (
-          <View style={styles.cardWrap}>
+          <Pressable
+            style={styles.cardWrap}
+            disabled={!isLive}
+            onPress={() => router.push({ pathname: '/member/[id]', params: { id: item.id } })}
+          >
             <FeedCard item={item} />
-          </View>
+          </Pressable>
         )}
         onEndReachedThreshold={0.4}
         onEndReached={loadMore}

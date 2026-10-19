@@ -18,6 +18,7 @@ export default function RootLayout() {
           <Stack.Screen name="register" />
           <Stack.Screen name="onboarding" />
           <Stack.Screen name="profile" />
+          <Stack.Screen name="member/[id]" />
           <Stack.Screen name="settings" />
           <Stack.Screen name="delete-account" />
           <Stack.Screen name="unlocks" />
