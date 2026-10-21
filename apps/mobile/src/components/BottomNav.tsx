@@ -8,13 +8,14 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 interface NavItem {
   key: string;
-  href: '/' | '/unlocks' | '/notifications' | '/profile';
+  href: '/' | '/for-you' | '/unlocks' | '/notifications' | '/profile';
   icon: IconName;
   label: string;
 }
 
 const ITEMS: NavItem[] = [
   { key: 'home', href: '/', icon: 'home', label: 'Home' },
+  { key: 'for-you', href: '/for-you', icon: 'sparkles-outline', label: 'For You' },
   { key: 'matches', href: '/unlocks', icon: 'heart-outline', label: 'Matches' },
   { key: 'messages', href: '/notifications', icon: 'chatbubble-outline', label: 'Messages' },
   { key: 'profile', href: '/profile', icon: 'person-outline', label: 'Profile' },

@@ -17,6 +17,8 @@ import type {
   PaymentOrderResponse,
   PaymentStatusResponse,
   ProfileCompleteness,
+  ProfileInterests,
+  RecommendationsResponse,
   TokenPair,
   UnlockedProfileResponse,
   UnlockListResponse,
@@ -29,9 +31,11 @@ import {
   DiscoveryQuerySchema,
   ListNotificationsQuerySchema,
   NetWorthVisibilityPreferenceSchema,
+  RecommendationsQuerySchema,
   RefreshSchema,
   RegisterDeviceTokenSchema,
   RequestOtpSchema,
+  UpdateInterestsSchema,
   UpdateProfileSchema,
   VerifyOtpSchema,
 } from '@matrimony/shared';
@@ -364,6 +368,34 @@ class ApiClient {
   /** Reconciles one of the caller's own payments (section 27). */
   async getPaymentStatus(paymentId: string, token: string): Promise<PaymentStatusResponse> {
     return this.fetchJson('payments/' + encodeURIComponent(paymentId), {
+      headers: authHeaders(token),
+    });
+  }
+
+  // -- recommendations ------------------------------------------------------
+
+  /**
+   * The 'For You' feed. When the feature flag is off the API still answers,
+   * with `enabled: false`, so the client can hide the surface without a release.
+   */
+  async getRecommendations(token: string, limit?: number): Promise<RecommendationsResponse> {
+    const query = RecommendationsQuerySchema.parse({ limit });
+    const qs = serializeQuery(query as unknown as Record<string, unknown>);
+    const path = qs ? `recommendations?${qs}` : 'recommendations';
+    return this.fetchJson(path, { headers: authHeaders(token) });
+  }
+
+  /** The caller's selected interests plus the curated catalogue, for the picker. */
+  async getInterests(token: string): Promise<ProfileInterests> {
+    return this.fetchJson('profile/interests', { headers: authHeaders(token) });
+  }
+
+  /** Replaces the caller's interest selection (whole-set, like the API). */
+  async setInterests(interests: string[], token: string): Promise<ProfileInterests> {
+    const body = UpdateInterestsSchema.parse({ interests });
+    return this.fetchJson('profile/interests', {
+      method: 'PUT',
+      body: JSON.stringify(body),
       headers: authHeaders(token),
     });
   }
