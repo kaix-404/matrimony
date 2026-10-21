@@ -1,19 +1,19 @@
 # Networth Matrimony - Project Status Report
 
-**Report Date:** October 21, 2026  |  **Branch:** main (43bde17)  |  **Repository:** D:\matrimony
+**Report Date:** October 21, 2026  |  **Branch:** main (3fc81fd)  |  **Repository:** D:\matrimony
 
 ## Executive Summary
 
-The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 830 automated tests passing.
+The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 842 automated tests passing.
 
 ## Key Metrics
 
 | Metric | Value |
 |---|---|
-| Automated Tests | 830 (565 API + 29 Admin + 236 Shared) |
-| Test Suites | 51 (36 API + 4 Admin + 11 Shared) |
+| Automated Tests | 842 (565 API + 29 Admin + 236 Shared + 12 Mobile) |
+| Test Suites | 53 (36 API + 4 Admin + 11 Shared + 2 Mobile) |
 | Admin Permission Keys | 21 |
-| Current Commit | 43bde17 |
+| Current Commit | 3fc81fd |
 | Status | All Gates Green |
 
 ## Implementation Status by Phase
@@ -43,6 +43,7 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 - Settings: net-worth discover/visible-to preference editor, sign out, and OTP-confirmed account deletion
 - Notifications: in-app list with unread badges and push registration through `expo-notifications` -> `POST /devices`; dead tokens are pruned server-side
 - For You: curated interest picker, recommendation cards ranked by shared-interest overlap with the common tags shown, a fifth tab, and a graceful "coming soon" state while `FEATURE_AI_RECOMMENDATIONS` is off
+- Test suite: Jest via the `jest-expo` preset runs the member app's logic (feed view model, interest helpers) and joins the root `npm run verify` gate; CI also bundles the app (`expo export --platform web`) so a broken route or import fails before a device build
 
 ### Unlock Pre-Expiry Reminder (Section 15 / C3)
 - `UNLOCK_EXPIRY_REMINDER_HOURS` was configured but unused; a sweep now records one notification per unlock about two hours before it expires
@@ -90,7 +91,7 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 
 ## Quality Assurance
 
-- Tests: 830 passed (565 API + 29 Admin + 236 Shared)
+- Tests: 842 passed (565 API + 29 Admin + 236 Shared + 12 Mobile)
 - Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)

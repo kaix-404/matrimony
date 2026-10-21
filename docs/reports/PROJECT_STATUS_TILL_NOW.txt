@@ -1,5 +1,5 @@
 ﻿NETWORTH MATRIMONY - PROJECT STATUS REPORT
-Report Date: October 21, 2026 | Branch: main (43bde17) | Repo: D:\matrimony
+Report Date: October 21, 2026 | Branch: main (3fc81fd) | Repo: D:\matrimony
 
 SUMMARY:
   Platform is feature-complete end to end. Phases 0-8 delivered: auth (with OTP
@@ -11,12 +11,12 @@ SUMMARY:
   sign-in and registration, discovery with temporary filters and sort, member
   previews and Razorpay checkout, the account setup fee, profile and photo
   management, visibility preferences, notifications, unlocks, and the
-  feature-flagged For You feed. All gates green.
+  feature-flagged For You feed. All gates green with 842 tests.
 
 KEY METRICS:
-  Tests: 830 (565 API + 29 Admin + 236 Shared) across 51 suites
+  Tests: 842 (565 API + 29 Admin + 236 Shared + 12 Mobile) across 53 suites
   Admin permission keys: 21
-  Current Commit: 43bde17
+  Current Commit: 3fc81fd
   Status: All Gates Green
 
 PHASE STATUS:
@@ -49,6 +49,9 @@ RECENT (Oct 21, 2026):
     badges and push registration via expo-notifications -> POST /devices.
     For You: curated interest picker, shared-interest recommendation cards, a fifth
     tab, and a graceful coming-soon state while FEATURE_AI_RECOMMENDATIONS is off.
+    Tests: Jest via the jest-expo preset covers the feed view model and interest
+    helpers and joins the root verify gate; CI also bundles the app with
+    expo export --platform web so a broken route or import fails early.
   Unlock pre-expiry reminder (section 15 / C3) - a sweep records one notification
     per unlock about two hours before it expires; ContactUnlock.reminderSentAt plus
     a conditional-update claim make it once-only across restarts/redeploys;
@@ -82,7 +85,7 @@ RECENT (Oct 21, 2026):
     build pinned to webpack.
 
 QUALITY ASSURANCE:
-  Tests: 830 passed (565 API + 29 Admin + 236 Shared)
+  Tests: 842 passed (565 API + 29 Admin + 236 Shared + 12 Mobile)
   Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
   Lint: PASS
   Build: PASS (shared + API + admin)

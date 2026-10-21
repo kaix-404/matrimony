@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -26,126 +26,193 @@
 </style>
 </head>
 <body>
-  <h1>Networth Matrimony &mdash; Project Status Report</h1>
-  <p class="meta"><strong>Report Date:</strong> October 21, 2026 &nbsp;|&nbsp; <strong>Branch:</strong> main (43bde17) &nbsp;|&nbsp; <strong>Repository:</strong> D:\matrimony</p>
+<h1>Networth Matrimony - Project Status Report</h1>
+<p><strong>Report Date:</strong> October 21, 2026  |  <strong>Branch:</strong> main (3fc81fd)  |  <strong>Repository:</strong> D:\matrimony</p>
+<h2>Executive Summary</h2>
+<p>The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 842 automated tests passing.</p>
+<h2>Key Metrics</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Automated Tests</td>
+<td>842 (565 API + 29 Admin + 236 Shared + 12 Mobile)</td>
+</tr>
+<tr>
+<td>Test Suites</td>
+<td>53 (36 API + 4 Admin + 11 Shared + 2 Mobile)</td>
+</tr>
+<tr>
+<td>Admin Permission Keys</td>
+<td>21</td>
+</tr>
+<tr>
+<td>Current Commit</td>
+<td>3fc81fd</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>All Gates Green</td>
+</tr>
+</tbody></table>
+<h2>Implementation Status by Phase</h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Module</th>
+<th>Status</th>
+<th>Key Deliverables</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>0</td>
+<td>Foundations</td>
+<td>Complete</td>
+<td>Schema, config, health, security, monorepo</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Identity &amp; Auth</td>
+<td>Complete</td>
+<td>OTP, JWT, rotating sessions, lockout</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Profile &amp; Master Data</td>
+<td>Complete</td>
+<td>CRUD, photos, master lists</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Discovery</td>
+<td>Complete</td>
+<td>Two-way visibility, filters, pagination</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Payments &amp; Unlocks</td>
+<td>Complete</td>
+<td>Razorpay, webhooks, idempotency, expiry</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Trust &amp; Safety</td>
+<td>Complete</td>
+<td>Blocking, reporting, account deletion, report moderation queue</td>
+</tr>
+<tr>
+<td>6</td>
+<td>KYC/Verification</td>
+<td>Complete</td>
+<td>Contracts, service, controller, module</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Notifications</td>
+<td>Complete</td>
+<td>Shared contracts, API module, list endpoint, unlock pre-expiry reminder, Firebase push delivery</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Admin API</td>
+<td>Complete</td>
+<td>RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Mobile App</td>
+<td>Complete</td>
+<td>Expo SDK 57 app: auth, discovery, checkout, setup fee, profile, notifications, For You</td>
+</tr>
+</tbody></table>
+<h2>Recent Accomplishments</h2>
+<h3>Phase 9 - Member App (Expo + React Native)</h3>
+<ul>
+<li><code>apps/mobile</code> (<code>@matrimony/mobile</code>): Expo SDK 57, React Native 0.86, Expo Router, strict TypeScript, consuming <code>@matrimony/shared</code> contracts; typed API client validates every request body and response with Zod</li>
+<li>Auth and onboarding: phone OTP request/verify, registration, rotating access/refresh tokens in <code>expo-secure-store</code> with transparent refresh on 401, <code>useRequireAuth</code> gate, and profile creation with completeness prompts</li>
+<li>Discovery: cursor-paginated infinite feed of locked cards, temporary filters (age, height, city, state, education, profession, verified photos) and sort applied per request, plus a filter/sort bottom sheet; the API now parses nested filter query objects</li>
+<li>Member previews and payments: locked/unlocked/expired states, Razorpay checkout in a WebView with the order <code>key_id</code>, status polling against <code>GET /payments/:id</code>, and unlock expiry shown in the matches tab</li>
+<li>Account setup fee: verified accounts move to <code>AWAITING_SETUP_FEE</code>; the home feed gates until payment, with a dedicated screen showing the Rs 15.00 + 18% GST = Rs 17.70 breakdown and a one-time order</li>
+<li>Profile: own profile with completeness, field editing, direct-to-storage photo upload with primary/delete management, and a visibility toggle</li>
+<li>Settings: net-worth discover/visible-to preference editor, sign out, and OTP-confirmed account deletion</li>
+<li>Notifications: in-app list with unread badges and push registration through <code>expo-notifications</code> -&gt; <code>POST /devices</code>; dead tokens are pruned server-side</li>
+<li>For You: curated interest picker, recommendation cards ranked by shared-interest overlap with the common tags shown, a fifth tab, and a graceful &quot;coming soon&quot; state while <code>FEATURE_AI_RECOMMENDATIONS</code> is off</li>
+<li>Test suite: Jest via the <code>jest-expo</code> preset runs the member app&#39;s logic (feed view model, interest helpers) and joins the root <code>npm run verify</code> gate; CI also bundles the app (<code>expo export --platform web</code>) so a broken route or import fails before a device build</li>
+</ul>
+<h3>Unlock Pre-Expiry Reminder (Section 15 / C3)</h3>
+<ul>
+<li><code>UNLOCK_EXPIRY_REMINDER_HOURS</code> was configured but unused; a sweep now records one notification per unlock about two hours before it expires</li>
+<li><code>ContactUnlock.reminderSentAt</code> marks a reminder sent and the claim is a conditional update, so a restart, redeploy or second instance cannot notify a buyer twice</li>
+<li><code>UnlockExpiryReminder</code> follows the existing sweeper/<code>ClockDriftGuard</code> timer shape (5-minute interval, <code>unref</code>, boot sweep, failures logged not thrown)</li>
+<li>Channel is <code>PUSH</code>; the row also remains in the in-app list, which is not filtered by channel</li>
+</ul>
+<h3>Push Delivery over Firebase (Section 42, resolves GAP-12&#39;s push half)</h3>
+<ul>
+<li><code>PushGateway</code> seam bound to <code>FcmPushGateway</code> in <code>PushModule</code>: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on <code>node:crypto</code> ΓÇö no legacy server key, no <code>firebase-admin</code>; fails closed when unconfigured</li>
+<li><code>DeviceToken</code> model + <code>DevicePlatform</code> enum; <code>NotificationStatus</code> gains <code>SENDING</code> for the in-flight claim; migration <code>20261014140000_device_tokens_push</code></li>
+<li><code>POST/GET /devices</code> and <code>DELETE /devices/:token</code> under <code>JwtAuthGuard</code>; registration upserts on the token and reassigns its owner, and the token is never echoed back</li>
+<li><code>PushDispatchService</code> claims a row <code>PENDING</code> -&gt; <code>SENDING</code> with a conditional update (at-least-once, never twice-per-worker), requeues a stale <code>SENDING</code> row, prunes a token FCM reports <code>UNREGISTERED</code>, and marks <code>SENT</code>/<code>FAILED</code>; <code>PushDispatchSweeper</code> runs on a 60-second timer</li>
+<li>A <code>PUSH</code> row for a member with no device stays <code>PENDING</code> and is delivered once one is registered</li>
+</ul>
+<h3>SMS OTP Delivery (MSG91, resolves GAP-12)</h3>
+<ul>
+<li><code>SmsGateway</code> seam (abstract class) with a <code>Msg91SmsGateway</code> on MSG91&#39;s Flow API, bound like the payment gateway so tests substitute it without the network; a small <code>SmsModule</code> keeps the module graph acyclic</li>
+<li><code>AuthController.requestOtp</code> sends the code via MSG91 in production and fails closed (401) when MSG91 is unconfigured; outside production it still echoes <code>dev_code</code> so the flow stays testable without a provider account</li>
+<li>Flow API rather than MSG91&#39;s SendOTP API, because the platform owns OTP state (hashed, attempt-counted, expired, consumed at later steps); the code travels as a template variable and MSG91 only delivers it</li>
+<li>New config <code>SMS_TEMPLATE_ID</code> / <code>SMS_OTP_TEMPLATE_VAR</code> / <code>SMS_COUNTRY_CODE</code>; 9 gateway tests</li>
+</ul>
+<h3>Admin MFA (TOTP)</h3>
+<ul>
+<li>Hand-rolled RFC 6238 TOTP and AES-256-GCM secret-at-rest encryption, no new dependency</li>
+<li>Opt-in self-service enrollment; the secret is persisted only after a matching code</li>
+<li>Login for an MFA-enabled admin returns a signed challenge; only the verify endpoint issues a session</li>
+<li>Wrong codes share the password lockout counter; disable requires a current code; audited admin:manage reset for lost devices</li>
+</ul>
+<h3>Report Moderation Queue (Section 30)</h3>
+<ul>
+<li>GET /admin/reports (status filter + cursor pages), GET /admin/reports/:id, POST /admin/reports/:id/review, all behind report:review</li>
+<li>Resolution is terminal and pairs action with status; notes required to action</li>
+<li>SUSPEND suspends the reported account as its only side effect, guarded against reviving a DELETED account</li>
+<li>Every review writes a report:review audit row</li>
+</ul>
+<h3>AI Recommendations (Backend + For You tab)</h3>
+<ul>
+<li>Curated interest tags with GET/PUT /profile/interests</li>
+<li>Feature-flagged For You feed (GET /recommendations) ranked by shared-interest overlap</li>
+<li>Reuses the existing discovery eligibility and two-way acceptance scope</li>
+<li>The member app exposes it as a fifth tab with an interest picker and a flag-off state</li>
+</ul>
+<h3>Admin Dashboard (Next.js)</h3>
+<ul>
+<li><code>apps/admin</code> (<code>@matrimony/admin</code>): Next.js 16 App Router + React 19, talking only to the admin API</li>
+<li>Backend-for-frontend auth: the token pair lives only in httpOnly cookies; an edge proxy guards every route and refreshes the access token before it expires</li>
+<li>Password-then-TOTP login; session route handlers re-validate every API response with the shared Zod contracts</li>
+<li>Pages: overview, the moderation queue (status filter + detail review form), member list, administrator/role list</li>
+<li>Build pinned to webpack (the Next 16 Turbopack default panics writing this app&#39;s route chunks on Windows)</li>
+</ul>
+<h2>Quality Assurance</h2>
+<ul>
+<li>Tests: 842 passed (565 API + 29 Admin + 236 Shared + 12 Mobile)</li>
+<li>Typecheck: PASS (workspaces + tools, including the seed and the mobile app)</li>
+<li>Lint: PASS</li>
+<li>Build: PASS (shared + API + admin)</li>
+<li>Full verification: PASS</li>
+</ul>
+<h2>Next Steps</h2>
+<ul>
+<li>Device-level QA of the Expo app (dev build) and the pending store identifiers (<code>bundleIdentifier</code> / Android <code>package</code>)</li>
+<li>Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS; the webhook secret, sender/template/DLT ids and email provider key are still unset</li>
+<li>Flip <code>FEATURE_AI_RECOMMENDATIONS</code> on after a gradual rollout decision; the For You surface is already shipped behind the flag</li>
+<li>Email provider is still open (the remaining half of GAP-12; SMS and push are resolved)</li>
+<li>Client clarifications still open: GAP-2 net-worth band boundaries and GAP-11 privacy wording</li>
+</ul>
 
-  <h2>Executive Summary</h2>
-  <p>The platform is feature-complete end to end. Phases 0&ndash;8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 830 automated tests passing.</p>
 
-  <h2>Key Metrics</h2>
-  <table>
-    <tr><th>Metric</th><th>Value</th></tr>
-    <tr><td>Automated Tests</td><td>830 (565 API + 29 Admin + 236 Shared)</td></tr>
-    <tr><td>Test Suites</td><td>51 (36 API + 4 Admin + 11 Shared)</td></tr>
-    <tr><td>Admin Permission Keys</td><td>21</td></tr>
-    <tr><td>Current Commit</td><td>43bde17</td></tr>
-    <tr><td>Status</td><td>All Gates Green</td></tr>
-  </table>
-
-  <h2>Implementation Status by Phase</h2>
-  <table>
-    <tr><th>Phase</th><th>Module</th><th>Status</th><th>Key Deliverables</th></tr>
-    <tr><td>0</td><td>Foundations</td><td><span class="pill done">Complete</span></td><td>Schema, config, health, security, monorepo</td></tr>
-    <tr><td>1</td><td>Identity &amp; Auth</td><td><span class="pill done">Complete</span></td><td>OTP, JWT, rotating sessions, lockout</td></tr>
-    <tr><td>2</td><td>Profile &amp; Master Data</td><td><span class="pill done">Complete</span></td><td>CRUD, photos, master lists</td></tr>
-    <tr><td>3</td><td>Discovery</td><td><span class="pill done">Complete</span></td><td>Two-way visibility, filters, pagination</td></tr>
-    <tr><td>4</td><td>Payments &amp; Unlocks</td><td><span class="pill done">Complete</span></td><td>Razorpay, webhooks, idempotency, expiry</td></tr>
-    <tr><td>5</td><td>Trust &amp; Safety</td><td><span class="pill done">Complete</span></td><td>Blocking, reporting, account deletion, report moderation queue</td></tr>
-    <tr><td>6</td><td>KYC/Verification</td><td><span class="pill done">Complete</span></td><td>Contracts, service, controller, module</td></tr>
-    <tr><td>7</td><td>Notifications</td><td><span class="pill done">Complete</span></td><td>Shared contracts, API module, list endpoint, unlock pre-expiry reminder, Firebase push delivery</td></tr>
-    <tr><td>8</td><td>Admin API</td><td><span class="pill done">Complete</span></td><td>RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard</td></tr>
-    <tr><td>9</td><td>Mobile App</td><td><span class="pill done">Complete</span></td><td>Expo SDK 57 app: auth, discovery, checkout, setup fee, profile, notifications, For You</td></tr>
-  </table>
-
-  <h2>Recent Accomplishments</h2>
-
-  <h3>Phase 9 &mdash; Member App (Expo + React Native)</h3>
-  <ul>
-    <li><code>apps/mobile</code> (<code>@matrimony/mobile</code>): Expo SDK 57, React Native 0.86, Expo Router, strict TypeScript, consuming <code>@matrimony/shared</code> contracts; the typed API client validates request bodies and responses with Zod</li>
-    <li>Auth and onboarding: phone OTP request/verify, registration, rotating access/refresh tokens in <code>expo-secure-store</code> with transparent refresh on 401, a <code>useRequireAuth</code> gate, and profile creation with completeness prompts</li>
-    <li>Discovery: cursor-paginated infinite feed of locked cards, temporary filters (age, height, city, state, education, profession, verified photos) and sort applied per request through a filter/sort sheet; the API now parses nested filter query objects</li>
-    <li>Member previews and payments: locked/unlocked/expired states, Razorpay checkout in a WebView using the order <code>key_id</code>, status polling against <code>GET /payments/:id</code>, and unlock expiry in the matches tab</li>
-    <li>Account setup fee: verified accounts advance to <code>AWAITING_SETUP_FEE</code>; the home feed gates until payment, with a dedicated screen showing the &#8377;15.00 + 18% GST = &#8377;17.70 breakdown and a one-time order</li>
-    <li>Profile: own profile with completeness, field editing, direct-to-storage photo upload with primary/delete management, and a visibility toggle</li>
-    <li>Settings: net-worth discover/visible-to preference editor, sign out, and OTP-confirmed account deletion</li>
-    <li>Notifications: in-app list with unread badges and push registration through <code>expo-notifications</code> &rarr; <code>POST /devices</code>; dead tokens are pruned server-side</li>
-    <li>For You: curated interest picker, recommendation cards ranked by shared-interest overlap with the common tags shown, a fifth tab, and a graceful "coming soon" state while <code>FEATURE_AI_RECOMMENDATIONS</code> is off</li>
-  </ul>
-
-  <h3>Unlock Pre-Expiry Reminder (Section 15 / C3)</h3>
-  <ul>
-    <li><code>UNLOCK_EXPIRY_REMINDER_HOURS</code> was configured but unused; a sweep now records one notification per unlock about two hours before it expires</li>
-    <li><code>ContactUnlock.reminderSentAt</code> marks a reminder sent and the claim is a conditional update, so a restart, redeploy or second instance cannot notify a buyer twice</li>
-    <li><code>UnlockExpiryReminder</code> follows the existing sweeper/<code>ClockDriftGuard</code> timer shape (5-minute interval, <code>unref</code>, boot sweep, failures logged not thrown)</li>
-    <li>Channel is <code>PUSH</code>; the row also remains in the in-app list, which is not filtered by channel</li>
-  </ul>
-
-  <h3>Push Delivery over Firebase (Section 42, resolves GAP-12's push half)</h3>
-  <ul>
-    <li><code>PushGateway</code> seam with an <code>FcmPushGateway</code> on FCM HTTP v1: a service-account RS256 assertion is exchanged for a cached OAuth2 token, on <code>node:crypto</code> &mdash; no legacy server key and no <code>firebase-admin</code>; fails closed when unconfigured</li>
-    <li><code>DeviceToken</code> model + <code>DevicePlatform</code> enum and a <code>SENDING</code> claim status; migration <code>20261014140000_device_tokens_push</code></li>
-    <li><code>POST/GET /devices</code> and <code>DELETE /devices/:token</code> under <code>JwtAuthGuard</code>; registration upserts on the token and reassigns its owner, and the token is never echoed back</li>
-    <li><code>PushDispatchService</code> claims a row <code>PENDING</code> &rarr; <code>SENDING</code> with a conditional update (at-least-once, never twice-per-worker), requeues a stale <code>SENDING</code> row, prunes a token FCM reports <code>UNREGISTERED</code>, and marks <code>SENT</code>/<code>FAILED</code>; <code>PushDispatchSweeper</code> runs on a 60-second timer</li>
-    <li>A <code>PUSH</code> row for a member with no device stays <code>PENDING</code> and is delivered once one is registered</li>
-  </ul>
-
-  <h3>SMS OTP Delivery (MSG91, resolves GAP-12)</h3>
-  <ul>
-    <li><code>SmsGateway</code> seam (abstract class) with a <code>Msg91SmsGateway</code> on MSG91's Flow API, bound like the payment gateway so tests substitute it without the network; a small <code>SmsModule</code> keeps the module graph acyclic</li>
-    <li><code>AuthController.requestOtp</code> sends the code via MSG91 in production and fails closed (401) when MSG91 is unconfigured; outside production it still echoes <code>dev_code</code> so the flow stays testable without a provider account</li>
-    <li>Flow API rather than MSG91's SendOTP API, because the platform owns OTP state (hashed, attempt-counted, expired, consumed at later steps); the code travels as a template variable and MSG91 only delivers it</li>
-    <li>New config <code>SMS_TEMPLATE_ID</code> / <code>SMS_OTP_TEMPLATE_VAR</code> / <code>SMS_COUNTRY_CODE</code>; 9 gateway tests</li>
-  </ul>
-
-  <h3>Admin MFA (TOTP)</h3>
-  <ul>
-    <li>Hand-rolled RFC 6238 TOTP and AES-256-GCM secret-at-rest encryption, no new dependency</li>
-    <li>Opt-in self-service enrollment; the secret is persisted only after a matching code</li>
-    <li>Login for an MFA-enabled admin returns a signed challenge; only the verify endpoint issues a session</li>
-    <li>Wrong codes share the password lockout counter; disable requires a current code; audited <code>admin:manage</code> reset for lost devices</li>
-  </ul>
-
-  <h3>Report Moderation Queue (Section 30)</h3>
-  <ul>
-    <li><code>GET /admin/reports</code> (status filter + cursor pages), <code>GET /admin/reports/:id</code>, <code>POST /admin/reports/:id/review</code>, all behind <code>report:review</code></li>
-    <li>Resolution is terminal and pairs action with status; notes required to action</li>
-    <li>SUSPEND suspends the reported account as its only side effect, guarded against reviving a DELETED account</li>
-    <li>Every review writes a <code>report:review</code> audit row</li>
-  </ul>
-
-  <h3>AI Recommendations (Backend + For You tab)</h3>
-  <ul>
-    <li>Curated interest tags with <code>GET/PUT /profile/interests</code></li>
-    <li>Feature-flagged For You feed (<code>GET /recommendations</code>) ranked by shared-interest overlap</li>
-    <li>Reuses the existing discovery eligibility and two-way acceptance scope</li>
-    <li>The member app exposes it as a fifth tab with an interest picker and a flag-off state</li>
-  </ul>
-
-  <h3>Admin Dashboard (Next.js)</h3>
-  <ul>
-    <li><code>apps/admin</code> (<code>@matrimony/admin</code>): Next.js 16 App Router + React 19, talking only to the admin API</li>
-    <li>Backend-for-frontend auth: the token pair lives only in httpOnly cookies; an edge proxy guards every route and refreshes the access token before it expires</li>
-    <li>Password-then-TOTP login; session route handlers re-validate every API response with the shared Zod contracts</li>
-    <li>Pages: overview, the moderation queue (status filter + detail review form), member list, administrator/role list</li>
-    <li>Build pinned to webpack (the Next 16 Turbopack default panics writing this app's route chunks on Windows)</li>
-  </ul>
-
-  <h2>Quality Assurance</h2>
-  <ul>
-    <li>Tests: 830 passed (565 API + 29 Admin + 236 Shared)</li>
-    <li>Typecheck: PASS (workspaces + tools, including the seed and the mobile app)</li>
-    <li>Lint: PASS</li>
-    <li>Build: PASS (shared + API + admin)</li>
-    <li>Full verification: PASS</li>
-  </ul>
-
-  <h2>Next Steps</h2>
-  <ul>
-    <li>Device-level QA of the Expo app (dev build) and the pending store identifiers (<code>bundleIdentifier</code> / Android <code>package</code>)</li>
-    <li>Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS; the webhook secret, sender/template/DLT ids and email provider key are still unset</li>
-    <li>Flip <code>FEATURE_AI_RECOMMENDATIONS</code> on after a gradual rollout decision; the For You surface is already shipped behind the flag</li>
-    <li>Email provider is still open (the remaining half of GAP-12; SMS and push are resolved)</li>
-    <li>Client clarifications still open: GAP-2 net-worth band boundaries and GAP-11 privacy wording</li>
-  </ul>
 </body>
 </html>
+

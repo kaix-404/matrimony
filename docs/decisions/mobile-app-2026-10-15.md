@@ -28,4 +28,6 @@
 
 ## Status
 
-- Scaffolding complete, typechecking and linting green under root `npm run verify`. No test script in mobile yet, so the root test gate skips it; add unit tests (jest-expo) when there is logic worth covering.
+- Member app delivered: auth/onboarding, discovery with filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the For You tab
+- Quality gates: typecheck, lint and Jest (`jest-expo`) run under root `npm run verify`; the suites cover the feed view model and interest helpers, and CI bundles the app (`expo export --platform web`) so a broken route or import fails before a device build
+- `expo-doctor`: 21/21 checks pass (single React copy after pinning react/react-dom to 19.2.3)
