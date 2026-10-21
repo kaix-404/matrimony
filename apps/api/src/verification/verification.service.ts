@@ -77,18 +77,36 @@ export class VerificationService {
     let verifiedAt: Date | null = identity.verifiedAt;
     let failureReason: string | null = identity.failureReason;
     let failureCode: string | null = identity.failureCode;
+    let succeeded = false;
     if (data.status === 'SUCCESS' || data.result === 'SUCCESS' || (body as any).event?.includes('success')) {
       status = 'VERIFIED';
       verifiedAt = now;
       failureReason = null;
       failureCode = null;
+      succeeded = true;
     } else if (data.status === 'FAILED' || data.result === 'FAILED' || (body as any).event?.includes('fail')) {
       status = 'FAILED';
       verifiedAt = null;
       failureReason = data.failureReason ?? null;
       failureCode = data.failureCode ?? null;
     }
-    await this.prisma.identityVerification.update({ where: { id: identity.id }, data: { status, verifiedAt, failureReason, failureCode, updatedAt: now } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.identityVerification.update({ where: { id: identity.id }, data: { status, verifiedAt, failureReason, failureCode, updatedAt: now } });
+      if (!succeeded) return;
+      // D9: a passed check is what unlocks the setup-fee step. The transition
+      // is guarded on PENDING_VERIFICATION so a replayed or late webhook
+      // cannot pull an already-ACTIVE (or suspended/deleted) account back
+      // through the funnel.
+      await tx.user.updateMany({
+        where: { id: identity.userId, status: 'PENDING_VERIFICATION' },
+        data: {
+          identityVerifiedAt: now,
+          status: 'AWAITING_SETUP_FEE',
+          statusChangedAt: now,
+          statusChangeReason: 'Identity verification passed; awaiting the one-time account setup fee.',
+        },
+      });
+    });
   }
 
   private toResponse(identity: any): VerificationStatusResponse {
