@@ -1,19 +1,19 @@
 # Networth Matrimony - Project Status Report
 
-**Report Date:** October 14, 2026  |  **Branch:** main (06f47d3)  |  **Repository:** D:\matrimony
+**Report Date:** October 21, 2026  |  **Branch:** main (43bde17)  |  **Repository:** D:\matrimony
 
 ## Executive Summary
 
-The platform is feature-complete on the backend. Phases 0-8 are delivered: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. The remaining work is the Phase 9 mobile app. All gates are green with 824 automated tests passing.
+The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 830 automated tests passing.
 
 ## Key Metrics
 
 | Metric | Value |
 |---|---|
-| Automated Tests | 824 (559 API + 29 Admin + 236 Shared) |
-| Test Suites | 50 (35 API + 4 Admin + 11 Shared) |
+| Automated Tests | 830 (565 API + 29 Admin + 236 Shared) |
+| Test Suites | 51 (36 API + 4 Admin + 11 Shared) |
 | Admin Permission Keys | 21 |
-| Current Commit | 06f47d3 |
+| Current Commit | 43bde17 |
 | Status | All Gates Green |
 
 ## Implementation Status by Phase
@@ -29,9 +29,20 @@ The platform is feature-complete on the backend. Phases 0-8 are delivered: authe
 | 6 | KYC/Verification | Complete | Contracts, service, controller, module |
 | 7 | Notifications | Complete | Shared contracts, API module, list endpoint, unlock pre-expiry reminder, Firebase push delivery |
 | 8 | Admin API | Complete | RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard |
-| 9 | Mobile App | Planned | React Native |
+| 9 | Mobile App | Complete | Expo SDK 57 app: auth, discovery, checkout, setup fee, profile, notifications, For You |
 
 ## Recent Accomplishments
+
+### Phase 9 - Member App (Expo + React Native)
+- `apps/mobile` (`@matrimony/mobile`): Expo SDK 57, React Native 0.86, Expo Router, strict TypeScript, consuming `@matrimony/shared` contracts; typed API client validates every request body and response with Zod
+- Auth and onboarding: phone OTP request/verify, registration, rotating access/refresh tokens in `expo-secure-store` with transparent refresh on 401, `useRequireAuth` gate, and profile creation with completeness prompts
+- Discovery: cursor-paginated infinite feed of locked cards, temporary filters (age, height, city, state, education, profession, verified photos) and sort applied per request, plus a filter/sort bottom sheet; the API now parses nested filter query objects
+- Member previews and payments: locked/unlocked/expired states, Razorpay checkout in a WebView with the order `key_id`, status polling against `GET /payments/:id`, and unlock expiry shown in the matches tab
+- Account setup fee: verified accounts move to `AWAITING_SETUP_FEE`; the home feed gates until payment, with a dedicated screen showing the Rs 15.00 + 18% GST = Rs 17.70 breakdown and a one-time order
+- Profile: own profile with completeness, field editing, direct-to-storage photo upload with primary/delete management, and a visibility toggle
+- Settings: net-worth discover/visible-to preference editor, sign out, and OTP-confirmed account deletion
+- Notifications: in-app list with unread badges and push registration through `expo-notifications` -> `POST /devices`; dead tokens are pruned server-side
+- For You: curated interest picker, recommendation cards ranked by shared-interest overlap with the common tags shown, a fifth tab, and a graceful "coming soon" state while `FEATURE_AI_RECOMMENDATIONS` is off
 
 ### Unlock Pre-Expiry Reminder (Section 15 / C3)
 - `UNLOCK_EXPIRY_REMINDER_HOURS` was configured but unused; a sweep now records one notification per unlock about two hours before it expires
@@ -64,10 +75,11 @@ The platform is feature-complete on the backend. Phases 0-8 are delivered: authe
 - SUSPEND suspends the reported account as its only side effect, guarded against reviving a DELETED account
 - Every review writes a report:review audit row
 
-### AI Recommendations (Backend MVP)
+### AI Recommendations (Backend + For You tab)
 - Curated interest tags with GET/PUT /profile/interests
 - Feature-flagged For You feed (GET /recommendations) ranked by shared-interest overlap
 - Reuses the existing discovery eligibility and two-way acceptance scope
+- The member app exposes it as a fifth tab with an interest picker and a flag-off state
 
 ### Admin Dashboard (Next.js)
 - `apps/admin` (`@matrimony/admin`): Next.js 16 App Router + React 19, talking only to the admin API
@@ -78,13 +90,16 @@ The platform is feature-complete on the backend. Phases 0-8 are delivered: authe
 
 ## Quality Assurance
 
-- Tests: 824 passed (559 API + 29 Admin + 236 Shared)
-- Typecheck: PASS (workspaces + tools, including the seed)
+- Tests: 830 passed (565 API + 29 Admin + 236 Shared)
+- Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
 - Full verification: PASS
 
 ## Next Steps
 
-- Phase 9: the React Native member app against the contracts in packages/shared
+- Device-level QA of the Expo app (dev build) and the pending store identifiers (`bundleIdentifier` / Android `package`)
+- Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS; the webhook secret, sender/template/DLT ids and email provider key are still unset
+- Flip `FEATURE_AI_RECOMMENDATIONS` on after a gradual rollout decision; the For You surface is already shipped behind the flag
 - Email provider is still open (the remaining half of GAP-12; SMS and push are resolved)
+- Client clarifications still open: GAP-2 net-worth band boundaries and GAP-11 privacy wording

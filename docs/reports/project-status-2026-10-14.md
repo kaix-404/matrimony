@@ -2,12 +2,12 @@ PROJECT STATUS TILL NOW
 
 Matrimony App - Monorepo Implementation
 
-Date: October 14, 2026
-Branch: main (06f47d3)
+Date: October 21, 2026
+Branch: main (43bde17)
 
 GATES
-- All 824 tests pass (236 shared + 29 admin + 559 API)
-- Typecheck: PASS (workspaces + tools, including the seed)
+- All 830 tests pass (236 shared + 29 admin + 565 API)
+- Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
 - CI build blocker resolved: the shared barrel now exports the notifications and
@@ -122,9 +122,36 @@ COMPLETED PHASES
   * Build pinned to webpack (Next 16 defaults to Turbopack, which panics writing
     this app's route chunks on Windows); a small pure-helper suite runs under Jest
 
+- Phase 9 (mobile app): Expo SDK 57 + React Native 0.86 member app
+  * apps/mobile (@matrimony/mobile): Expo Router, strict TypeScript, consuming the
+    @matrimony/shared contracts; the typed API client validates request bodies and
+    responses with Zod and refreshes a 401 once before failing
+  * Auth and onboarding: phone OTP request/verify, registration, rotating tokens in
+    expo-secure-store, a useRequireAuth gate, and profile creation with completeness
+  * Discovery: cursor-paginated infinite feed of locked cards; temporary filters
+    (age, height, city, state, education, profession, verified photos) and sort are
+    applied per request from a bottom sheet, and the API now parses the nested
+    filter query objects (Express 5 defaults to the simple parser)
+  * Member previews and payments: locked/unlocked/expired states, Razorpay checkout
+    in a WebView with the order key_id, GET /payments/:id polling, and unlock expiry
+    surfaced in the matches tab; no client-side capture endpoint was added
+  * Account setup fee: the verification webhook moves a verified account to
+    AWAITING_SETUP_FEE (guarded so a replay cannot pull an ACTIVE account back); the
+    home feed gates until payment and a dedicated screen quotes Rs 15.00 + 18% GST
+    = Rs 17.70
+  * Profile: completeness, field editing with a diff PATCH, direct-to-storage photo
+    upload with primary/delete management, and a visibility toggle
+  * Settings: net-worth discover/visible-to preference editor, sign out, and
+    OTP-confirmed account deletion
+  * Notifications: in-app list with unread badges and push registration through
+    expo-notifications -> POST /devices (dead tokens pruned server-side)
+  * For You: fifth tab with a curated interest picker and recommendation cards
+    showing shared interests; the server flag (FEATURE_AI_RECOMMENDATIONS, off by
+    default) drives a coming-soon state rather than an error
+
 PENDING
-- Phase 9: Mobile app (React Native)
 - Email provider still open (the remaining half of GAP-12; SMS and push are resolved)
+- Device-level QA and the store identifiers (bundleIdentifier / Android package)
 
 NOTES
 - Admin routes are now reachable end to end: login issues a token that the
@@ -170,4 +197,12 @@ NOTES
 - No real FCM send has been exercised: the credential is not in the environment, so the
   gateway is unit-tested against a mocked fetch; the client has an Admin SDK JSON on
   hand for a live check, and the MSG91 authkey should still be rotated before production
+- The mobile app never confirms a payment itself: checkout only polls the payment
+  row, so an unlock or setup-fee activation still requires the HMAC-verified webhook
+- The setup-fee transition is guarded on PENDING_VERIFICATION, so a replayed or late
+  verification event cannot reopen or downgrade an account that already moved on
+- Express 5 defaults to the simple query parser, which would read filters[age_min]
+  as one literal key; the API now sets "extended" explicitly, with a boot test
+- For You is shipped dark: the flag returns enabled:false and the app shows a
+  coming-soon state, so enabling it is a configuration change, not a release
 - No breaking changes
