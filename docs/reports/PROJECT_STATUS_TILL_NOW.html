@@ -26,10 +26,10 @@
 </style>
 </head>
 <body>
-<h1>Networth Matrimony - Project Status Report</h1>
+<p>∩╗┐# Networth Matrimony - Project Status Report</p>
 <p><strong>Report Date:</strong> October 21, 2026  |  <strong>Branch:</strong> main (3fc81fd)  |  <strong>Repository:</strong> D:\matrimony</p>
 <h2>Executive Summary</h2>
-<p>The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 842 automated tests passing.</p>
+<p>The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 849 automated tests passing.</p>
 <h2>Key Metrics</h2>
 <table>
 <thead>
@@ -40,11 +40,11 @@
 </thead>
 <tbody><tr>
 <td>Automated Tests</td>
-<td>842 (565 API + 29 Admin + 236 Shared + 12 Mobile)</td>
+<td>849 (572 API + 29 Admin + 236 Shared + 12 Mobile)</td>
 </tr>
 <tr>
 <td>Test Suites</td>
-<td>53 (36 API + 4 Admin + 11 Shared + 2 Mobile)</td>
+<td>54 (37 API + 4 Admin + 11 Shared + 2 Mobile)</td>
 </tr>
 <tr>
 <td>Admin Permission Keys</td>
@@ -52,7 +52,7 @@
 </tr>
 <tr>
 <td>Current Commit</td>
-<td>3fc81fd</td>
+<td>601156b</td>
 </tr>
 <tr>
 <td>Status</td>
@@ -103,7 +103,7 @@
 <td>5</td>
 <td>Trust &amp; Safety</td>
 <td>Complete</td>
-<td>Blocking, reporting, account deletion, report moderation queue</td>
+<td>Blocking, reporting, account deletion with retention-then-anonymise, report moderation queue</td>
 </tr>
 <tr>
 <td>6</td>
@@ -153,7 +153,7 @@
 </ul>
 <h3>Push Delivery over Firebase (Section 42, resolves GAP-12&#39;s push half)</h3>
 <ul>
-<li><code>PushGateway</code> seam bound to <code>FcmPushGateway</code> in <code>PushModule</code>: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on <code>node:crypto</code> ΓÇö no legacy server key, no <code>firebase-admin</code>; fails closed when unconfigured</li>
+<li><code>PushGateway</code> seam bound to <code>FcmPushGateway</code> in <code>PushModule</code>: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on <code>node:crypto</code> ├óΓé¼ΓÇ¥ no legacy server key, no <code>firebase-admin</code>; fails closed when unconfigured</li>
 <li><code>DeviceToken</code> model + <code>DevicePlatform</code> enum; <code>NotificationStatus</code> gains <code>SENDING</code> for the in-flight claim; migration <code>20261014140000_device_tokens_push</code></li>
 <li><code>POST/GET /devices</code> and <code>DELETE /devices/:token</code> under <code>JwtAuthGuard</code>; registration upserts on the token and reassigns its owner, and the token is never echoed back</li>
 <li><code>PushDispatchService</code> claims a row <code>PENDING</code> -&gt; <code>SENDING</code> with a conditional update (at-least-once, never twice-per-worker), requeues a stale <code>SENDING</code> row, prunes a token FCM reports <code>UNREGISTERED</code>, and marks <code>SENT</code>/<code>FAILED</code>; <code>PushDispatchSweeper</code> runs on a 60-second timer</li>
@@ -172,6 +172,13 @@
 <li>Opt-in self-service enrollment; the secret is persisted only after a matching code</li>
 <li>Login for an MFA-enabled admin returns a signed challenge; only the verify endpoint issues a session</li>
 <li>Wrong codes share the password lockout counter; disable requires a current code; audited admin:manage reset for lost devices</li>
+</ul>
+<h3>Account Retention Purge (Section 21)</h3>
+<ul>
+<li><code>deleteAccount</code> set <code>purgeAfter</code> but nothing read it; a new <code>AccountRetentionSweeper</code> now anonymises an account once its retention window closes</li>
+<li><code>AccountDeletionService.purgeDue</code> overwrites the mobile with a per-account tombstone (<code>purged:&lt;id&gt;</code>, so the real number can register again), clears email, blanks the profile&#39;s PII and demographics, and deletes photos and interests</li>
+<li>Payment and ContactUnlock records are kept, because section 21 retains the accounting for a person who is erased; the <code>User</code>/<code>Profile</code> rows survive anonymised, so their foreign keys stay intact</li>
+<li>Idempotent by construction: the query matches only <code>isAnonymised: false</code> rows past <code>purgeAfter</code>, so a re-run or a second instance is a no-op</li>
 </ul>
 <h3>Report Moderation Queue (Section 30)</h3>
 <ul>
@@ -197,7 +204,7 @@
 </ul>
 <h2>Quality Assurance</h2>
 <ul>
-<li>Tests: 842 passed (565 API + 29 Admin + 236 Shared + 12 Mobile)</li>
+<li>Tests: 849 passed (572 API + 29 Admin + 236 Shared + 12 Mobile)</li>
 <li>Typecheck: PASS (workspaces + tools, including the seed and the mobile app)</li>
 <li>Lint: PASS</li>
 <li>Build: PASS (shared + API + admin)</li>

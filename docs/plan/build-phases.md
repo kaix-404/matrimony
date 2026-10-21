@@ -110,12 +110,15 @@ Built:
 
 Remaining:
 
-- Section 21 deletion: soft delete, retention-then-anonymise, and invalidating
-  active profile access. The OTP purpose and `DELETED_ACCOUNT_RETENTION_MONTHS`
-  already exist.
 - The admin review queue. It cannot start before an admin can authenticate —
   `AdminUser` and `AdminRole` exist in the schema with no service behind them —
   so it needs a sequencing decision against Phase 8's RBAC work.
+
+Section 21 deletion is built: `POST /account/delete` soft-deletes the user,
+profile and live sessions behind an OTP, and `AccountRetentionSweeper` erases the
+PII once `purgeAfter` (`DELETED_ACCOUNT_RETENTION_MONTHS`) has passed — the mobile
+becomes a per-account tombstone so the real number can register again, while the
+payment and unlock records section 21 retains are left untouched.
 
 ## Phase 6 — Identity verification
 

@@ -1,19 +1,19 @@
-# Networth Matrimony - Project Status Report
+﻿# Networth Matrimony - Project Status Report
 
 **Report Date:** October 21, 2026  |  **Branch:** main (3fc81fd)  |  **Repository:** D:\matrimony
 
 ## Executive Summary
 
-The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 842 automated tests passing.
+The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 849 automated tests passing.
 
 ## Key Metrics
 
 | Metric | Value |
 |---|---|
-| Automated Tests | 842 (565 API + 29 Admin + 236 Shared + 12 Mobile) |
-| Test Suites | 53 (36 API + 4 Admin + 11 Shared + 2 Mobile) |
+| Automated Tests | 849 (572 API + 29 Admin + 236 Shared + 12 Mobile) |
+| Test Suites | 54 (37 API + 4 Admin + 11 Shared + 2 Mobile) |
 | Admin Permission Keys | 21 |
-| Current Commit | 3fc81fd |
+| Current Commit | 601156b |
 | Status | All Gates Green |
 
 ## Implementation Status by Phase
@@ -25,7 +25,7 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 | 2 | Profile & Master Data | Complete | CRUD, photos, master lists |
 | 3 | Discovery | Complete | Two-way visibility, filters, pagination |
 | 4 | Payments & Unlocks | Complete | Razorpay, webhooks, idempotency, expiry |
-| 5 | Trust & Safety | Complete | Blocking, reporting, account deletion, report moderation queue |
+| 5 | Trust & Safety | Complete | Blocking, reporting, account deletion with retention-then-anonymise, report moderation queue |
 | 6 | KYC/Verification | Complete | Contracts, service, controller, module |
 | 7 | Notifications | Complete | Shared contracts, API module, list endpoint, unlock pre-expiry reminder, Firebase push delivery |
 | 8 | Admin API | Complete | RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard |
@@ -52,7 +52,7 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 - Channel is `PUSH`; the row also remains in the in-app list, which is not filtered by channel
 
 ### Push Delivery over Firebase (Section 42, resolves GAP-12's push half)
-- `PushGateway` seam bound to `FcmPushGateway` in `PushModule`: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on `node:crypto` — no legacy server key, no `firebase-admin`; fails closed when unconfigured
+- `PushGateway` seam bound to `FcmPushGateway` in `PushModule`: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on `node:crypto` â€” no legacy server key, no `firebase-admin`; fails closed when unconfigured
 - `DeviceToken` model + `DevicePlatform` enum; `NotificationStatus` gains `SENDING` for the in-flight claim; migration `20261014140000_device_tokens_push`
 - `POST/GET /devices` and `DELETE /devices/:token` under `JwtAuthGuard`; registration upserts on the token and reassigns its owner, and the token is never echoed back
 - `PushDispatchService` claims a row `PENDING` -> `SENDING` with a conditional update (at-least-once, never twice-per-worker), requeues a stale `SENDING` row, prunes a token FCM reports `UNREGISTERED`, and marks `SENT`/`FAILED`; `PushDispatchSweeper` runs on a 60-second timer
@@ -69,6 +69,12 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 - Opt-in self-service enrollment; the secret is persisted only after a matching code
 - Login for an MFA-enabled admin returns a signed challenge; only the verify endpoint issues a session
 - Wrong codes share the password lockout counter; disable requires a current code; audited admin:manage reset for lost devices
+
+### Account Retention Purge (Section 21)
+- `deleteAccount` set `purgeAfter` but nothing read it; a new `AccountRetentionSweeper` now anonymises an account once its retention window closes
+- `AccountDeletionService.purgeDue` overwrites the mobile with a per-account tombstone (`purged:<id>`, so the real number can register again), clears email, blanks the profile's PII and demographics, and deletes photos and interests
+- Payment and ContactUnlock records are kept, because section 21 retains the accounting for a person who is erased; the `User`/`Profile` rows survive anonymised, so their foreign keys stay intact
+- Idempotent by construction: the query matches only `isAnonymised: false` rows past `purgeAfter`, so a re-run or a second instance is a no-op
 
 ### Report Moderation Queue (Section 30)
 - GET /admin/reports (status filter + cursor pages), GET /admin/reports/:id, POST /admin/reports/:id/review, all behind report:review
@@ -91,7 +97,7 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 
 ## Quality Assurance
 
-- Tests: 842 passed (565 API + 29 Admin + 236 Shared + 12 Mobile)
+- Tests: 849 passed (572 API + 29 Admin + 236 Shared + 12 Mobile)
 - Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)

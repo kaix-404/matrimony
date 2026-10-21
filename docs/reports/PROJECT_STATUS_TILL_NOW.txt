@@ -1,5 +1,5 @@
 ﻿NETWORTH MATRIMONY - PROJECT STATUS REPORT
-Report Date: October 21, 2026 | Branch: main (3fc81fd) | Repo: D:\matrimony
+Report Date: October 21, 2026 | Branch: main (601156b) | Repo: D:\matrimony
 
 SUMMARY:
   Platform is feature-complete end to end. Phases 0-8 delivered: auth (with OTP
@@ -11,12 +11,12 @@ SUMMARY:
   sign-in and registration, discovery with temporary filters and sort, member
   previews and Razorpay checkout, the account setup fee, profile and photo
   management, visibility preferences, notifications, unlocks, and the
-  feature-flagged For You feed. All gates green with 842 tests.
+  feature-flagged For You feed. All gates green with 849 tests.
 
 KEY METRICS:
-  Tests: 842 (565 API + 29 Admin + 236 Shared + 12 Mobile) across 53 suites
+  Tests: 849 (572 API + 29 Admin + 236 Shared + 12 Mobile) across 54 suites
   Admin permission keys: 21
-  Current Commit: 3fc81fd
+  Current Commit: 601156b
   Status: All Gates Green
 
 PHASE STATUS:
@@ -25,7 +25,7 @@ PHASE STATUS:
   2 Profile & Master Data - Complete
   3 Discovery - Complete
   4 Payments & Unlocks - Complete
-  5 Trust & Safety - Complete (Blocking, Reports, Account Deletion, Moderation Queue)
+  5 Trust & Safety - Complete (Blocking, Reports, Account Deletion + Retention Purge, Moderation Queue)
   6 KYC/Verification - Complete
   7 Notifications - Complete (unlock pre-expiry reminder, Firebase push delivery)
   8 Admin API - Complete (Next.js dashboard delivered)
@@ -72,6 +72,13 @@ RECENT (Oct 21, 2026):
   Admin MFA - hand-rolled RFC 6238 TOTP + AES-256-GCM secret at rest, opt-in
     self-service enrollment, challenge-then-session login, shared lockout, audited
     reset.
+  Account retention purge (section 21) - deleteAccount set purgeAfter but nothing
+    read it; AccountRetentionSweeper now anonymises an account once its retention
+    window closes. purgeDue overwrites the mobile with a per-account tombstone
+    (purged:<id>, so the real number can register again), clears email, blanks the
+    profile PII/demographics, and deletes photos and interests; Payment and
+    ContactUnlock records are kept and the User/Profile rows survive anonymised.
+    Idempotent: only isAnonymised:false rows past purgeAfter are matched.
   Report moderation queue - GET /admin/reports, GET /admin/reports/:id,
     POST /admin/reports/:id/review behind report:review; terminal resolution
     pairing action with status; SUSPEND suspends the reported account; every
@@ -85,7 +92,7 @@ RECENT (Oct 21, 2026):
     build pinned to webpack.
 
 QUALITY ASSURANCE:
-  Tests: 842 passed (565 API + 29 Admin + 236 Shared + 12 Mobile)
+  Tests: 849 passed (572 API + 29 Admin + 236 Shared + 12 Mobile)
   Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
   Lint: PASS
   Build: PASS (shared + API + admin)
