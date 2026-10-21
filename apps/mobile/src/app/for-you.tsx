@@ -15,6 +15,7 @@ import { Screen } from '../components/Screen';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../lib/auth-context';
 import { fromDiscoveryCard } from '../lib/feed-model';
+import { interestLabel, interestOptions } from '../lib/interests';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
@@ -111,7 +112,7 @@ export default function ForYouScreen() {
             most in common first.
           </Text>
           <CheckboxList
-            options={(interests?.available ?? []).map(toOption)}
+            options={interestOptions(interests?.available ?? [])}
             selected={selected}
             onToggle={toggle}
           />
@@ -145,7 +146,7 @@ export default function ForYouScreen() {
           <View style={styles.chipRow}>
             {chosen.map((key) => (
               <View key={key} style={styles.chip}>
-                <Text style={styles.chipLabel}>{labelFor(interests?.available, key)}</Text>
+                <Text style={styles.chipLabel}>{interestLabel(interests?.available, key)}</Text>
               </View>
             ))}
           </View>
@@ -192,20 +193,12 @@ function RecommendationItem({
         <Ionicons name="sparkles" size={14} color={colors.primary} />
         {item.shared_interests.map((key) => (
           <Text key={key} style={styles.shared}>
-            {labelFor(catalogue, key)}
+            {interestLabel(catalogue, key)}
           </Text>
         ))}
       </View>
     </Pressable>
   );
-}
-
-function toOption(option: InterestOption) {
-  return { value: option.key, label: option.label };
-}
-
-function labelFor(catalogue: InterestOption[] | undefined, key: string): string {
-  return catalogue?.find((option) => option.key === key)?.label ?? key;
 }
 
 const styles = StyleSheet.create({
