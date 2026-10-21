@@ -21,14 +21,18 @@ const MAX_POLLS = 12;
 
 type Phase = 'checkout' | 'verifying' | 'confirmed' | 'pending' | 'failed';
 
+/** Why this order exists; decides the copy and where a success returns to. */
+type Purpose = 'UNLOCK' | 'SETUP_FEE';
+
 /**
  * Razorpay checkout, hosted in a WebView.
  *
- * The order is created by the API (`POST /payments/unlocks`) and handed here
- * with the publishable `key_id`; this screen never sees the secret and never
- * decides that a payment succeeded. Its only job is to open checkout, then poll
- * the server until it reports the unlock — the server, fed by the signed
- * webhook, is the sole authority (section 40).
+ * The order is created by the API (`POST /payments/unlocks` or
+ * `POST /payments/setup-fee`) and handed here with the publishable `key_id`;
+ * this screen never sees the secret and never decides that a payment succeeded.
+ * Its only job is to open checkout, then poll the server until it reports the
+ * outcome — the server, fed by the signed webhook, is the sole authority
+ * (section 40).
  */
 export default function CheckoutScreen() {
   const params = useLocalSearchParams<{
@@ -38,8 +42,9 @@ export default function CheckoutScreen() {
     amount_minor?: string;
     name?: string;
     profile_id?: string;
+    purpose?: string;
   }>();
-  const { token } = useAuth();
+  const { token, refreshUser } = useAuth();
   const insets = useSafeAreaInsets();
 
   const paymentId = params.payment_id;
@@ -47,6 +52,7 @@ export default function CheckoutScreen() {
   const keyId = params.key_id;
   const amountMinor = params.amount_minor ? Number(params.amount_minor) : NaN;
   const profileId = params.profile_id;
+  const purpose: Purpose = params.purpose === 'SETUP_FEE' ? 'SETUP_FEE' : 'UNLOCK';
 
   const [phase, setPhase] = useState<Phase>('checkout');
   const [message, setMessage] = useState<string | null>(null);
@@ -59,11 +65,24 @@ export default function CheckoutScreen() {
       keyId: keyId as string,
       orderId: orderId as string,
       amountMinor,
-      description: params.name ? `Unlock contact with ${params.name}` : 'Unlock contact',
+      description:
+        purpose === 'SETUP_FEE'
+          ? 'One-time account setup fee'
+          : `Unlock contact with ${params.name ?? ''}`.trim(),
     });
-  }, [missing, keyId, orderId, amountMinor, params.name]);
+  }, [missing, keyId, orderId, amountMinor, params.name, purpose]);
 
-  const goToProfile = useCallback(() => {
+  /**
+   * Where a finished payment returns to. A setup fee is not tied to a member,
+   * so it lands back on the feed — after `refreshUser`, so the account is no
+   * longer held behind the fee gate.
+   */
+  const goAfterDone = useCallback(() => {
+    if (purpose === 'SETUP_FEE') {
+      void refreshUser();
+      router.replace('/');
+      return;
+    }
     if (!profileId) {
       router.back();
       return;
@@ -71,7 +90,7 @@ export default function CheckoutScreen() {
     // The member screen reloads on focus, so returning here shows the now
     // unlocked contact without a manual refresh.
     router.replace({ pathname: '/member/[id]', params: { id: profileId } });
-  }, [profileId]);
+  }, [profileId, purpose, refreshUser]);
 
   /** Poll the server until it confirms the unlock, fails, or time runs out. */
   const verify = useCallback(async () => {
@@ -88,6 +107,9 @@ export default function CheckoutScreen() {
         return;
       }
       if (status.status === 'SUCCESS') {
+        // The webhook is what activates the account, so re-reading the caller
+        // here is what clears the setup-fee gate.
+        if (purpose === 'SETUP_FEE') await refreshUser();
         setPhase('confirmed');
         return;
       }
@@ -102,7 +124,7 @@ export default function CheckoutScreen() {
     // will appear once the webhook is processed, so this is not an error.
     setPhase('pending');
     setMessage('Payment received. Confirmation is taking longer than usual.');
-  }, [token, paymentId]);
+  }, [token, paymentId, purpose, refreshUser]);
 
   const onMessage = useCallback(
     (event: WebViewMessageEvent) => {
@@ -135,7 +157,10 @@ export default function CheckoutScreen() {
   return (
     <AppShell>
       <View style={[styles.root, { paddingTop: insets.top }]}>
-        <ScreenHeader title="Unlock contact" onBack={() => router.back()} />
+        <ScreenHeader
+          title={purpose === 'SETUP_FEE' ? 'Account setup fee' : 'Unlock contact'}
+          onBack={() => router.back()}
+        />
         {phase === 'checkout' && !missing ? (
           <WebView
             originWhitelist={['*']}
@@ -157,8 +182,14 @@ export default function CheckoutScreen() {
             ) : null}
             {phase === 'confirmed' ? (
               <>
-                <Text style={styles.heading}>Contact unlocked</Text>
-                <Text style={styles.text}>This member's details are now visible to you.</Text>
+                <Text style={styles.heading}>
+                  {purpose === 'SETUP_FEE' ? 'Payment received' : 'Contact unlocked'}
+                </Text>
+                <Text style={styles.text}>
+                  {purpose === 'SETUP_FEE'
+                    ? 'Your account is now active. You can start browsing profiles.'
+                    : "This member's details are now visible to you."}
+                </Text>
               </>
             ) : null}
             {phase === 'pending' ? (
@@ -178,13 +209,19 @@ export default function CheckoutScreen() {
         {phase !== 'checkout' ? (
           <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.lg }]}>
             {phase === 'confirmed' ? (
-              <PrimaryButton label="View contact" onPress={goToProfile} />
+              <PrimaryButton
+                label={purpose === 'SETUP_FEE' ? 'Go to home' : 'View contact'}
+                onPress={goAfterDone}
+              />
             ) : null}
             {phase === 'pending' ? (
               <PrimaryButton label="Check again" onPress={() => void verify()} />
             ) : null}
             {phase === 'failed' ? (
-              <PrimaryButton label="Back to profile" onPress={goToProfile} />
+              <PrimaryButton
+                label={purpose === 'SETUP_FEE' ? 'Back' : 'Back to profile'}
+                onPress={goAfterDone}
+              />
             ) : null}
           </View>
         ) : null}

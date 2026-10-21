@@ -13,6 +13,7 @@ import { BottomNav } from '../components/BottomNav';
 import { FeedCard } from '../components/FeedCard';
 import { HeaderBar } from '../components/HeaderBar';
 import { HeroSection, type HeroVariant } from '../components/HeroSection';
+import { useAuth } from '../lib/auth-context';
 import { useDiscoveryFeed } from '../lib/use-discovery-feed';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
@@ -24,8 +25,23 @@ import { colors, radii, spacing, typography } from '../theme/tokens';
  * content before sign-in, so the layout stays previewable on its own.
  */
 export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant }) {
+  const { user } = useAuth();
   const { items, isLive, loading, refreshing, loadingMore, error, refresh, loadMore } =
     useDiscoveryFeed();
+
+  // D9: discovery withholds the feed until the setup fee settles, so showing an
+  // empty feed here would be a dead end. This state has one action: pay.
+  if (user?.status === 'AWAITING_SETUP_FEE') {
+    return (
+      <AppShell>
+        <View style={styles.gated}>
+          <HeaderBar />
+          <SetupFeeBanner />
+        </View>
+        <BottomNav />
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
@@ -76,6 +92,23 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
   );
 }
 
+/** The account is verified but unpaid; the fee is the only way forward. */
+function SetupFeeBanner() {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      style={styles.banner}
+      onPress={() => router.push('/setup-fee')}
+    >
+      <Text style={styles.bannerTitle}>Pay the one-time setup fee</Text>
+      <Text style={styles.bannerBody}>
+        Your identity is verified. Pay ₹ 17.70 once to activate your account and start browsing
+        profiles.
+      </Text>
+    </Pressable>
+  );
+}
+
 /**
  * Shown while the feed is still the design placeholder. Discovery needs a
  * session — the API withholds a feed from an anonymous caller — so the preview
@@ -97,6 +130,10 @@ function SignInBanner() {
 }
 
 const styles = StyleSheet.create({
+  gated: {
+    flex: 1,
+    paddingTop: spacing.sm,
+  },
   banner: {
     marginHorizontal: spacing.screenX,
     marginBottom: spacing.lg,

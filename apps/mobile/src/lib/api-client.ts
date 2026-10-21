@@ -350,6 +350,17 @@ class ApiClient {
     });
   }
 
+  /**
+   * Opens the one-time account setup fee order (D9). The amount is the flat
+   * platform fee, again derived server-side.
+   */
+  async createSetupFeeOrder(token: string): Promise<PaymentOrderResponse> {
+    return this.fetchJson('payments/setup-fee', {
+      method: 'POST',
+      headers: authHeaders(token),
+    });
+  }
+
   /** Reconciles one of the caller's own payments (section 27). */
   async getPaymentStatus(paymentId: string, token: string): Promise<PaymentStatusResponse> {
     return this.fetchJson('payments/' + encodeURIComponent(paymentId), {
