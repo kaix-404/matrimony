@@ -38,8 +38,15 @@ export interface DiscoveryFeed {
  * Photo URLs are presigned and short-lived, so the feed refetches rather than
  * caching them across sessions.
  */
-export function useDiscoveryFeed(_options: DiscoveryFeedOptions = {}): DiscoveryFeed {
+export function useDiscoveryFeed(options: DiscoveryFeedOptions = {}): DiscoveryFeed {
   const { token } = useAuth();
+  const { filters, sort } = options;
+  /**
+   * A serialised copy of the filters, so a caller that rebuilds an identical
+   * object every render does not restart the feed on each pass. Temporary
+   * filters are plain scalars, so the key order is stable for equal input.
+   */
+  const filterKey = JSON.stringify(filters ?? {});
   const [items, setItems] = useState<FeedCardModel[]>(() => feedItems.map(fromSample));
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -51,15 +58,30 @@ export function useDiscoveryFeed(_options: DiscoveryFeedOptions = {}): Discovery
   /** Drops stale responses when the token changes or a newer request starts. */
   const requestId = useRef(0);
 
+  /**
+   * The latest options, read at fetch time rather than captured. `fetchPage`
+   * is keyed on the token alone so that changing filters restarts through the
+   * effect below, while `loadMore` (which is not re-created on every keystroke)
+   * still pages against the filters currently applied.
+   */
+  const optionsRef = useRef({ filters, sort });
+  optionsRef.current = { filters, sort };
+
   const isLive = token !== null;
 
   const fetchPage = useCallback(
     async (pageCursor: string | null, replace: boolean) => {
       if (!token) return;
       const id = ++requestId.current;
+      const { filters: activeFilters, sort: activeSort } = optionsRef.current;
       try {
         const response = await apiClient.getDiscovery(
-          { limit: DISCOVERY_PAGE_SIZE, cursor: pageCursor ?? undefined },
+          {
+            limit: DISCOVERY_PAGE_SIZE,
+            cursor: pageCursor ?? undefined,
+            filters: activeFilters,
+            sort: activeSort,
+          },
           token,
         );
         if (id !== requestId.current) return;
@@ -92,7 +114,9 @@ export function useDiscoveryFeed(_options: DiscoveryFeedOptions = {}): Discovery
     setLoading(true);
     setError(null);
     fetchPage(null, true).finally(() => setLoading(false));
-  }, [token, fetchPage]);
+    // `filterKey` and `sort` are the applied scope: a change here starts a new
+    // first page rather than appending profiles that no longer match.
+  }, [token, filterKey, sort, fetchPage]);
 
   const refresh = useCallback(() => {
     if (!token) return;

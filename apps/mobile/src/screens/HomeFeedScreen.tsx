@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
 import {
   ActivityIndicator,
@@ -8,9 +9,11 @@ import {
   Text,
   View,
 } from 'react-native';
+import type { DiscoverySort, TemporaryFilter } from '@matrimony/shared';
 import { AppShell } from '../components/AppShell';
 import { BottomNav } from '../components/BottomNav';
 import { FeedCard } from '../components/FeedCard';
+import { FilterSheet } from '../components/FilterSheet';
 import { HeaderBar } from '../components/HeaderBar';
 import { HeroSection, type HeroVariant } from '../components/HeroSection';
 import { useAuth } from '../lib/auth-context';
@@ -26,8 +29,13 @@ import { colors, radii, spacing, typography } from '../theme/tokens';
  */
 export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant }) {
   const { user } = useAuth();
+  const [filters, setFilters] = useState<TemporaryFilter>({});
+  const [sort, setSort] = useState<DiscoverySort>('NEWEST_THEN_CLOSEST');
+  const [sheetOpen, setSheetOpen] = useState(false);
   const { items, isLive, loading, refreshing, loadingMore, error, refresh, loadMore } =
-    useDiscoveryFeed();
+    useDiscoveryFeed({ filters, sort });
+
+  const filtersActive = Object.keys(filters).length > 0;
 
   // D9: discovery withholds the feed until the setup fee settles, so showing an
   // empty feed here would be a dead end. This state has one action: pay.
@@ -56,7 +64,11 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
         ListHeaderComponent={
           <View style={styles.header}>
             <HeaderBar />
-            <HeroSection variant={heroVariant} />
+            <HeroSection
+              variant={heroVariant}
+              onOpenFilters={() => setSheetOpen(true)}
+              filtersActive={filtersActive}
+            />
             {!isLive && <SignInBanner />}
           </View>
         }
@@ -65,7 +77,9 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
             {loading ? (
               <ActivityIndicator color={colors.primary} />
             ) : (
-              <Text style={styles.stateText}>No profiles to show yet.</Text>
+              <Text style={styles.stateText}>
+                {filtersActive ? 'No profiles match these filters.' : 'No profiles to show yet.'}
+              </Text>
             )}
           </View>
         }
@@ -88,6 +102,22 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
         onEndReached={loadMore}
       />
       <BottomNav />
+      <FilterSheet
+        visible={sheetOpen}
+        filters={filters}
+        sort={sort}
+        onApply={(nextFilters, nextSort) => {
+          setFilters(nextFilters);
+          setSort(nextSort);
+          setSheetOpen(false);
+        }}
+        onReset={() => {
+          setFilters({});
+          setSort('NEWEST_THEN_CLOSEST');
+          setSheetOpen(false);
+        }}
+        onClose={() => setSheetOpen(false)}
+      />
     </AppShell>
   );
 }
