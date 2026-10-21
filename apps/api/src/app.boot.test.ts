@@ -93,6 +93,15 @@ describe('application bootstrap (section 41)', () => {
     expect(Number.isNaN(Date.parse(response.body.serverTime))).toBe(false);
   });
 
+  it('parses nested query objects so discovery filters arrive as an object', () => {
+    // Express 5 defaults to the "simple" parser, under which
+    // `filters[age_min]=25` stays one literal key and DiscoveryQuerySchema
+    // rejects it. The shared contract nests temporary filters, so the extended
+    // parser has to be selected explicitly.
+    const instance = app.getHttpAdapter().getInstance() as { get: (key: string) => unknown };
+    expect(instance.get('query parser')).toBe('extended');
+  });
+
   it('refuses to boot on an invalid environment', () => {
     // Fails closed: a deployment missing secrets must not start half-working.
     expect(() => loadEnv({ ...TEST_ENV, JWT_ACCESS_SECRET: undefined } as Record<string, unknown>)).toThrow(

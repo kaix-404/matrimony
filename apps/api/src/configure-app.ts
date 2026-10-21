@@ -17,6 +17,13 @@ import type { Env } from './config/env';
  * of them call this function.
  */
 export function configureApp(app: INestApplication, env: Env): void {
+  // Express 5 defaults to the "simple" query parser, which leaves
+  // `filters[age_min]=25` as one literal key. Discovery carries its temporary
+  // filters as a nested object in the shared contract, so the extended (qs)
+  // parser is required for `@Query()` to produce the shape those schemas
+  // validate.
+  app.getHttpAdapter().getInstance().set('query parser', 'extended');
+
   app.use(
     helmet({
       // The API serves JSON only; a restrictive CSP costs nothing.
