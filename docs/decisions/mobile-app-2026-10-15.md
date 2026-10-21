@@ -21,7 +21,7 @@
 
 ## Notes / open questions
 
-- React versions: Expo SDK 57 pins React 19.2.3; admin uses 19.3.1 - npm workspaces resolve per-app (nested under mobile where needed) and both satisfy the peer ranges (`react-native` peers `react: ^19.2.3`); no build-time conflict. `expo-doctor` flags the duplicate as a warning only.
+- React versions: Expo SDK 57 pins React 19.2.3; the admin dashboard originally used 19.3.x and npm hoisted it, leaving the app with a nested 19.2.3 and `expo-doctor` flagging duplicate native modules. React/react-dom are now pinned to 19.2.3 everywhere (admin dependency, root `overrides`, and a root devDependency anchor so npm does not install a newer peer copy), which satisfies Next's `^19` peer and gives a single copy in the tree; `expo-doctor` passes all 21 checks.
 - Native push (FCM): device token registration is already implemented server-side (`/devices` POST/GET/DELETE). Mobile will need FCM token retrieval (`expo-notifications` or `@react-native-firebase/messaging`); choice depends on distribution (Expo Go vs dev builds) - add later per requirements.
 - EAS: store IDs (iOS `bundleIdentifier`, Android `package`) pending client decision (client questions list mobile platforms/store accounts as open)
 - Env: `EXPO_PUBLIC_API_BASE_URL` or `expoConfig.extra.apiBaseUrl`; defaults to `http://localhost:4000/api/v1`
