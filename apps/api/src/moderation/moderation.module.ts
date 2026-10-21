@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { AccountDeletionController } from './account-deletion.controller';
 import { AccountDeletionService } from './account-deletion.service';
+import { AccountRetentionSweeper } from './account-retention.sweeper';
 import { BlocksController } from './blocks.controller';
 import { BlocksService } from './blocks.service';
 import { ReportsController } from './reports.controller';
@@ -28,7 +29,7 @@ import { ReportsService } from './reports.service';
 @Module({
   imports: [AuthModule],
   controllers: [BlocksController, ReportsController, AccountDeletionController],
-  providers: [BlocksService, ReportsService, AccountDeletionService],
+  providers: [BlocksService, ReportsService, AccountDeletionService, AccountRetentionSweeper],
   exports: [BlocksService, ReportsService, AccountDeletionService],
 })
 export class ModerationModule {}

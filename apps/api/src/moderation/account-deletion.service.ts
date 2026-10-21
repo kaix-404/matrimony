@@ -1,6 +1,6 @@
-import { Inject, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { AccountDeletionResult } from '@matrimony/shared';
-import { PrismaClient, UserStatus } from '../prisma/prisma-client';
+import { Prisma, PrismaClient, UserStatus } from '../prisma/prisma-client';
 import { ClockService } from '../common/clock/clock.service';
 import { OtpService } from '../auth/otp.service';
 import type { Env } from '../config/env';
@@ -47,6 +47,8 @@ function addMonths(from: Date, months: number): Date {
  */
 @Injectable()
 export class AccountDeletionService {
+  private readonly logger = new Logger(AccountDeletionService.name);
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly otp: OtpService,
@@ -117,5 +119,112 @@ export class AccountDeletionService {
     ]);
 
     return { deleted: true, purge_after: purgeAfter.toISOString() };
+  }
+
+  /**
+   * Section 21, second half: erase the PII of accounts whose retention window
+   * has closed.
+   *
+   * `deleteAccount` only *becomes* deleted and sets `purgeAfter`; without this
+   * pass the deadline is a column nothing reads, and "retention-then-anonymise"
+   * stops at retention. The window is deliberate — client answer F6 keeps the
+   * row recoverable for a few months in case a deletion was a mistake — so this
+   * only touches a row once `purgeAfter <= now`.
+   *
+   * What is erased is the person: the mobile (the sole login identifier) and
+   * email are replaced with a per-account tombstone, and the profile's prose and
+   * demographics are blanked. What is kept is the accounting: section 21 says
+   * payment records are retained, so `Payment` and `ContactUnlock` are never
+   * touched, and their foreign keys survive because the `User`/`Profile` rows
+   * themselves survive — anonymised, not deleted.
+   *
+   * The mobile is overwritten with a deterministic tombstone rather than
+   * `NULL`: the column is `@unique` and `NOT NULL`, and a freed-up real number
+   * must be able to register again — the tombstone is what lets the same mobile
+   * return as a fresh account while the erased row keeps a stable, non-PII value.
+   *
+   * Idempotent by construction: the `where` only matches `isAnonymised: false`,
+   * so a second sweep, a concurrent instance or a redeploy finds nothing to do
+   * for a row already erased.
+   */
+  async purgeDue(now: Date = this.clock.now()): Promise<number> {
+    const due = await this.prisma.user.findMany({
+      where: { purgeAfter: { lte: now }, isAnonymised: false },
+      select: { id: true, profile: { select: { id: true } } },
+    });
+
+    let purged = 0;
+    for (const account of due) {
+      const tombstoneMobile = `purged:${account.id}`;
+      const ops: unknown[] = [
+        this.prisma.user.update({
+          where: { id: account.id },
+          data: {
+            mobile: tombstoneMobile,
+            email: null,
+            isAnonymised: true,
+            // The lockout and login counters describe attempts against a
+            // mobile that no longer belongs to this row.
+            failedLoginCount: 0,
+            lockedUntil: null,
+            lastLoginAt: null,
+          },
+        }),
+      ];
+
+      if (account.profile) {
+        // Photos and interests are links to a person, not a payment; the photos
+        // also hold object keys whose bytes the storage lifecycle expires.
+        ops.push(
+          this.prisma.profilePhoto.deleteMany({ where: { profileId: account.profile.id } }),
+          this.prisma.profileInterest.deleteMany({ where: { profileId: account.profile.id } }),
+          this.prisma.profile.update({
+            where: { id: account.profile.id },
+            data: {
+              firstName: 'Deleted',
+              lastName: null,
+              timeOfBirth: null,
+              placeOfBirth: null,
+              heightCm: null,
+              religion: null,
+              communityId: null,
+              motherTongue: null,
+              swagotra: null,
+              maternalGothra: null,
+              rashi: null,
+              nakshatra: null,
+              gan: null,
+              manglikStatus: null,
+              educationId: null,
+              professionId: null,
+              company: null,
+              annualIncome: null,
+              workLocation: null,
+              fathersOccupation: null,
+              mothersOccupation: null,
+              siblings: null,
+              familyLocation: null,
+              familyDescription: null,
+              foodPreference: null,
+              smoking: null,
+              drinking: null,
+              aboutMe: null,
+              attributes: Prisma.DbNull,
+              country: null,
+              state: null,
+              city: null,
+            },
+          }),
+        );
+      }
+
+      await this.prisma.$transaction(ops as never);
+      purged += 1;
+    }
+
+    if (purged > 0) {
+      this.logger.log(`Anonymised ${purged} account(s) past their retention window.`);
+    }
+    return purged;
   }
 }
