@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { MyProfile, NetWorthCategoryOption, ProfileCompleteness } from '@matrimony/shared';
@@ -44,6 +44,7 @@ export default function ProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notCreated, setNotCreated] = useState(false);
+  const [savingVisibility, setSavingVisibility] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -77,6 +78,22 @@ export default function ProfileScreen() {
     useCallback(() => {
       if (ready) void load();
     }, [ready, load]),
+  );
+
+  const setVisible = useCallback(
+    async (next: boolean) => {
+      if (!token || profile === null) return;
+      setSavingVisibility(true);
+      setError(null);
+      try {
+        setProfile(await apiClient.setProfileVisibility(next ? 'ACTIVE' : 'PAUSED', token));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Could not change visibility.');
+      } finally {
+        setSavingVisibility(false);
+      }
+    },
+    [token, profile],
   );
 
   useEffect(() => {
@@ -131,6 +148,19 @@ export default function ProfileScreen() {
           <Text style={styles.meta}>
             {profile?.visibility === 'ACTIVE' ? 'Visible to your selected bands' : profile?.visibility}
           </Text>
+        </View>
+        <View style={styles.toggleRow}>
+          <View style={styles.toggleText}>
+            <Text style={styles.toggleTitle}>Visible in discovery</Text>
+            <Text style={styles.meta}>Pause your profile without deleting it.</Text>
+          </View>
+          <Switch
+            value={profile?.visibility === 'ACTIVE'}
+            onValueChange={(next) => void setVisible(next)}
+            disabled={savingVisibility || profile === null}
+            trackColor={{ false: colors.hairline, true: colors.primary }}
+            thumbColor={colors.white}
+          />
         </View>
       </View>
 
@@ -207,6 +237,22 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.xs,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.md,
+    paddingTop: spacing.xs,
+  },
+  toggleText: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  toggleTitle: {
+    color: colors.textPrimary,
+    ...typography.body,
+    fontWeight: '600',
   },
   doneRow: {
     flexDirection: 'row',
