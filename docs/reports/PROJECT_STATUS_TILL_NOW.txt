@@ -1,5 +1,5 @@
 ﻿NETWORTH MATRIMONY - PROJECT STATUS REPORT
-Report Date: October 21, 2026 | Branch: main (601156b) | Repo: D:\matrimony
+Report Date: October 23, 2026 | Branch: main (5719957) | Repo: D:\matrimony
 
 SUMMARY:
   Platform is feature-complete end to end. Phases 0-8 delivered: auth (with OTP
@@ -10,13 +10,13 @@ SUMMARY:
   the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP
   sign-in and registration, discovery with temporary filters and sort, member
   previews and Razorpay checkout, the account setup fee, profile and photo
-  management, visibility preferences, notifications, unlocks, and the
-  feature-flagged For You feed. All gates green with 849 tests.
+  management, biodata import, visibility preferences, notifications, unlocks, and
+  the feature-flagged For You feed. All gates green with 888 tests.
 
 KEY METRICS:
-  Tests: 849 (572 API + 29 Admin + 236 Shared + 12 Mobile) across 54 suites
+  Tests: 888 (582 API + 29 Admin + 257 Shared + 20 Mobile) across 57 suites
   Admin permission keys: 21
-  Current Commit: 601156b
+  Current Commit: 5719957
   Status: All Gates Green
 
 PHASE STATUS:
@@ -31,7 +31,23 @@ PHASE STATUS:
   8 Admin API - Complete (Next.js dashboard delivered)
   9 Mobile - Complete (Expo SDK 57 member app)
 
-RECENT (Oct 21, 2026):
+RECENT (Oct 23, 2026):
+  Biodata import (member app + API) - a member can upload a biodata (typed or
+    exported PDF, or a plain text file) and have the recognised fields proposed
+    for the profile form instead of retyping each one. Extraction is a
+    deterministic text parser (no OCR/LLM provider is configured) and runs
+    server-side, so the client ships no parser; packages/shared/src/biodata-parse.ts
+    is pure and unit-tested, and apps/api/src/profile/pdf-text.ts extracts PDF text
+    on node:zlib alone (no new API dependency). Same three-step upload shape as
+    photos: the API mints a presigned PUT, the client sends bytes straight to
+    storage, then posts the object key to POST /profile/biodata/parse. The API
+    reads the document itself and accepts only a key under the caller's own
+    biodata/ prefix, so it cannot be pointed at another profile's upload or an
+    arbitrary URL; the response is a proposal, never a save. Education, profession
+    and community are matched against the master lists for a value id; an unmatched
+    one is reported as still needed rather than offered as fillable text. The app
+    shows each value with its confidence for review and confirm, and the save goes
+    through the ordinary PATCH with the same validators.
   Member app (Phase 9) - apps/mobile (@matrimony/mobile) on Expo SDK 57, React
     Native 0.86 and Expo Router with strict TypeScript, consuming @matrimony/shared
     contracts; the typed API client validates bodies and responses with Zod.
@@ -43,10 +59,11 @@ RECENT (Oct 21, 2026):
     in a WebView with the order key_id, status polling, unlock expiry in matches.
     Setup fee: verified accounts advance to AWAITING_SETUP_FEE, the home feed gates
     until payment, and a dedicated screen shows Rs 15.00 + 18% GST = Rs 17.70.
-    Profile: completeness, field editing, photo upload with primary/delete, and a
-    visibility toggle. Settings: net-worth discover/visible-to preferences, sign
-    out, OTP-confirmed account deletion. Notifications: in-app list with unread
-    badges and push registration via expo-notifications -> POST /devices.
+    Profile: completeness, field editing, photo upload with primary/delete, biodata
+    import, and a visibility toggle. Settings: net-worth discover/visible-to
+    preferences, sign out, OTP-confirmed account deletion. Notifications: in-app
+    list with unread badges and push registration via expo-notifications ->
+    POST /devices.
     For You: curated interest picker, shared-interest recommendation cards, a fifth
     tab, and a graceful coming-soon state while FEATURE_AI_RECOMMENDATIONS is off.
     Tests: Jest via the jest-expo preset covers the feed view model and interest
@@ -92,7 +109,7 @@ RECENT (Oct 21, 2026):
     build pinned to webpack.
 
 QUALITY ASSURANCE:
-  Tests: 849 passed (572 API + 29 Admin + 236 Shared + 12 Mobile)
+  Tests: 888 passed (582 API + 29 Admin + 257 Shared + 20 Mobile)
   Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
   Lint: PASS
   Build: PASS (shared + API + admin)

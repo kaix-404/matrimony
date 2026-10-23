@@ -26,10 +26,10 @@
 </style>
 </head>
 <body>
-<p>∩╗┐# Networth Matrimony - Project Status Report</p>
-<p><strong>Report Date:</strong> October 21, 2026  |  <strong>Branch:</strong> main (3fc81fd)  |  <strong>Repository:</strong> D:\matrimony</p>
+<h1>Networth Matrimony - Project Status Report</h1>
+<p><strong>Report Date:</strong> October 23, 2026  |  <strong>Branch:</strong> main (5719957)  |  <strong>Repository:</strong> D:\matrimony</p>
 <h2>Executive Summary</h2>
-<p>The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 849 automated tests passing.</p>
+<p>The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 888 automated tests passing.</p>
 <h2>Key Metrics</h2>
 <table>
 <thead>
@@ -40,11 +40,11 @@
 </thead>
 <tbody><tr>
 <td>Automated Tests</td>
-<td>849 (572 API + 29 Admin + 236 Shared + 12 Mobile)</td>
+<td>888 (582 API + 29 Admin + 257 Shared + 20 Mobile)</td>
 </tr>
 <tr>
 <td>Test Suites</td>
-<td>54 (37 API + 4 Admin + 11 Shared + 2 Mobile)</td>
+<td>57 (38 API + 4 Admin + 12 Shared + 3 Mobile)</td>
 </tr>
 <tr>
 <td>Admin Permission Keys</td>
@@ -52,7 +52,7 @@
 </tr>
 <tr>
 <td>Current Commit</td>
-<td>601156b</td>
+<td>5719957</td>
 </tr>
 <tr>
 <td>Status</td>
@@ -131,6 +131,15 @@
 </tr>
 </tbody></table>
 <h2>Recent Accomplishments</h2>
+<h3>Biodata Import (Member App + API)</h3>
+<ul>
+<li>A member can upload a biodata (a typed/exported PDF or a plain text file) and have the recognised fields proposed for the profile form, instead of retyping every detail</li>
+<li>Extraction is a deterministic text parser (no OCR/LLM provider is configured) and runs server-side, so the client ships no parser; <code>packages/shared/src/biodata-parse.ts</code> is pure and unit-tested, and <code>apps/api/src/profile/pdf-text.ts</code> extracts PDF text on <code>node:zlib</code> alone (no new API dependency)</li>
+<li>Same three-step upload shape as photos: the API mints a presigned PUT, the client sends the bytes straight to storage, then posts the object key to <code>POST /profile/biodata/parse</code></li>
+<li>The API reads the document itself and accepts only a key under the caller&#39;s own <code>biodata/</code> prefix, so it cannot be pointed at another profile&#39;s upload or an arbitrary URL; the response is a proposal, never a save</li>
+<li>Education, profession and community are matched against the master lists for a value id; an unmatched one is reported as still needed rather than offered as fillable text</li>
+<li>The member app shows each extracted value with its confidence for review and confirm, the user unticks what is wrong, and the save goes through the ordinary PATCH with the same validators</li>
+</ul>
 <h3>Phase 9 - Member App (Expo + React Native)</h3>
 <ul>
 <li><code>apps/mobile</code> (<code>@matrimony/mobile</code>): Expo SDK 57, React Native 0.86, Expo Router, strict TypeScript, consuming <code>@matrimony/shared</code> contracts; typed API client validates every request body and response with Zod</li>
@@ -138,7 +147,7 @@
 <li>Discovery: cursor-paginated infinite feed of locked cards, temporary filters (age, height, city, state, education, profession, verified photos) and sort applied per request, plus a filter/sort bottom sheet; the API now parses nested filter query objects</li>
 <li>Member previews and payments: locked/unlocked/expired states, Razorpay checkout in a WebView with the order <code>key_id</code>, status polling against <code>GET /payments/:id</code>, and unlock expiry shown in the matches tab</li>
 <li>Account setup fee: verified accounts move to <code>AWAITING_SETUP_FEE</code>; the home feed gates until payment, with a dedicated screen showing the Rs 15.00 + 18% GST = Rs 17.70 breakdown and a one-time order</li>
-<li>Profile: own profile with completeness, field editing, direct-to-storage photo upload with primary/delete management, and a visibility toggle</li>
+<li>Profile: own profile with completeness, field editing, direct-to-storage photo upload with primary/delete management, biodata import, and a visibility toggle</li>
 <li>Settings: net-worth discover/visible-to preference editor, sign out, and OTP-confirmed account deletion</li>
 <li>Notifications: in-app list with unread badges and push registration through <code>expo-notifications</code> -&gt; <code>POST /devices</code>; dead tokens are pruned server-side</li>
 <li>For You: curated interest picker, recommendation cards ranked by shared-interest overlap with the common tags shown, a fifth tab, and a graceful &quot;coming soon&quot; state while <code>FEATURE_AI_RECOMMENDATIONS</code> is off</li>
@@ -153,7 +162,7 @@
 </ul>
 <h3>Push Delivery over Firebase (Section 42, resolves GAP-12&#39;s push half)</h3>
 <ul>
-<li><code>PushGateway</code> seam bound to <code>FcmPushGateway</code> in <code>PushModule</code>: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on <code>node:crypto</code> ├óΓé¼ΓÇ¥ no legacy server key, no <code>firebase-admin</code>; fails closed when unconfigured</li>
+<li><code>PushGateway</code> seam bound to <code>FcmPushGateway</code> in <code>PushModule</code>: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on <code>node:crypto</code> ??? no legacy server key, no <code>firebase-admin</code>; fails closed when unconfigured</li>
 <li><code>DeviceToken</code> model + <code>DevicePlatform</code> enum; <code>NotificationStatus</code> gains <code>SENDING</code> for the in-flight claim; migration <code>20261014140000_device_tokens_push</code></li>
 <li><code>POST/GET /devices</code> and <code>DELETE /devices/:token</code> under <code>JwtAuthGuard</code>; registration upserts on the token and reassigns its owner, and the token is never echoed back</li>
 <li><code>PushDispatchService</code> claims a row <code>PENDING</code> -&gt; <code>SENDING</code> with a conditional update (at-least-once, never twice-per-worker), requeues a stale <code>SENDING</code> row, prunes a token FCM reports <code>UNREGISTERED</code>, and marks <code>SENT</code>/<code>FAILED</code>; <code>PushDispatchSweeper</code> runs on a 60-second timer</li>
@@ -204,7 +213,7 @@
 </ul>
 <h2>Quality Assurance</h2>
 <ul>
-<li>Tests: 849 passed (572 API + 29 Admin + 236 Shared + 12 Mobile)</li>
+<li>Tests: 888 passed (582 API + 29 Admin + 257 Shared + 20 Mobile)</li>
 <li>Typecheck: PASS (workspaces + tools, including the seed and the mobile app)</li>
 <li>Lint: PASS</li>
 <li>Build: PASS (shared + API + admin)</li>

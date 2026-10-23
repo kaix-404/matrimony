@@ -1,19 +1,19 @@
 ﻿# Networth Matrimony - Project Status Report
 
-**Report Date:** October 21, 2026  |  **Branch:** main (3fc81fd)  |  **Repository:** D:\matrimony
+**Report Date:** October 23, 2026  |  **Branch:** main (5719957)  |  **Repository:** D:\matrimony
 
 ## Executive Summary
 
-The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 849 automated tests passing.
+The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 888 automated tests passing.
 
 ## Key Metrics
 
 | Metric | Value |
 |---|---|
-| Automated Tests | 849 (572 API + 29 Admin + 236 Shared + 12 Mobile) |
-| Test Suites | 54 (37 API + 4 Admin + 11 Shared + 2 Mobile) |
+| Automated Tests | 888 (582 API + 29 Admin + 257 Shared + 20 Mobile) |
+| Test Suites | 57 (38 API + 4 Admin + 12 Shared + 3 Mobile) |
 | Admin Permission Keys | 21 |
-| Current Commit | 601156b |
+| Current Commit | 5719957 |
 | Status | All Gates Green |
 
 ## Implementation Status by Phase
@@ -33,13 +33,21 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 
 ## Recent Accomplishments
 
+### Biodata Import (Member App + API)
+- A member can upload a biodata (a typed/exported PDF or a plain text file) and have the recognised fields proposed for the profile form, instead of retyping every detail
+- Extraction is a deterministic text parser (no OCR/LLM provider is configured) and runs server-side, so the client ships no parser; `packages/shared/src/biodata-parse.ts` is pure and unit-tested, and `apps/api/src/profile/pdf-text.ts` extracts PDF text on `node:zlib` alone (no new API dependency)
+- Same three-step upload shape as photos: the API mints a presigned PUT, the client sends the bytes straight to storage, then posts the object key to `POST /profile/biodata/parse`
+- The API reads the document itself and accepts only a key under the caller's own `biodata/` prefix, so it cannot be pointed at another profile's upload or an arbitrary URL; the response is a proposal, never a save
+- Education, profession and community are matched against the master lists for a value id; an unmatched one is reported as still needed rather than offered as fillable text
+- The member app shows each extracted value with its confidence for review and confirm, the user unticks what is wrong, and the save goes through the ordinary PATCH with the same validators
+
 ### Phase 9 - Member App (Expo + React Native)
 - `apps/mobile` (`@matrimony/mobile`): Expo SDK 57, React Native 0.86, Expo Router, strict TypeScript, consuming `@matrimony/shared` contracts; typed API client validates every request body and response with Zod
 - Auth and onboarding: phone OTP request/verify, registration, rotating access/refresh tokens in `expo-secure-store` with transparent refresh on 401, `useRequireAuth` gate, and profile creation with completeness prompts
 - Discovery: cursor-paginated infinite feed of locked cards, temporary filters (age, height, city, state, education, profession, verified photos) and sort applied per request, plus a filter/sort bottom sheet; the API now parses nested filter query objects
 - Member previews and payments: locked/unlocked/expired states, Razorpay checkout in a WebView with the order `key_id`, status polling against `GET /payments/:id`, and unlock expiry shown in the matches tab
 - Account setup fee: verified accounts move to `AWAITING_SETUP_FEE`; the home feed gates until payment, with a dedicated screen showing the Rs 15.00 + 18% GST = Rs 17.70 breakdown and a one-time order
-- Profile: own profile with completeness, field editing, direct-to-storage photo upload with primary/delete management, and a visibility toggle
+- Profile: own profile with completeness, field editing, direct-to-storage photo upload with primary/delete management, biodata import, and a visibility toggle
 - Settings: net-worth discover/visible-to preference editor, sign out, and OTP-confirmed account deletion
 - Notifications: in-app list with unread badges and push registration through `expo-notifications` -> `POST /devices`; dead tokens are pruned server-side
 - For You: curated interest picker, recommendation cards ranked by shared-interest overlap with the common tags shown, a fifth tab, and a graceful "coming soon" state while `FEATURE_AI_RECOMMENDATIONS` is off
@@ -97,7 +105,7 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 
 ## Quality Assurance
 
-- Tests: 849 passed (572 API + 29 Admin + 236 Shared + 12 Mobile)
+- Tests: 888 passed (582 API + 29 Admin + 257 Shared + 20 Mobile)
 - Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
