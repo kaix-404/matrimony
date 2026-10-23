@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { PutObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Env } from '../config/env';
-
 /**
  * Object storage, addressed through the S3 API.
  *
@@ -84,5 +83,28 @@ export class StorageService {
         expiresIn: this.signedUrlTtl,
       },
     );
+  }
+
+  /**
+   * Reads an object back into memory.
+   *
+   * The one place the API does hold an upload's bytes: biodata extraction has to
+   * see the document to parse it, and unlike a photo there is no way to hand the
+   * parsing to the client without shipping the whole parser there too. The cap
+   * is the caller's job — this returns whatever is stored — so the only callers
+   * are ones that reserved the key through a flow which bounded the size.
+   */
+  async getObjectBytes(objectKey: string): Promise<Buffer> {
+    const response = await this.client.send(
+      new GetObjectCommand({ Bucket: this.bucket, Key: objectKey }),
+    );
+    const body = response.Body;
+    if (!body) throw new Error('Object has no body');
+
+    const chunks: Buffer[] = [];
+    for await (const chunk of body as AsyncIterable<Uint8Array | Buffer>) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
   }
 }

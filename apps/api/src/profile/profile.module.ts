@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { MasterDataModule } from '../master-data/master-data.module';
+import { BiodataService } from './biodata.service';
 import { PhotoService } from './photo.service';
 import { ProfileController } from './profile.controller';
 import { ProfileService } from './profile.service';
@@ -21,7 +22,7 @@ import { ProfileService } from './profile.service';
 @Module({
   imports: [AuthModule, MasterDataModule],
   controllers: [ProfileController],
-  providers: [ProfileService, PhotoService],
+  providers: [ProfileService, PhotoService, BiodataService],
   exports: [ProfileService],
 })
 export class ProfileModule {}

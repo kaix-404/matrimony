@@ -1,11 +1,14 @@
 import { config } from './config';
 import type {
   AccountDeletionResult,
+  BiodataExtraction,
+  BiodataUploadTicket,
   CreateProfileInput,
   CurrentUser,
   DeviceTokenResponse,
   DiscoveryResponse,
   ExpiredUnlockResponse,
+  InitiateBiodataUploadInput,
   ListNotificationsResponse,
   LockedProfileResponse,
   MasterListsResponse,
@@ -305,6 +308,40 @@ class ApiClient {
   async deletePhoto(photoId: string, token: string): Promise<void> {
     await this.fetchJson('profile/photos/' + encodeURIComponent(photoId), {
       method: 'DELETE',
+      headers: authHeaders(token),
+    });
+  }
+
+  // -- biodata import -------------------------------------------------------
+
+  /**
+   * Reserves an upload slot for a biodata document and returns a presigned PUT.
+   *
+   * Same three-step handshake as photos: initiate, PUT the bytes straight to
+   * storage, then send the key to `/biodata/parse`. The bytes never pass through
+   * the API.
+   */
+  async initiateBiodataUpload(
+    input: InitiateBiodataUploadInput,
+    token: string,
+  ): Promise<BiodataUploadTicket> {
+    return this.fetchJson('profile/biodata/upload', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: authHeaders(token),
+    });
+  }
+
+  /**
+   * Asks the API to read the uploaded document and propose profile fields.
+   *
+   * Read-only on the server: the returned proposal is shown for review and the
+   * save goes through `updateProfile` as normal.
+   */
+  async parseBiodata(objectKey: string, token: string): Promise<BiodataExtraction> {
+    return this.fetchJson('profile/biodata/parse', {
+      method: 'POST',
+      body: JSON.stringify({ object_key: objectKey }),
       headers: authHeaders(token),
     });
   }

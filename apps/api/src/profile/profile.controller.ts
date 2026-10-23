@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthUser, JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { BiodataService } from './biodata.service';
 import { PhotoService } from './photo.service';
 import { ProfileService } from './profile.service';
 import { ProfileVisibility } from '../prisma/prisma-client';
@@ -35,6 +36,13 @@ import {
   type InitiatePhotoUploadInput,
   type SetVisibilityInput,
 } from './dto.js';
+import {
+  InitiateBiodataUploadSchema,
+  ParseBiodataSchema,
+  type BiodataExtraction,
+  type InitiateBiodataUploadInput,
+  type ParseBiodataInput,
+} from '@matrimony/shared';
 
 /**
  * The caller's own profile.
@@ -52,6 +60,7 @@ export class ProfileController {
   constructor(
     private readonly profiles: ProfileService,
     private readonly photos: PhotoService,
+    private readonly biodata: BiodataService,
   ) {}
 
   /** The full record, including the caller's own category, read-only. */
@@ -162,5 +171,36 @@ export class ProfileController {
     @Param('photoId') photoId: string,
   ): Promise<void> {
     await this.photos.remove(claims.sub, photoId);
+  }
+
+  // -- biodata import --------------------------------------------------------
+
+  /**
+   * Reserves an upload and returns a presigned PUT for the document.
+   *
+   * Same three-step shape as photos — initiate, PUT the bytes straight to
+   * storage, then parse by key — so the client learns one upload flow.
+   */
+  @Post('biodata/upload')
+  @HttpCode(201)
+  async initiateBiodataUpload(
+    @AuthUser() claims: AccessTokenClaims,
+    @Body(new ZodValidationPipe(InitiateBiodataUploadSchema)) body: InitiateBiodataUploadInput,
+  ) {
+    return this.biodata.initiate(claims.sub, body);
+  }
+
+  /**
+   * Parses the uploaded document and returns a proposal. Read-only: nothing is
+   * written to the profile, and the client saves through `PATCH /profile` after
+   * the user reviews the fields.
+   */
+  @Post('biodata/parse')
+  @HttpCode(200)
+  async parseBiodata(
+    @AuthUser() claims: AccessTokenClaims,
+    @Body(new ZodValidationPipe(ParseBiodataSchema)) body: ParseBiodataInput,
+  ): Promise<BiodataExtraction> {
+    return this.biodata.parse(claims.sub, body.object_key);
   }
 }

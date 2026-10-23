@@ -1,5 +1,5 @@
 import { useCallback, useState, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
   GENDERS,
@@ -170,6 +170,17 @@ export default function ProfileEditScreen() {
       }
     >
       {error !== null ? <Text style={styles.error}>{error}</Text> : null}
+
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.push('/biodata-import')}
+        style={styles.importBanner}
+      >
+        <Text style={styles.importTitle}>Import from a biodata</Text>
+        <Text style={styles.importBody}>
+          Already have a biodata PDF? Upload it and we will fill the form for you.
+        </Text>
+      </Pressable>
 
       <Section title="Identity">
         <TextField
@@ -477,6 +488,21 @@ const styles = StyleSheet.create({
   },
   error: {
     color: colors.primary,
+    ...typography.caption,
+  },
+  importBanner: {
+    gap: spacing.xs,
+    padding: spacing.lg,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  importTitle: {
+    color: colors.textPrimary,
+    ...typography.h2,
+  },
+  importBody: {
+    color: colors.textMuted,
     ...typography.caption,
   },
 });
