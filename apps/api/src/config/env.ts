@@ -16,6 +16,18 @@ const booleanish = z
     typeof v === 'boolean' ? v : ['1', 'true', 'yes', 'on'].includes(v.toLowerCase()),
   );
 
+/** Feature flag: false | true | 0-100 (percentage rollout). */
+const featureFlag = z
+  .union([z.boolean(), z.number().int().min(0).max(100), z.string()])
+  .transform((v) => {
+    if (typeof v === 'boolean') return v;
+    if (typeof v === 'number') return v;
+    const s = v.trim().toLowerCase();
+    if (s.endsWith('%')) return Math.max(0, Math.min(100, Number.parseInt(s, 10)));
+    if (/^\d+$/.test(s)) return Math.max(0, Math.min(100, Number.parseInt(s, 10)));
+    return ['1', 'true', 'yes', 'on'].includes(s);
+  });
+
 const csv = z
   .string()
   .optional()
@@ -178,7 +190,7 @@ export function createEnvSchema(isProduction: boolean) {
      * which is the gradual rollout the client asked for. Flagged rather than
      * gated by a build because enabling it must not need a release.
      */
-    FEATURE_AI_RECOMMENDATIONS: booleanish.default(false),
+    FEATURE_AI_RECOMMENDATIONS: featureFlag.default(false),
   });
 }
 

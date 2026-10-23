@@ -44,9 +44,9 @@ export class RecommendationService {
   ) {}
 
   async forYou(viewerId: string, query: RecommendationsQuery): Promise<RecommendationsResponse> {
-    // Answer 7: dark by default. No candidate is queried when off, so a disabled
-    // deployment produces no recommendation data at all.
-    if (!this.flags.isEnabled('aiRecommendations')) {
+    // Answer 7: gradual rollout. A percentage of users gets the feature; others
+    // get `{ enabled: false, items: [] }` — a 200 so the client hides the tab.
+    if (!this.flags.isEnabledForUser('aiRecommendations', viewerId)) {
       return { enabled: false, items: [], applied_categories: [], next_cursor: null };
     }
 

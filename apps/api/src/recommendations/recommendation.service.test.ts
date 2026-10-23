@@ -78,7 +78,7 @@ describe('RecommendationService', () => {
     candidateWhere: jest.Mock;
     previewPhotos: jest.Mock;
   };
-  let flags: { isEnabled: jest.Mock };
+  let flags: { isEnabledForUser: jest.Mock };
 
   const query = (over: Partial<RecommendationsQuery> = {}): RecommendationsQuery => ({
     limit: 20,
@@ -105,7 +105,7 @@ describe('RecommendationService', () => {
         })),
       ),
     };
-    flags = { isEnabled: jest.fn(() => true) };
+    flags = { isEnabledForUser: jest.fn(() => true) };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -138,7 +138,7 @@ describe('RecommendationService', () => {
 
   describe('the feature flag (answer 7)', () => {
     it('answers disabled and queries nothing when off', async () => {
-      flags.isEnabled.mockReturnValue(false);
+      flags.isEnabledForUser.mockReturnValue(false);
       setViewerInterests(['MUSIC']);
       seed('a');
 
@@ -154,9 +154,9 @@ describe('RecommendationService', () => {
       expect(prisma.profileFindManyCalls).toBe(0);
     });
 
-    it('checks the aiRecommendations flag', async () => {
+    it('checks the aiRecommendations flag for the viewer', async () => {
       await service.forYou('viewer', query());
-      expect(flags.isEnabled).toHaveBeenCalledWith('aiRecommendations');
+      expect(flags.isEnabledForUser).toHaveBeenCalledWith('aiRecommendations', 'viewer');
     });
   });
 
