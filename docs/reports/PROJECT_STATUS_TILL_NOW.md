@@ -118,3 +118,4 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 - Flip `FEATURE_AI_RECOMMENDATIONS` on after a gradual rollout decision; the For You surface is already shipped behind the flag
 - Email provider is still open (the remaining half of GAP-12; SMS and push are resolved)
 - Client clarifications still open: GAP-11 privacy wording (R2 India is best-effort) and the email half of GAP-12. GAP-2 (net-worth boundaries) is closed: a value exactly on a boundary goes into the higher band, which is what the build already does
+- **Done:** Next.js security advisory resolved — admin upgraded from 16.4.0 to 16.4.2
