@@ -120,7 +120,7 @@ NEXT STEPS:
     (bundleIdentifier / Android package).
 Live provider checks: real Razorpay payment and webhook, real FCM push, real
     MSG91 SMS/email; webhook secret, sender/template/DLT ids and MSG91 email config still unset.
-  Flip FEATURE_AI_RECOMMENDATIONS on after a gradual rollout decision.
+  Done: AI recommendations enabled at 10% rollout (FEATURE_AI_RECOMMENDATIONS=10).
   Email provider still open (the remaining half of GAP-12; SMS and push resolved).
   Client clarifications all closed: GAP-2 (net-worth boundaries) resolved,
     GAP-11 privacy wording accepted (R2 best-effort APAC), GAP-12 email via MSG91.
