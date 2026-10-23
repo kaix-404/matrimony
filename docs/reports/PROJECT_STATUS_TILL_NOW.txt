@@ -118,12 +118,9 @@ QUALITY ASSURANCE:
 NEXT STEPS:
   Device-level QA of the Expo app (dev build) and the pending store identifiers
     (bundleIdentifier / Android package).
-  Live provider checks: real Razorpay payment and webhook, real FCM push, real
-    MSG91 SMS; webhook secret, sender/template/DLT ids and email key still unset.
+Live provider checks: real Razorpay payment and webhook, real FCM push, real
+    MSG91 SMS/email; webhook secret, sender/template/DLT ids and MSG91 email config still unset.
   Flip FEATURE_AI_RECOMMENDATIONS on after a gradual rollout decision.
   Email provider still open (the remaining half of GAP-12; SMS and push resolved).
-  Client clarifications still open: GAP-11 privacy wording (R2 India is
-    best-effort) and the email half of GAP-12. GAP-2 (net-worth boundaries) is
-    closed: a value exactly on a boundary goes into the higher band, which the
-    build already does.
-  Done: Next.js security advisory resolved — admin upgraded from 16.4.0 to 16.4.2.
+  Client clarifications all closed: GAP-2 (net-worth boundaries) resolved,
+    GAP-11 privacy wording accepted (R2 best-effort APAC), GAP-12 email via MSG91.
