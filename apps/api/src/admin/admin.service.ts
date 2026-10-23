@@ -406,10 +406,12 @@ export class AdminService {
   /**
    * Section 25 / F2(a): move a user between net-worth categories.
    *
-   * Only a real, discoverable band is assignable. `PENDING_REVIEW` is the bucket
-   * a boundary value lands in and is not itself a category, so moving a user
-   * *out* of it is the whole point of this action while moving one *into* it
-   * would be a demotion to "invisible"; both are refused only for the latter.
+   * Only a real, discoverable band is assignable. `PENDING_REVIEW` is the
+   * fail-closed bucket for a user no band placed (GAP-2 closed: a boundary value
+   * goes up into the higher band, so it is *not* what a boundary lands in), and it
+   * is not itself a category, so moving a user *out* of it is the whole point of
+   * this action while moving one *into* it would be a demotion to "invisible";
+   * both are refused only for the latter.
    * The write and the audit happen together: a category move without a reason is
    * precisely the unchecked access-control change section 3 forbids.
    */

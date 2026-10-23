@@ -170,10 +170,10 @@ export type PricedBandKey = keyof typeof DEFAULT_PRICING;
  * The four confirmed bands, with inclusive-lower / exclusive-upper rupee
  * bounds. Used by the seed and asserted in tests.
  *
- * GAP-2 in docs/decisions: the client has not defined what happens to a value
- * landing *exactly* on a boundary (exactly ₹2 Cr, ₹5 Cr, ₹10 Cr). These
- * intervals assign boundaries upward into the higher band. That is an
- * implementation choice, not a client decision, and it must be confirmed.
+ * GAP-2 (closed 2026-10-23, client answer 5): a value landing *exactly* on a
+ * boundary (exactly ₹2 Cr, ₹5 Cr, ₹10 Cr) is assigned **upward** into the higher
+ * band, which is what these inclusive-lower / exclusive-upper intervals do. This
+ * was the client's confirmed choice, not merely an implementation default.
  */
 export const NET_WORTH_BANDS: ReadonlyArray<{
   key: PricedBandKey;

@@ -28,7 +28,13 @@ export const SEEDED_NET_WORTH_CATEGORY_KEYS = [
 ] as const;
 export type SeededNetWorthCategoryKey = (typeof SEEDED_NET_WORTH_CATEGORY_KEYS)[number];
 
-/** The bucket for a value landing exactly on a band boundary, pending admin review. */
+/**
+ * The fallback bucket for a value that falls in no band and needs admin review.
+ *
+ * GAP-2 (closed 2026-10-23, client answer 5) confirmed that a value exactly on a
+ * boundary goes *up* into the higher band, so this bucket is not what a boundary
+ * value lands in; it is the fail-closed home for anything a band cannot place.
+ */
 export const NET_WORTH_PENDING_REVIEW_KEY = 'PENDING_REVIEW';
 
 /**
