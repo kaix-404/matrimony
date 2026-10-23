@@ -1,6 +1,6 @@
 ﻿# Networth Matrimony - Project Status Report
 
-**Report Date:** October 23, 2026  |  **Branch:** main (5719957)  |  **Repository:** D:\matrimony
+**Report Date:** October 23, 2026  |  **Branch:** main (2e6cf9a)  |  **Repository:** D:\matrimony
 
 ## Executive Summary
 
@@ -13,7 +13,7 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 | Automated Tests | 888 (582 API + 29 Admin + 257 Shared + 20 Mobile) |
 | Test Suites | 57 (38 API + 4 Admin + 12 Shared + 3 Mobile) |
 | Admin Permission Keys | 21 |
-| Current Commit | 5719957 |
+| Current Commit | 2e6cf9a |
 | Status | All Gates Green |
 
 ## Implementation Status by Phase
@@ -117,4 +117,4 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 - Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS; the webhook secret, sender/template/DLT ids and email provider key are still unset
 - Flip `FEATURE_AI_RECOMMENDATIONS` on after a gradual rollout decision; the For You surface is already shipped behind the flag
 - Email provider is still open (the remaining half of GAP-12; SMS and push are resolved)
-- Client clarifications still open: GAP-2 net-worth band boundaries and GAP-11 privacy wording
+- Client clarifications still open: GAP-11 privacy wording (R2 India is best-effort) and the email half of GAP-12. GAP-2 (net-worth boundaries) is closed: a value exactly on a boundary goes into the higher band, which is what the build already does

@@ -1,5 +1,5 @@
 ﻿NETWORTH MATRIMONY - PROJECT STATUS REPORT
-Report Date: October 23, 2026 | Branch: main (5719957) | Repo: D:\matrimony
+Report Date: October 23, 2026 | Branch: main (2e6cf9a) | Repo: D:\matrimony
 
 SUMMARY:
   Platform is feature-complete end to end. Phases 0-8 delivered: auth (with OTP
@@ -16,7 +16,7 @@ SUMMARY:
 KEY METRICS:
   Tests: 888 (582 API + 29 Admin + 257 Shared + 20 Mobile) across 57 suites
   Admin permission keys: 21
-  Current Commit: 5719957
+  Current Commit: 2e6cf9a
   Status: All Gates Green
 
 PHASE STATUS:
@@ -122,4 +122,7 @@ NEXT STEPS:
     MSG91 SMS; webhook secret, sender/template/DLT ids and email key still unset.
   Flip FEATURE_AI_RECOMMENDATIONS on after a gradual rollout decision.
   Email provider still open (the remaining half of GAP-12; SMS and push resolved).
-  Client clarifications still open: GAP-2 band boundaries and GAP-11 privacy wording.
+  Client clarifications still open: GAP-11 privacy wording (R2 India is
+    best-effort) and the email half of GAP-12. GAP-2 (net-worth boundaries) is
+    closed: a value exactly on a boundary goes into the higher band, which the
+    build already does.

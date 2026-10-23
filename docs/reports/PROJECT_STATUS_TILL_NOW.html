@@ -27,7 +27,7 @@
 </head>
 <body>
 <h1>Networth Matrimony - Project Status Report</h1>
-<p><strong>Report Date:</strong> October 23, 2026  |  <strong>Branch:</strong> main (5719957)  |  <strong>Repository:</strong> D:\matrimony</p>
+<p><strong>Report Date:</strong> October 23, 2026  |  <strong>Branch:</strong> main (2e6cf9a)  |  <strong>Repository:</strong> D:\matrimony</p>
 <h2>Executive Summary</h2>
 <p>The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 888 automated tests passing.</p>
 <h2>Key Metrics</h2>
@@ -52,7 +52,7 @@
 </tr>
 <tr>
 <td>Current Commit</td>
-<td>5719957</td>
+<td>2e6cf9a</td>
 </tr>
 <tr>
 <td>Status</td>
@@ -225,7 +225,7 @@
 <li>Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS; the webhook secret, sender/template/DLT ids and email provider key are still unset</li>
 <li>Flip <code>FEATURE_AI_RECOMMENDATIONS</code> on after a gradual rollout decision; the For You surface is already shipped behind the flag</li>
 <li>Email provider is still open (the remaining half of GAP-12; SMS and push are resolved)</li>
-<li>Client clarifications still open: GAP-2 net-worth band boundaries and GAP-11 privacy wording</li>
+<li>Client clarifications still open: GAP-11 privacy wording (R2 India is best-effort) and the email half of GAP-12. GAP-2 (net-worth boundaries) is closed: a value exactly on a boundary goes into the higher band, which is what the build already does</li>
 </ul>
 
 
