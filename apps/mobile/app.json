@@ -15,7 +15,8 @@
         {
           "photosPermission": "Networth Matrimony uses your photos to add profile pictures."
         }
-      ]
+      ],
+      "expo-status-bar"
     ],
     "ios": {
       "supportsTablet": true,

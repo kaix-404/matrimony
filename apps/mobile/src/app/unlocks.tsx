@@ -82,7 +82,13 @@ export default function UnlocksScreen() {
             )}
           </View>
         }
-        ListFooterComponent={error !== null ? <Text style={styles.error}>{error}</Text> : null}
+        ListFooterComponent={
+          error !== null ? (
+            <View style={styles.footer}>
+              <Text style={styles.error}>{error}</Text>
+            </View>
+          ) : undefined
+        }
         renderItem={({ item }) => (
           <View style={styles.card}>
             <View style={styles.iconWrap}>
@@ -153,5 +159,9 @@ const styles = StyleSheet.create({
     ...typography.caption,
     textAlign: 'center',
     paddingHorizontal: spacing.screenX,
+  },
+  footer: {
+    paddingVertical: spacing.md,
+    alignItems: 'center',
   },
 });
