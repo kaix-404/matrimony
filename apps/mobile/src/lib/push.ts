@@ -1,6 +1,12 @@
 import { Platform } from 'react-native';
-import * as Notifications from 'expo-notifications';
 import { apiClient } from './api-client';
+
+let Notifications: typeof import('expo-notifications') | null = null;
+try {
+  Notifications = require('expo-notifications');
+} catch {
+  // Native module unavailable (e.g. Expo Go without native push config or web)
+}
 
 /**
  * Push registration (section 42, client decision 2026-10-01: Firebase).
@@ -18,7 +24,7 @@ const ANDROID_CHANNEL_ID = 'default';
 /** Shows incoming notifications while the app is foregrounded. Idempotent. */
 export function installNotificationHandler(): void {
   try {
-    if (Platform.OS === 'web') return;
+    if (!Notifications || Platform.OS === 'web') return;
     Notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldPlaySound: false,
@@ -28,13 +34,13 @@ export function installNotificationHandler(): void {
       }),
     });
   } catch {
-    // Native module unavailable (e.g. Expo Go without native push config or web)
+    // Native module unavailable
   }
 }
 
 async function ensurePermissionAsync(): Promise<boolean> {
   try {
-    if (Platform.OS === 'web') return false;
+    if (!Notifications || Platform.OS === 'web') return false;
     if (Platform.OS === 'android') {
       // Android 13+ shows the permission prompt only after a channel exists.
       await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
@@ -57,7 +63,7 @@ async function ensurePermissionAsync(): Promise<boolean> {
 
 async function getDevicePushTokenAsync(): Promise<string | null> {
   try {
-    if (Platform.OS === 'web') return null;
+    if (!Notifications || Platform.OS === 'web') return null;
     if (!(await ensurePermissionAsync())) return null;
     const pushToken = await Notifications.getDevicePushTokenAsync();
     if (pushToken.type === 'web') return null;
