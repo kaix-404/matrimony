@@ -17,36 +17,47 @@ const ANDROID_CHANNEL_ID = 'default';
 
 /** Shows incoming notifications while the app is foregrounded. Idempotent. */
 export function installNotificationHandler(): void {
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldPlaySound: false,
-      shouldSetBadge: false,
-      shouldShowBanner: true,
-      shouldShowList: true,
-    }),
-  });
+  try {
+    if (Platform.OS === 'web') return;
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+        shouldShowBanner: true,
+        shouldShowList: true,
+      }),
+    });
+  } catch {
+    // Native module unavailable (e.g. Expo Go without native push config or web)
+  }
 }
 
 async function ensurePermissionAsync(): Promise<boolean> {
-  if (Platform.OS === 'android') {
-    // Android 13+ shows the permission prompt only after a channel exists.
-    await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
-      name: 'General',
-      importance: Notifications.AndroidImportance.DEFAULT,
-    });
-  }
+  try {
+    if (Platform.OS === 'web') return false;
+    if (Platform.OS === 'android') {
+      // Android 13+ shows the permission prompt only after a channel exists.
+      await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
+        name: 'General',
+        importance: Notifications.AndroidImportance.DEFAULT,
+      });
+    }
 
-  const current = await Notifications.getPermissionsAsync();
-  if (current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
-    return true;
-  }
+    const current = await Notifications.getPermissionsAsync();
+    if (current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
+      return true;
+    }
 
-  const asked = await Notifications.requestPermissionsAsync();
-  return asked.granted || asked.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+    const asked = await Notifications.requestPermissionsAsync();
+    return asked.granted || asked.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+  } catch {
+    return false;
+  }
 }
 
 async function getDevicePushTokenAsync(): Promise<string | null> {
   try {
+    if (Platform.OS === 'web') return null;
     if (!(await ensurePermissionAsync())) return null;
     const pushToken = await Notifications.getDevicePushTokenAsync();
     if (pushToken.type === 'web') return null;
