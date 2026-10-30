@@ -57,6 +57,37 @@ export abstract class SmsGateway {
 /** MSG91 Flow API. A templated send: our code travels as a template variable. */
 export const MSG91_FLOW_URL = 'https://control.msg91.com/api/v5/flow/';
 
+/**
+ * MSG91's wallet balance endpoint.
+ *
+ * READ THIS BEFORE CHANGING IT: the authkey has to travel as a *query
+ * parameter* here — the `authkey` header that the Flow API honours is not read
+ * by this endpoint, and sends the request back as `201 error`. That also means
+ * this URL must never be logged: it carries the credential in the path a proxy
+ * would record.
+ */
+export const MSG91_BALANCE_URL = 'https://control.msg91.com/api/balance.php';
+
+/** MSG91 route 4 is transactional, which is where one-time codes are billed. */
+const MSG91_TRANSACTIONAL_ROUTE = '4';
+
+/**
+ * A balance reading, or `null` when the probe could not produce one. `null` is
+ * deliberately distinct from `0`: only a confirmed zero may block a send.
+ */
+function parseBalance(raw: string): number | null {
+  const text = raw.trim();
+  if (/^\d+(\.\d+)?$/.test(text)) return Number(text);
+  try {
+    const parsed = JSON.parse(text) as { balance?: unknown };
+    const value = typeof parsed.balance === 'string' ? Number(parsed.balance) : parsed.balance;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+  } catch {
+    // Not JSON either, so the shape is unknown to us; treated as no reading.
+  }
+  return null;
+}
+
 export interface Msg91Config {
   /** MSG91 authkey (`SMS_PROVIDER_API_KEY`). */
   authKey: string;
@@ -71,6 +102,10 @@ export interface Msg91Config {
   /** Overridable for tests. */
   flowUrl?: string;
   /** Overridable for tests. */
+  balanceUrl?: string;
+  /** How long a balance reading is trusted, so a burst of codes costs one probe. */
+  balanceCacheMs?: number;
+  /** Overridable for tests. */
   timeoutMs?: number;
 }
 
@@ -84,7 +119,10 @@ export class Msg91SmsGateway extends SmsGateway {
   private readonly logger = new Logger(Msg91SmsGateway.name);
   readonly configured: boolean;
   private readonly flowUrl: string;
+  private readonly balanceUrl: string;
+  private readonly balanceCacheMs: number;
   private readonly timeoutMs: number;
+  private balanceReading: { value: number | null; at: number } | null = null;
 
   constructor(private readonly config: Msg91Config) {
     super();
@@ -92,6 +130,8 @@ export class Msg91SmsGateway extends SmsGateway {
       (value) => typeof value === 'string' && value.trim() !== '',
     );
     this.flowUrl = config.flowUrl ?? MSG91_FLOW_URL;
+    this.balanceUrl = config.balanceUrl ?? MSG91_BALANCE_URL;
+    this.balanceCacheMs = config.balanceCacheMs ?? 60_000;
     this.timeoutMs = config.timeoutMs ?? 10_000;
 
     if (!this.configured) {
@@ -106,6 +146,8 @@ export class Msg91SmsGateway extends SmsGateway {
     if (!this.configured) {
       throw new Error('MSG91 is not configured');
     }
+
+    await this.assertFunded();
 
     // The Flow API addresses the send with `flow_id` plus a `recipients` array:
     // the number and that template's variables live on the recipient, not at the
@@ -159,6 +201,64 @@ export class Msg91SmsGateway extends SmsGateway {
     }
 
     return { providerMessageId: parsed?.message ?? null };
+  }
+
+  /**
+   * Blocks a send the wallet cannot pay for.
+   *
+   * MSG91 accepts a Flow request, answers `type: "success"` with a request id,
+   * and only then drops the message for want of credit. To this gateway that is
+   * indistinguishable from a delivered code, so the user is left waiting at the
+   * OTP screen for an SMS that was never going to arrive — which is exactly how
+   * an exhausted wallet stayed invisible for days. An empty balance is therefore
+   * checked up front and surfaced as a failure instead of a lie.
+   *
+   * Deliberately fail-open: an unreachable probe returns no reading and the send
+   * proceeds. This guards against a known-empty account, and must not become a
+   * second thing that can stop codes being sent.
+   */
+  private async assertFunded(): Promise<void> {
+    const balance = await this.currentBalance();
+    if (balance !== null && balance <= 0) {
+      throw new Error(
+        'MSG91 has no SMS credit on the transactional route; the code would have been ' +
+          'accepted and then dropped, so it was not sent. Recharge the MSG91 wallet.',
+      );
+    }
+  }
+
+  private async currentBalance(): Promise<number | null> {
+    const now = Date.now();
+    if (this.balanceReading && now - this.balanceReading.at < this.balanceCacheMs) {
+      return this.balanceReading.value;
+    }
+    const value = await this.fetchBalance();
+    this.balanceReading = { value, at: now };
+    return value;
+  }
+
+  private async fetchBalance(): Promise<number | null> {
+    // Built as a URL so the key is encoded rather than pasted into a string that
+    // might later be logged with the rest of the request.
+    const url = new URL(this.balanceUrl);
+    url.searchParams.set('authkey', this.config.authKey);
+    url.searchParams.set('type', MSG91_TRANSACTIONAL_ROUTE);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        signal: controller.signal,
+      });
+      if (!response.ok) return null;
+      return parseBalance(await response.text());
+    } catch {
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   private parse(raw: string): Msg91Response | null {
