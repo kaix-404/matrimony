@@ -1,11 +1,36 @@
 import { Platform } from 'react-native';
 import { apiClient } from './api-client';
 
-let Notifications: typeof import('expo-notifications') | null = null;
-try {
-  Notifications = require('expo-notifications');
-} catch {
-  // Native module unavailable (e.g. Expo Go without native push config or web)
+type NotificationsModule = typeof import('expo-notifications');
+
+/**
+ * Loaded on demand rather than imported at the top of the file.
+ *
+ * `expo-notifications` reaches for its native module as soon as it is
+ * evaluated, so a static import throws at module load on web and in an Expo Go
+ * build without the native push configuration — before this file's own guards
+ * can run, taking the bundle down with it. A plain `require()` avoids that but
+ * is rejected by the lint gate. A dynamic import is catchable and keeps the
+ * module graph intact.
+ */
+let notificationsModule: NotificationsModule | null | undefined;
+
+async function loadNotifications(): Promise<NotificationsModule | null> {
+  if (notificationsModule !== undefined) return notificationsModule;
+
+  if (Platform.OS === 'web') {
+    notificationsModule = null;
+    return null;
+  }
+
+  try {
+    notificationsModule = await import('expo-notifications');
+  } catch {
+    // Native module unavailable (e.g. Expo Go without native push config).
+    notificationsModule = null;
+  }
+
+  return notificationsModule;
 }
 
 /**
@@ -23,24 +48,27 @@ const ANDROID_CHANNEL_ID = 'default';
 
 /** Shows incoming notifications while the app is foregrounded. Idempotent. */
 export function installNotificationHandler(): void {
-  try {
-    if (!Notifications || Platform.OS === 'web') return;
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldPlaySound: false,
-        shouldSetBadge: false,
-        shouldShowBanner: true,
-        shouldShowList: true,
-      }),
-    });
-  } catch {
-    // Native module unavailable
-  }
+  void loadNotifications().then((Notifications) => {
+    if (!Notifications) return;
+    try {
+      Notifications.setNotificationHandler({
+        handleNotification: async () => ({
+          shouldPlaySound: false,
+          shouldSetBadge: false,
+          shouldShowBanner: true,
+          shouldShowList: true,
+        }),
+      });
+    } catch {
+      // Native module unavailable
+    }
+  });
 }
 
 async function ensurePermissionAsync(): Promise<boolean> {
   try {
-    if (!Notifications || Platform.OS === 'web') return false;
+    const Notifications = await loadNotifications();
+    if (!Notifications) return false;
     if (Platform.OS === 'android') {
       // Android 13+ shows the permission prompt only after a channel exists.
       await Notifications.setNotificationChannelAsync(ANDROID_CHANNEL_ID, {
@@ -63,7 +91,8 @@ async function ensurePermissionAsync(): Promise<boolean> {
 
 async function getDevicePushTokenAsync(): Promise<string | null> {
   try {
-    if (!Notifications || Platform.OS === 'web') return null;
+    const Notifications = await loadNotifications();
+    if (!Notifications) return null;
     if (!(await ensurePermissionAsync())) return null;
     const pushToken = await Notifications.getDevicePushTokenAsync();
     if (pushToken.type === 'web') return null;
