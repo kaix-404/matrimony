@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   HttpCode,
+  Logger,
   Post,
   UnauthorizedException,
   UseGuards,
@@ -31,6 +32,8 @@ import {
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly otp: OtpService,
     private readonly tokens: TokenService,
@@ -44,10 +47,16 @@ export class AuthController {
    * Requests an OTP.
    *
    * The response is identical whether or not the number is registered, so this
-   * endpoint cannot be used to enumerate users. In production the code is sent
-   * via MSG91; if MSG91 is not configured, the request fails closed. Outside
-   * production the code is echoed back to make the flow testable end to end
-   * without a provider account.
+   * endpoint cannot be used to enumerate users.
+   *
+   * The code is sent via MSG91 whenever the gateway is configured, in
+   * development as well as production, so a local run exercises the real
+   * delivery path instead of only the echo. The echo still exists: in
+   * development it is returned when MSG91 is not configured, or when a send is
+   * rejected — a developer must not be stranded at the OTP screen because a
+   * provider refused a template. In production neither escape is available: an
+   * unconfigured gateway fails closed, and a failed send surfaces, because a
+   * code that never left the vendor must not look as though it was sent.
    */
   @Post('otp/request')
   @HttpCode(200)
@@ -67,13 +76,30 @@ export class AuthController {
       expires_in_seconds: this.otp.ttlSeconds,
     };
 
-    if (process.env.NODE_ENV === 'production') {
-      if (!this.sms.configured) {
-        throw new UnauthorizedException('SMS provider is not configured');
-      }
-      await this.sms.sendOtp({ mobile: body.mobile, code: issued.code });
-    } else {
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    // Checked before any send so production still fails closed on a gateway
+    // that was never configured.
+    if (isProduction && !this.sms.configured) {
+      throw new UnauthorizedException('SMS provider is not configured');
+    }
+
+    if (!this.sms.configured) {
       response.dev_code = issued.code;
+    } else {
+      try {
+        await this.sms.sendOtp({ mobile: body.mobile, code: issued.code });
+      } catch (error) {
+        if (isProduction) {
+          throw error;
+        }
+        this.logger.warn(
+          `MSG91 send failed; echoing dev_code instead: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        response.dev_code = issued.code;
+      }
     }
 
     return response;

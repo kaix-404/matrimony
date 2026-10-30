@@ -78,10 +78,9 @@ describe('Msg91SmsGateway', () => {
     expect(headers.authkey).toBe('auth-key');
     expect(headers['content-type']).toBe('application/json');
     expect(JSON.parse(init.body as string)).toEqual({
-      template_id: 'template-1',
+      flow_id: 'template-1',
       sender: 'MTRIMY',
-      mobiles: '919876543210',
-      OTP: '123456',
+      recipients: [{ mobiles: '919876543210', OTP: '123456' }],
     });
     expect(result.providerMessageId).toBe('req-9');
   });
@@ -95,7 +94,7 @@ describe('Msg91SmsGateway', () => {
     await makeGateway().sendOtp({ mobile: '+91 98765 43210', code: '123456' });
 
     const body = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
-    expect(body.mobiles).toBe('919876543210');
+    expect(body.recipients[0].mobiles).toBe('919876543210');
   });
 
   it('throws when MSG91 answers 200 with an error type', async () => {

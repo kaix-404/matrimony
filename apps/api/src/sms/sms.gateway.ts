@@ -107,13 +107,19 @@ export class Msg91SmsGateway extends SmsGateway {
       throw new Error('MSG91 is not configured');
     }
 
-    // The Flow API takes the template's variables at the top level of the body,
-    // keyed by the name given when the template was created on MSG91.
-    const payload: Record<string, string> = {
-      template_id: this.config.templateId,
+    // The Flow API addresses the send with `flow_id` plus a `recipients` array:
+    // the number and that template's variables live on the recipient, not at the
+    // top level of the body. Variables are keyed by the name given when the
+    // template was created on MSG91, case included.
+    const payload = {
+      flow_id: this.config.templateId,
       sender: this.config.senderId,
-      mobiles: this.toInternational(mobile),
-      [this.config.templateVariable]: code,
+      recipients: [
+        {
+          mobiles: this.toInternational(mobile),
+          [this.config.templateVariable]: code,
+        },
+      ],
     };
 
     const controller = new AbortController();

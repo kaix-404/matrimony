@@ -146,3 +146,98 @@ describe('AuthController.register', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 });
+
+/**
+ * Which of the three delivery branches runs.
+ *
+ * The branch used to key off NODE_ENV alone, so development never touched the
+ * provider and a local run could not tell a wired-up gateway from an empty one.
+ * Delivery is now decided by whether MSG91 is configured, and NODE_ENV only
+ * decides whether the escape hatches exist: development may echo the code when
+ * a gateway is missing or rejects the send, production may do neither. Those
+ * two rules are invisible in the response unless a test pins each combination.
+ */
+describe('AuthController.requestOtp', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const body = { mobile: '9876543210', purpose: 'REGISTRATION' };
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  function makeRequestOtpController(opts: { configured?: boolean } = {}) {
+    const sendOtp = jest.fn().mockResolvedValue({ providerMessageId: 'msg-1' });
+    const otp = {
+      assertNotCoolingDown: jest.fn().mockResolvedValue(undefined),
+      issue: jest.fn().mockResolvedValue({
+        id: 'otp-1',
+        code: '434578',
+        resendAfterAt: new Date('2026-10-25T12:01:00Z'),
+        expiresAt: new Date('2026-10-25T12:06:00Z'),
+      }),
+      cooldownSeconds: 60,
+      ttlSeconds: 300,
+    };
+
+    const controller = new AuthController(
+      otp as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { configured: opts.configured ?? true, sendOtp } as never,
+    );
+
+    return { controller, sendOtp };
+  }
+
+  it('sends through MSG91 when the gateway is configured, without echoing the code', async () => {
+    process.env.NODE_ENV = 'development';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: true });
+
+    const result = await controller.requestOtp(body as never);
+
+    expect(sendOtp).toHaveBeenCalledWith({ mobile: '9876543210', code: '434578' });
+    expect(result.dev_code).toBeUndefined();
+  });
+
+  it('echoes the code in development when no gateway is configured', async () => {
+    process.env.NODE_ENV = 'development';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: false });
+
+    const result = await controller.requestOtp(body as never);
+
+    expect(sendOtp).not.toHaveBeenCalled();
+    expect(result.dev_code).toBe('434578');
+  });
+
+  it('echoes the code when the provider rejects the send in development', async () => {
+    process.env.NODE_ENV = 'development';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: true });
+    sendOtp.mockRejectedValue(new Error('MSG91 rejected the send (HTTP 400)'));
+
+    const result = await controller.requestOtp(body as never);
+
+    expect(result.dev_code).toBe('434578');
+  });
+
+  it('fails closed in production when no gateway is configured', async () => {
+    process.env.NODE_ENV = 'production';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: false });
+
+    await expect(controller.requestOtp(body as never)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(sendOtp).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a rejected send in production rather than echoing the code', async () => {
+    process.env.NODE_ENV = 'production';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: true });
+    sendOtp.mockRejectedValue(new Error('MSG91 rejected the send (HTTP 400)'));
+
+    await expect(controller.requestOtp(body as never)).rejects.toThrow(
+      'MSG91 rejected the send',
+    );
+  });
+});
