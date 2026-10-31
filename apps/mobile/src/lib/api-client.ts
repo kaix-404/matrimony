@@ -1,4 +1,5 @@
 import { config } from './config';
+import { ApiError, parseApiErrorBody } from './api-errors';
 import type {
   AccountDeletionResult,
   BiodataExtraction,
@@ -122,8 +123,15 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error('API ' + response.status + ': ' + text);
+      // The body is the API's own account of what went wrong; keeping its code
+      // is what lets a screen special-case a refusal (an undeliverable OTP)
+      // without matching on prose.
+      const { message, code } = parseApiErrorBody(await response.text());
+      throw new ApiError(
+        response.status,
+        message ?? 'Request failed (HTTP ' + response.status + ')',
+        code,
+      );
     }
 
     if (response.status === 204) {

@@ -6,6 +6,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { TextField } from '../components/TextField';
 import { apiClient } from '../lib/api-client';
+import { describeOtpSendFailure } from '../lib/api-errors';
 import { useAuth } from '../lib/auth-context';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -30,6 +31,7 @@ export default function DeleteAccountScreen() {
   const [step, setStep] = useState<Step>('confirm');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
+  const [deliveryWarning, setDeliveryWarning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -38,15 +40,19 @@ export default function DeleteAccountScreen() {
   async function requestCode() {
     setBusy(true);
     setError(null);
+    setDeliveryWarning(null);
     try {
       const response = await apiClient.requestOtp({
         mobile: normalizeMobile(mobile),
         purpose: 'DELETE_ACCOUNT',
       });
       setDevCode(response.dev_code ?? null);
+      setDeliveryWarning(response.delivery_warning ?? null);
       setStep('code');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send the code.');
+      // Same wording as sign-in: a code that was not sent is a refusal worth
+      // naming, not a generic "could not send".
+      setError(describeOtpSendFailure(e));
     } finally {
       setBusy(false);
     }
@@ -111,6 +117,7 @@ export default function DeleteAccountScreen() {
             autoFocus
             error={error}
           />
+          {deliveryWarning ? <Text style={styles.warning}>{deliveryWarning}</Text> : null}
           {devCode ? <Text style={styles.devHint}>Development code: {devCode}</Text> : null}
         </>
       )}
@@ -122,6 +129,10 @@ export default function DeleteAccountScreen() {
 const styles = StyleSheet.create({
   body: {
     color: colors.textStrong,
+    ...typography.body,
+  },
+  warning: {
+    color: colors.primary,
     ...typography.body,
   },
   devHint: {

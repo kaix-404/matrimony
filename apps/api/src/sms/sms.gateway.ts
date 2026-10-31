@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { SMS_UNAVAILABLE_CODE } from '@matrimony/shared';
 
 /**
  * The SMS delivery seam.
@@ -27,6 +28,24 @@ import { Logger } from '@nestjs/common';
  * cost saving. The seam therefore models that single job rather than a general
  * "send a message" channel; a second SMS use would be a deliberate widening.
  */
+
+/**
+ * Refused because the wallet cannot pay for the send.
+ *
+ * A class of its own rather than a bare `Error` with a matching message: the
+ * caller has to react differently to "we chose not to send" than to "the
+ * provider rejected a send we attempted". The controller turns this one into a
+ * coded 503 the app can explain, and leaves every other failure untouched.
+ */
+export class SmsCreditExhaustedError extends Error {
+  /** Matches the code the HTTP layer sends, so there is one name for one cause. */
+  readonly code = SMS_UNAVAILABLE_CODE;
+
+  constructor(message: string) {
+    super(message);
+    this.name = 'SmsCreditExhaustedError';
+  }
+}
 
 export interface SmsDeliveryResult {
   /** MSG91's request id for the send; null when the provider did not return one. */
@@ -220,7 +239,7 @@ export class Msg91SmsGateway extends SmsGateway {
   private async assertFunded(): Promise<void> {
     const balance = await this.currentBalance();
     if (balance !== null && balance <= 0) {
-      throw new Error(
+      throw new SmsCreditExhaustedError(
         'MSG91 has no SMS credit on the transactional route; the code would have been ' +
           'accepted and then dropped, so it was not sent. Recharge the MSG91 wallet.',
       );

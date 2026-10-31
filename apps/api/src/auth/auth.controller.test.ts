@@ -1,5 +1,7 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
+import { SMS_UNAVAILABLE_CODE } from '@matrimony/shared';
 import { AuthController } from './auth.controller';
+import { SmsCreditExhaustedError } from '../sms/sms.gateway';
 
 /**
  * OTP verification routing — the branch that decides which purpose signs in.
@@ -239,5 +241,72 @@ describe('AuthController.requestOtp', () => {
     await expect(controller.requestOtp(body as never)).rejects.toThrow(
       'MSG91 rejected the send',
     );
+  });
+
+  it('answers an unfunded wallet with a coded 503 rather than a generic failure', async () => {
+    process.env.NODE_ENV = 'production';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: true });
+    sendOtp.mockRejectedValue(new SmsCreditExhaustedError('MSG91 has no SMS credit'));
+
+    // The app can only show copy a person can act on if it can tell this
+    // refusal from an outage, so the code is the contract here.
+    const error = (await controller.requestOtp(body as never).catch((e: unknown) => e)) as
+      | ServiceUnavailableException
+      | undefined;
+    expect(error).toBeInstanceOf(ServiceUnavailableException);
+    expect(error?.getResponse()).toMatchObject({
+      code: SMS_UNAVAILABLE_CODE,
+      statusCode: 503,
+    });
+  });
+
+  it('keeps the vendor diagnostic out of what an unfunded production caller is told', async () => {
+    process.env.NODE_ENV = 'production';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: true });
+    sendOtp.mockRejectedValue(
+      new SmsCreditExhaustedError('MSG91 has no SMS credit on the transactional route'),
+    );
+
+    const error = (await controller.requestOtp(body as never).catch((e: unknown) => e)) as
+      | ServiceUnavailableException
+      | undefined;
+    const response = JSON.stringify(error?.getResponse() ?? {});
+
+    // "Recharge the MSG91 wallet" is for an operator reading logs, not for a
+    // stranger's phone screen.
+    expect(response).not.toMatch(/MSG91|credit|wallet|recharge/i);
+  });
+
+  it('echoes the code in development with a warning when the wallet is empty', async () => {
+    process.env.NODE_ENV = 'development';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: true });
+    sendOtp.mockRejectedValue(new SmsCreditExhaustedError('MSG91 has no SMS credit'));
+
+    const result = await controller.requestOtp(body as never);
+
+    // The code is echoed so the developer is not stuck; the warning is what
+    // stops that echo from looking like a delivered SMS — the exact blind spot
+    // that let an empty wallet stay invisible.
+    expect(result.dev_code).toBe('434578');
+    expect(result.delivery_warning).toMatch(/no message was sent/i);
+  });
+
+  it('adds no delivery warning when the send succeeded', async () => {
+    process.env.NODE_ENV = 'development';
+    const { controller } = makeRequestOtpController({ configured: true });
+
+    const result = await controller.requestOtp(body as never);
+
+    expect(result.delivery_warning).toBeUndefined();
+  });
+
+  it('adds no delivery warning for an ordinary provider rejection in development', async () => {
+    process.env.NODE_ENV = 'development';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: true });
+    sendOtp.mockRejectedValue(new Error('MSG91 rejected the send (HTTP 400)'));
+
+    const result = await controller.requestOtp(body as never);
+
+    expect(result.delivery_warning).toBeUndefined();
   });
 });

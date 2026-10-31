@@ -6,6 +6,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { TextField } from '../components/TextField';
 import { apiClient } from '../lib/api-client';
+import { describeOtpSendFailure } from '../lib/api-errors';
 import { useAuth } from '../lib/auth-context';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -38,6 +39,7 @@ export default function AuthScreen() {
   const [mobile, setMobile] = useState('');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
+  const [deliveryWarning, setDeliveryWarning] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -59,15 +61,17 @@ export default function AuthScreen() {
     requestRef.current = true;
     setBusy(true);
     setError(null);
+    setDeliveryWarning(null);
     try {
       const response = await apiClient.requestOtp({ mobile: normalized, purpose: nextPurpose });
       setPurpose(nextPurpose);
       setDevCode(response.dev_code ?? null);
+      setDeliveryWarning(response.delivery_warning ?? null);
       setResendIn(response.resend_after_seconds);
       setStep('code');
       setCode('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not send the code.');
+      setError(describeOtpSendFailure(e));
     } finally {
       setBusy(false);
       requestRef.current = false;
@@ -126,6 +130,7 @@ export default function AuthScreen() {
       onBack={() => {
         setStep('phone');
         setCode('');
+        setDeliveryWarning(null);
         setError(null);
         setNotice(null);
       }}
@@ -150,6 +155,9 @@ export default function AuthScreen() {
             autoFocus
             error={error}
           />
+          {deliveryWarning ? (
+            <Text style={styles.warning}>{deliveryWarning}</Text>
+          ) : null}
           {devCode ? (
             <Text style={styles.devHint}>Development code: {devCode}</Text>
           ) : null}
@@ -184,6 +192,10 @@ export default function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
+  warning: {
+    color: colors.primary,
+    ...typography.body,
+  },
   devHint: {
     color: colors.textMuted,
     ...typography.caption,

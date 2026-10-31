@@ -80,10 +80,29 @@ export const OtpRequestedSchema = z
     /** Seconds until another code may be requested. */
     resend_after_seconds: z.number().int().nonnegative(),
     expires_in_seconds: z.number().int().positive(),
+    /**
+     * Development only: set when the code was NOT texted and is echoed below
+     * as `dev_code` instead, so a developer is told the SMS did not go out
+     * rather than assuming delivery worked.
+     */
+    delivery_warning: z.string().optional(),
   })
   .strict();
 
 export type OtpRequested = z.infer<typeof OtpRequestedSchema>;
+
+/**
+ * The machine-readable `code` on a failed `POST /auth/otp/request` when the API
+ * could not hand the code to the SMS provider, so no message was sent.
+ *
+ * A code rather than a message because the two audiences need different words.
+ * The operator needs "the SMS wallet is empty" — that is what the API says in
+ * its logs, and it is meaningless on a phone. A client that can recognise this
+ * code can show copy that is honest to the user ("we could not text you just
+ * now") without publishing a vendor diagnostic, and can tell a refusal apart
+ * from a validation error or an outage instead of printing a generic failure.
+ */
+export const SMS_UNAVAILABLE_CODE = 'SMS_UNAVAILABLE';
 
 export const VerifyOtpSchema = z
   .object({

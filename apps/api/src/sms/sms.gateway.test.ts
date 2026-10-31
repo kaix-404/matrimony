@@ -1,4 +1,9 @@
-import { MSG91_BALANCE_URL, MSG91_FLOW_URL, Msg91SmsGateway } from './sms.gateway';
+import {
+  MSG91_BALANCE_URL,
+  MSG91_FLOW_URL,
+  Msg91SmsGateway,
+  SmsCreditExhaustedError,
+} from './sms.gateway';
 
 /**
  * MSG91 Flow delivery.
@@ -153,9 +158,12 @@ describe('Msg91SmsGateway', () => {
     const fetchMock = mockVendor({ balance: '0' });
     setFetch(fetchMock);
 
-    await expect(
-      makeGateway().sendOtp({ mobile: '9876543210', code: '123456' }),
-    ).rejects.toThrow(/no SMS credit/);
+    // The class matters, not just the wording: the controller turns this one
+    // refusal into a coded 503, and a plain Error would reach the app as an
+    // anonymous failure.
+    const send = makeGateway().sendOtp({ mobile: '9876543210', code: '123456' });
+    await expect(send).rejects.toBeInstanceOf(SmsCreditExhaustedError);
+    await expect(send).rejects.toMatchObject({ code: 'SMS_UNAVAILABLE' });
     // Nothing is posted: a send the wallet cannot pay for would be accepted and
     // silently dropped, so the message must not reach the vendor at all.
     expect(callsTo(fetchMock, FLOW_URL)).toHaveLength(0);

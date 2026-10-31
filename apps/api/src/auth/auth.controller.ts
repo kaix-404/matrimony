@@ -5,6 +5,7 @@ import {
   HttpCode,
   Logger,
   Post,
+  ServiceUnavailableException,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
@@ -15,11 +16,12 @@ import { RegistrationService } from './registration.service';
 import { TokenService } from './token.service';
 import { PrismaClient } from '../prisma/prisma-client';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
-import { SmsGateway } from '../sms/sms.gateway';
+import { SmsCreditExhaustedError, SmsGateway } from '../sms/sms.gateway';
 import {
   CompleteRegistrationSchema,
   RefreshSchema,
   RequestOtpSchema,
+  SMS_UNAVAILABLE_CODE,
   VerifyOtpSchema,
   type AccessTokenClaims,
   type CompleteRegistrationInput,
@@ -57,6 +59,12 @@ export class AuthController {
    * provider refused a template. In production neither escape is available: an
    * unconfigured gateway fails closed, and a failed send surfaces, because a
    * code that never left the vendor must not look as though it was sent.
+   *
+   * A wallet with no credit is the one failure with copy of its own. MSG91
+   * would accept that send and drop it, so the app is told `SMS_UNAVAILABLE`
+   * rather than a faceless 500: "we did not text you" is something a person can
+   * act on (retry shortly), while a generic failure reads like their number is
+   * wrong.
    */
   @Post('otp/request')
   @HttpCode(200)
@@ -90,15 +98,36 @@ export class AuthController {
       try {
         await this.sms.sendOtp({ mobile: body.mobile, code: issued.code });
       } catch (error) {
+        const unfunded = error instanceof SmsCreditExhaustedError;
+
         if (isProduction) {
+          if (unfunded) {
+            // Coded so the app can pick copy that makes sense on a phone; the
+            // vendor wording stays in the log, where an operator can act on it.
+            this.logger.error(
+              `OTP not sent: ${error instanceof Error ? error.message : String(error)}`,
+            );
+            throw new ServiceUnavailableException({
+              statusCode: 503,
+              code: SMS_UNAVAILABLE_CODE,
+              message: 'SMS verification is temporarily unavailable; please try again shortly.',
+            });
+          }
           throw error;
         }
+
         this.logger.warn(
           `MSG91 send failed; echoing dev_code instead: ${
             error instanceof Error ? error.message : String(error)
           }`,
         );
         response.dev_code = issued.code;
+        // Without this the app shows a development code and looks like a
+        // working send, which is how an empty wallet hid for days.
+        if (unfunded) {
+          response.delivery_warning =
+            'No SMS credit, so no message was sent. Use the development code below.';
+        }
       }
     }
 
