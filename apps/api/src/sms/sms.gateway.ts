@@ -1,5 +1,4 @@
 import { Logger } from '@nestjs/common';
-import { SMS_UNAVAILABLE_CODE } from '@matrimony/shared';
 
 /**
  * The SMS delivery seam.
@@ -29,27 +28,18 @@ import { SMS_UNAVAILABLE_CODE } from '@matrimony/shared';
  * "send a message" channel; a second SMS use would be a deliberate widening.
  */
 
-/**
- * Refused because the wallet cannot pay for the send.
- *
- * A class of its own rather than a bare `Error` with a matching message: the
- * caller has to react differently to "we chose not to send" than to "the
- * provider rejected a send we attempted". The controller turns this one into a
- * coded 503 the app can explain, and leaves every other failure untouched.
- */
-export class SmsCreditExhaustedError extends Error {
-  /** Matches the code the HTTP layer sends, so there is one name for one cause. */
-  readonly code = SMS_UNAVAILABLE_CODE;
-
-  constructor(message: string) {
-    super(message);
-    this.name = 'SmsCreditExhaustedError';
-  }
-}
-
 export interface SmsDeliveryResult {
   /** MSG91's request id for the send; null when the provider did not return one. */
   providerMessageId: string | null;
+  /**
+   * MSG91's balance endpoint reported zero immediately before this send.
+   *
+   * Advisory, never a refusal. See `MSG91_BALANCE_URL`: the reading is not
+   * trustworthy enough to gate on, but a zero is worth repeating to a caller in
+   * development when the client swears the account is funded — that mismatch is
+   * the thing worth investigating.
+   */
+  reportedZeroBalance: boolean;
 }
 
 export interface OtpSmsInput {
@@ -79,11 +69,19 @@ export const MSG91_FLOW_URL = 'https://control.msg91.com/api/v5/flow/';
 /**
  * MSG91's wallet balance endpoint.
  *
- * READ THIS BEFORE CHANGING IT: the authkey has to travel as a *query
- * parameter* here — the `authkey` header that the Flow API honours is not read
- * by this endpoint, and sends the request back as `201 error`. That also means
- * this URL must never be logged: it carries the credential in the path a proxy
- * would record.
+ * READ THIS BEFORE TRUSTING IT, AND BEFORE CHANGING IT: the authkey has to
+ * travel as a *query parameter* here — the `authkey` header that the Flow API
+ * honours is not read by this endpoint, and sends the request back as `201
+ * error`. That also means this URL must never be logged: it carries the
+ * credential in the path a proxy would record.
+ *
+ * The reading is a legacy figure and is NOT authoritative for the newer plans:
+ * MSG91 documents no general wallet-balance API (its own FAQ asks for the use
+ * case before granting one), and the account this was built against returned
+ * `0` on every route while the customer's dashboard showed a funded balance.
+ * It is therefore used only to raise a flag, never to block a send: a false
+ * zero would lock every user out of signing in, which is a worse failure than
+ * the silence it would be trying to prevent.
  */
 export const MSG91_BALANCE_URL = 'https://control.msg91.com/api/balance.php';
 
@@ -166,7 +164,7 @@ export class Msg91SmsGateway extends SmsGateway {
       throw new Error('MSG91 is not configured');
     }
 
-    await this.assertFunded();
+    const reportedZeroBalance = await this.warnIfUnfunded();
 
     // The Flow API addresses the send with `flow_id` plus a `recipients` array:
     // the number and that template's variables live on the recipient, not at the
@@ -219,31 +217,33 @@ export class Msg91SmsGateway extends SmsGateway {
       );
     }
 
-    return { providerMessageId: parsed?.message ?? null };
+    return { providerMessageId: parsed?.message ?? null, reportedZeroBalance };
   }
 
   /**
-   * Blocks a send the wallet cannot pay for.
+   * Notes when the wallet looks empty, and sends anyway.
    *
    * MSG91 accepts a Flow request, answers `type: "success"` with a request id,
-   * and only then drops the message for want of credit. To this gateway that is
-   * indistinguishable from a delivered code, so the user is left waiting at the
-   * OTP screen for an SMS that was never going to arrive — which is exactly how
-   * an exhausted wallet stayed invisible for days. An empty balance is therefore
-   * checked up front and surfaced as a failure instead of a lie.
+   * and can drop the message afterwards for want of credit, which to this
+   * gateway is indistinguishable from a delivered code. An earlier version of
+   * this file refused the send outright on a zero reading. That was wrong: the
+   * balance endpoint is a legacy figure that reported zero for an account the
+   * customer could see funded, so the guard would have turned a migrating
+   * ledger into a total sign-in outage. The reading is now reported, not obeyed.
    *
-   * Deliberately fail-open: an unreachable probe returns no reading and the send
-   * proceeds. This guards against a known-empty account, and must not become a
-   * second thing that can stop codes being sent.
+   * Fail-open by construction: no reading (unreachable, unparseable) is not a
+   * zero, and a zero does not stop the send.
    */
-  private async assertFunded(): Promise<void> {
+  private async warnIfUnfunded(): Promise<boolean> {
     const balance = await this.currentBalance();
-    if (balance !== null && balance <= 0) {
-      throw new SmsCreditExhaustedError(
-        'MSG91 has no SMS credit on the transactional route; the code would have been ' +
-          'accepted and then dropped, so it was not sent. Recharge the MSG91 wallet.',
-      );
-    }
+    if (balance === null || balance > 0) return false;
+
+    this.logger.error(
+      'MSG91 reports a zero SMS balance, so this code may be accepted and then dropped. ' +
+        'Sending anyway: the balance figure is not reliable enough to block on. ' +
+        'Confirm delivery in the MSG91 panel, and check the account the authkey belongs to.',
+    );
+    return true;
   }
 
   private async currentBalance(): Promise<number | null> {

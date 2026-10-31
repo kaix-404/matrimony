@@ -1,9 +1,4 @@
-import {
-  MSG91_BALANCE_URL,
-  MSG91_FLOW_URL,
-  Msg91SmsGateway,
-  SmsCreditExhaustedError,
-} from './sms.gateway';
+import { MSG91_BALANCE_URL, MSG91_FLOW_URL, Msg91SmsGateway } from './sms.gateway';
 
 /**
  * MSG91 Flow delivery.
@@ -154,19 +149,26 @@ describe('Msg91SmsGateway', () => {
     expect(headers.authkey).toBeUndefined();
   });
 
-  it('refuses to send when the wallet is empty, rather than reporting a queued drop as sent', async () => {
+  it('sends despite a zero balance, but reports the reading instead of silencing it', async () => {
     const fetchMock = mockVendor({ balance: '0' });
     setFetch(fetchMock);
 
-    // The class matters, not just the wording: the controller turns this one
-    // refusal into a coded 503, and a plain Error would reach the app as an
-    // anonymous failure.
-    const send = makeGateway().sendOtp({ mobile: '9876543210', code: '123456' });
-    await expect(send).rejects.toBeInstanceOf(SmsCreditExhaustedError);
-    await expect(send).rejects.toMatchObject({ code: 'SMS_UNAVAILABLE' });
-    // Nothing is posted: a send the wallet cannot pay for would be accepted and
-    // silently dropped, so the message must not reach the vendor at all.
-    expect(callsTo(fetchMock, FLOW_URL)).toHaveLength(0);
+    const result = await makeGateway().sendOtp({ mobile: '9876543210', code: '123456' });
+
+    // Deliberately NOT refused. The balance endpoint is a legacy figure that has
+    // reported zero for a funded account, and blocking on it would lock every
+    // user out of signing in — a worse failure than the silence it prevents.
+    expect(callsTo(fetchMock, FLOW_URL)).toHaveLength(1);
+    expect(result.reportedZeroBalance).toBe(true);
+    expect(result.providerMessageId).toBe('req-1');
+  });
+
+  it('reports no zero-balance flag when the wallet is funded', async () => {
+    setFetch(mockVendor({ balance: '49' }));
+
+    const result = await makeGateway().sendOtp({ mobile: '9876543210', code: '123456' });
+
+    expect(result.reportedZeroBalance).toBe(false);
   });
 
   it('still sends when the balance probe cannot answer', async () => {
@@ -175,7 +177,7 @@ describe('Msg91SmsGateway', () => {
 
     await expect(
       makeGateway().sendOtp({ mobile: '9876543210', code: '123456' }),
-    ).resolves.toEqual({ providerMessageId: 'req-1' });
+    ).resolves.toEqual({ providerMessageId: 'req-1', reportedZeroBalance: false });
     expect(callsTo(fetchMock, FLOW_URL)).toHaveLength(1);
   });
 
@@ -185,7 +187,7 @@ describe('Msg91SmsGateway', () => {
 
     await expect(
       makeGateway().sendOtp({ mobile: '9876543210', code: '123456' }),
-    ).resolves.toEqual({ providerMessageId: 'req-1' });
+    ).resolves.toEqual({ providerMessageId: 'req-1', reportedZeroBalance: false });
   });
 
   it('reuses one balance reading for sends inside the cache window', async () => {

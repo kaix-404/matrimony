@@ -16,7 +16,7 @@ import { RegistrationService } from './registration.service';
 import { TokenService } from './token.service';
 import { PrismaClient } from '../prisma/prisma-client';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
-import { SmsCreditExhaustedError, SmsGateway } from '../sms/sms.gateway';
+import { SmsGateway } from '../sms/sms.gateway';
 import {
   CompleteRegistrationSchema,
   RefreshSchema,
@@ -60,11 +60,12 @@ export class AuthController {
    * unconfigured gateway fails closed, and a failed send surfaces, because a
    * code that never left the vendor must not look as though it was sent.
    *
-   * A wallet with no credit is the one failure with copy of its own. MSG91
-   * would accept that send and drop it, so the app is told `SMS_UNAVAILABLE`
-   * rather than a faceless 500: "we did not text you" is something a person can
-   * act on (retry shortly), while a generic failure reads like their number is
-   * wrong.
+   * A failed send in production is answered `503` with `SMS_UNAVAILABLE` rather
+   * than a faceless 500: "we did not text you" is something a person can act on
+   * (retry shortly), while a generic failure reads like their number is wrong.
+   * One code covers every cause — a rejected template, an outage, an unfunded
+   * wallet — because the user's situation is the same in all of them and the
+   * difference belongs in the log, not on their screen.
    */
   @Post('otp/request')
   @HttpCode(200)
@@ -96,38 +97,37 @@ export class AuthController {
       response.dev_code = issued.code;
     } else {
       try {
-        await this.sms.sendOtp({ mobile: body.mobile, code: issued.code });
+        const delivery = await this.sms.sendOtp({ mobile: body.mobile, code: issued.code });
+
+        // MSG91 accepted the send, but its own balance endpoint disagrees with
+        // the account holder about whether it could. Say so in development
+        // while the code is still echoed, so the mismatch is visible. Never in
+        // production: a user cannot act on an unverifiable figure, and the send
+        // was accepted, so the honest answer there is still "we sent it".
+        if (delivery.reportedZeroBalance && !isProduction) {
+          response.delivery_warning =
+            'MSG91 reports a zero SMS balance, so this message may not arrive. ' +
+            'Use the development code below, and check delivery in the MSG91 panel.';
+        }
       } catch (error) {
-        const unfunded = error instanceof SmsCreditExhaustedError;
+        const detail = error instanceof Error ? error.message : String(error);
 
         if (isProduction) {
-          if (unfunded) {
-            // Coded so the app can pick copy that makes sense on a phone; the
-            // vendor wording stays in the log, where an operator can act on it.
-            this.logger.error(
-              `OTP not sent: ${error instanceof Error ? error.message : String(error)}`,
-            );
-            throw new ServiceUnavailableException({
-              statusCode: 503,
-              code: SMS_UNAVAILABLE_CODE,
-              message: 'SMS verification is temporarily unavailable; please try again shortly.',
-            });
-          }
-          throw error;
+          // Coded so the app can pick copy that makes sense on a phone; the
+          // vendor wording stays in the log, where an operator can act on it.
+          this.logger.error(`OTP not sent: ${detail}`);
+          throw new ServiceUnavailableException({
+            statusCode: 503,
+            code: SMS_UNAVAILABLE_CODE,
+            message: 'SMS verification is temporarily unavailable; please try again shortly.',
+          });
         }
 
-        this.logger.warn(
-          `MSG91 send failed; echoing dev_code instead: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
+        this.logger.warn(`MSG91 send failed; echoing dev_code instead: ${detail}`);
         response.dev_code = issued.code;
         // Without this the app shows a development code and looks like a
-        // working send, which is how an empty wallet hid for days.
-        if (unfunded) {
-          response.delivery_warning =
-            'No SMS credit, so no message was sent. Use the development code below.';
-        }
+        // working send, which is how an unusable wallet hid for days.
+        response.delivery_warning = `No message was sent (${detail}). Use the development code below.`;
       }
     }
 

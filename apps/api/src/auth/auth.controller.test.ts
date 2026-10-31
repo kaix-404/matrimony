@@ -1,7 +1,6 @@
 import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { SMS_UNAVAILABLE_CODE } from '@matrimony/shared';
 import { AuthController } from './auth.controller';
-import { SmsCreditExhaustedError } from '../sms/sms.gateway';
 
 /**
  * OTP verification routing — the branch that decides which purpose signs in.
@@ -168,7 +167,9 @@ describe('AuthController.requestOtp', () => {
   });
 
   function makeRequestOtpController(opts: { configured?: boolean } = {}) {
-    const sendOtp = jest.fn().mockResolvedValue({ providerMessageId: 'msg-1' });
+    const sendOtp = jest
+      .fn()
+      .mockResolvedValue({ providerMessageId: 'msg-1', reportedZeroBalance: false });
     const otp = {
       assertNotCoolingDown: jest.fn().mockResolvedValue(undefined),
       issue: jest.fn().mockResolvedValue({
@@ -233,23 +234,26 @@ describe('AuthController.requestOtp', () => {
     expect(sendOtp).not.toHaveBeenCalled();
   });
 
-  it('surfaces a rejected send in production rather than echoing the code', async () => {
+  it('never echoes the code in production when the send was rejected', async () => {
     process.env.NODE_ENV = 'production';
     const { controller, sendOtp } = makeRequestOtpController({ configured: true });
     sendOtp.mockRejectedValue(new Error('MSG91 rejected the send (HTTP 400)'));
 
-    await expect(controller.requestOtp(body as never)).rejects.toThrow(
-      'MSG91 rejected the send',
-    );
+    const result = await controller.requestOtp(body as never).catch((e: unknown) => e);
+
+    // Whatever the cause, a production caller must not receive a code that was
+    // never texted to the number.
+    expect(result).not.toHaveProperty('dev_code');
+    expect(result).toBeInstanceOf(ServiceUnavailableException);
   });
 
-  it('answers an unfunded wallet with a coded 503 rather than a generic failure', async () => {
+  it('answers any failed send in production with a coded 503 rather than a bare 500', async () => {
     process.env.NODE_ENV = 'production';
     const { controller, sendOtp } = makeRequestOtpController({ configured: true });
-    sendOtp.mockRejectedValue(new SmsCreditExhaustedError('MSG91 has no SMS credit'));
+    sendOtp.mockRejectedValue(new Error('MSG91 rejected the send (HTTP 400)'));
 
-    // The app can only show copy a person can act on if it can tell this
-    // refusal from an outage, so the code is the contract here.
+    // The app can only show copy a person can act on if it can tell "no code
+    // was sent" from an outage, so the code is the contract here.
     const error = (await controller.requestOtp(body as never).catch((e: unknown) => e)) as
       | ServiceUnavailableException
       | undefined;
@@ -260,12 +264,10 @@ describe('AuthController.requestOtp', () => {
     });
   });
 
-  it('keeps the vendor diagnostic out of what an unfunded production caller is told', async () => {
+  it('keeps the vendor diagnostic out of what a production caller is told', async () => {
     process.env.NODE_ENV = 'production';
     const { controller, sendOtp } = makeRequestOtpController({ configured: true });
-    sendOtp.mockRejectedValue(
-      new SmsCreditExhaustedError('MSG91 has no SMS credit on the transactional route'),
-    );
+    sendOtp.mockRejectedValue(new Error('MSG91 rejected the send: invalid template 6acb8fd6'));
 
     const error = (await controller.requestOtp(body as never).catch((e: unknown) => e)) as
       | ServiceUnavailableException
@@ -274,19 +276,19 @@ describe('AuthController.requestOtp', () => {
 
     // "Recharge the MSG91 wallet" is for an operator reading logs, not for a
     // stranger's phone screen.
-    expect(response).not.toMatch(/MSG91|credit|wallet|recharge/i);
+    expect(response).not.toMatch(/MSG91|credit|wallet|recharge|template/i);
   });
 
-  it('echoes the code in development with a warning when the wallet is empty', async () => {
+  it('echoes the code in development, with a warning, when the send failed', async () => {
     process.env.NODE_ENV = 'development';
     const { controller, sendOtp } = makeRequestOtpController({ configured: true });
-    sendOtp.mockRejectedValue(new SmsCreditExhaustedError('MSG91 has no SMS credit'));
+    sendOtp.mockRejectedValue(new Error('MSG91 rejected the send (HTTP 400)'));
 
     const result = await controller.requestOtp(body as never);
 
     // The code is echoed so the developer is not stuck; the warning is what
     // stops that echo from looking like a delivered SMS — the exact blind spot
-    // that let an empty wallet stay invisible.
+    // that let a broken send path stay invisible.
     expect(result.dev_code).toBe('434578');
     expect(result.delivery_warning).toMatch(/no message was sent/i);
   });
@@ -300,13 +302,28 @@ describe('AuthController.requestOtp', () => {
     expect(result.delivery_warning).toBeUndefined();
   });
 
-  it('adds no delivery warning for an ordinary provider rejection in development', async () => {
+  it('warns in development when MSG91 accepted the send but reports no balance', async () => {
     process.env.NODE_ENV = 'development';
     const { controller, sendOtp } = makeRequestOtpController({ configured: true });
-    sendOtp.mockRejectedValue(new Error('MSG91 rejected the send (HTTP 400)'));
+    sendOtp.mockResolvedValue({ providerMessageId: 'req-1', reportedZeroBalance: true });
 
     const result = await controller.requestOtp(body as never);
 
+    // The send is not blocked — a false zero must never stop codes going out —
+    // but the disagreement between the balance figure and the account holder is
+    // surfaced while the code is echoed.
+    expect(sendOtp).toHaveBeenCalled();
+    expect(result.delivery_warning).toMatch(/zero SMS balance/i);
+  });
+
+  it('does not warn a production caller about a zero balance reading', async () => {
+    process.env.NODE_ENV = 'production';
+    const { controller, sendOtp } = makeRequestOtpController({ configured: true });
+    sendOtp.mockResolvedValue({ providerMessageId: 'req-1', reportedZeroBalance: true });
+
+    const result = await controller.requestOtp(body as never);
+
+    // A user cannot act on an unverifiable balance figure; it belongs in logs.
     expect(result.delivery_warning).toBeUndefined();
   });
 });
