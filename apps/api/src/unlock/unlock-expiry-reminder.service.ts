@@ -59,15 +59,6 @@ export class UnlockExpiryReminder implements OnApplicationBootstrap, OnModuleDes
     this.timer = null;
   }
 
-  /**
-   * Claim every unlock now inside the reminder window and record one
-   * notification per claim. Returns how many were reminded.
-   *
-   * PUSH rather than IN_APP: Firebase was chosen for push (2026-10-01), and the
-   * dispatcher delivers a `PUSH` row to the buyer's devices. A member with no
-   * registered device simply keeps the row in their in-app list until one is
-   * registered, so the reminder is never lost.
-   */
   async sweep(): Promise<number> {
     const hours = this.env.UNLOCK_EXPIRY_REMINDER_HOURS;
     const due = await this.unlocks.claimDueReminders(hours * 60 * 60 * 1000, this.clock.now());
@@ -102,8 +93,9 @@ export class UnlockExpiryReminder implements OnApplicationBootstrap, OnModuleDes
     try {
       await this.sweep();
     } catch (error) {
+      const code = (error as any)?.code ?? '';
       this.logger.error(
-        'Unlock expiry reminder sweep failed; will retry on the next interval.',
+        `Unlock expiry reminder sweep failed; will retry on the next interval.${code ? ` [${code}]` : ''}`,
         error instanceof Error ? error.stack : String(error),
       );
     }

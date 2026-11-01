@@ -53,8 +53,9 @@ export class UnlockExpirySweeper implements OnApplicationBootstrap, OnModuleDest
     try {
       await this.unlocks.expireDue();
     } catch (error) {
+      const code = (error as any)?.code ?? '';
       this.logger.error(
-        'Unlock expiry sweep failed; will retry on the next interval.',
+        `Unlock expiry sweep failed; will retry on the next interval.${code ? ` [${code}]` : ''}`,
         error instanceof Error ? error.stack : String(error),
       );
     }

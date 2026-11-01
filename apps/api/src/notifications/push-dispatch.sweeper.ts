@@ -43,8 +43,9 @@ export class PushDispatchSweeper implements OnApplicationBootstrap, OnModuleDest
     try {
       await this.dispatch.dispatch();
     } catch (error) {
+      const code = (error as any)?.code ?? '';
       this.logger.error(
-        'Push dispatch sweep failed; will retry on the next interval.',
+        `Push dispatch sweep failed; will retry on the next interval.${code ? ` [${code}]` : ''}`,
         error instanceof Error ? error.stack : String(error),
       );
     }
