@@ -34,7 +34,7 @@ import {
 
 @Controller('auth')
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
+
 
   constructor(
     private readonly otp: OtpService,
@@ -43,6 +43,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly prisma: PrismaClient,
     private readonly sms: SmsGateway,
+    private readonly logger: Logger,
   ) {}
 
   /**
@@ -99,16 +100,10 @@ export class AuthController {
       try {
         const delivery = await this.sms.sendOtp({ mobile: body.mobile, code: issued.code });
 
-        // MSG91 accepted the send, but its own balance endpoint disagrees with
-        // the account holder about whether it could. Say so in development
-        // while the code is still echoed, so the mismatch is visible. Never in
-        // production: a user cannot act on an unverifiable figure, and the send
-        // was accepted, so the honest answer there is still "we sent it".
-        if (delivery.reportedZeroBalance && !isProduction) {
-          response.delivery_warning =
-            'MSG91 reports a zero SMS balance, so this message may not arrive. ' +
-            'Use the development code below, and check delivery in the MSG91 panel.';
-        }
+        // The zero-balance reading is advisory and known to be unreliable for
+        // this account, so it is no longer surfaced to the caller.
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        void delivery.reportedZeroBalance;
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
 

@@ -302,28 +302,16 @@ describe('AuthController.requestOtp', () => {
     expect(result.delivery_warning).toBeUndefined();
   });
 
-  it('warns in development when MSG91 accepted the send but reports no balance', async () => {
+  it('does not warn on the frontend when MSG91 accepted the send but reports no balance', async () => {
     process.env.NODE_ENV = 'development';
     const { controller, sendOtp } = makeRequestOtpController({ configured: true });
     sendOtp.mockResolvedValue({ providerMessageId: 'req-1', reportedZeroBalance: true });
 
     const result = await controller.requestOtp(body as never);
 
-    // The send is not blocked — a false zero must never stop codes going out —
-    // but the disagreement between the balance figure and the account holder is
-    // surfaced while the code is echoed.
+    // The zero-balance reading is advisory and known to be unreliable for this
+    // account, so it no longer surfaces as a user-facing delivery warning.
     expect(sendOtp).toHaveBeenCalled();
-    expect(result.delivery_warning).toMatch(/zero SMS balance/i);
-  });
-
-  it('does not warn a production caller about a zero balance reading', async () => {
-    process.env.NODE_ENV = 'production';
-    const { controller, sendOtp } = makeRequestOtpController({ configured: true });
-    sendOtp.mockResolvedValue({ providerMessageId: 'req-1', reportedZeroBalance: true });
-
-    const result = await controller.requestOtp(body as never);
-
-    // A user cannot act on an unverifiable balance figure; it belongs in logs.
     expect(result.delivery_warning).toBeUndefined();
   });
 });

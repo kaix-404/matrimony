@@ -149,7 +149,7 @@ describe('Msg91SmsGateway', () => {
     expect(headers.authkey).toBeUndefined();
   });
 
-  it('sends despite a zero balance, but reports the reading instead of silencing it', async () => {
+  it('sends despite a zero balance, and still reports the reading internally', async () => {
     const fetchMock = mockVendor({ balance: '0' });
     setFetch(fetchMock);
 
@@ -158,6 +158,8 @@ describe('Msg91SmsGateway', () => {
     // Deliberately NOT refused. The balance endpoint is a legacy figure that has
     // reported zero for a funded account, and blocking on it would lock every
     // user out of signing in — a worse failure than the silence it prevents.
+    // The reading is still returned so callers can keep it for diagnostics, but
+    // it is no longer surfaced as a user-facing warning.
     expect(callsTo(fetchMock, FLOW_URL)).toHaveLength(1);
     expect(result.reportedZeroBalance).toBe(true);
     expect(result.providerMessageId).toBe('req-1');

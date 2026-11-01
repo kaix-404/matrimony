@@ -1,43 +1,15 @@
 import { Logger } from '@nestjs/common';
 
-/**
- * The SMS delivery seam.
- *
- * THE CLIENT CHOSE MSG91
- * ----------------------
- * The SMS provider was open (GAP-12) and MSG91 was the fallback; the client
- * confirmed MSG91 on 2026-10-14, so this is no longer provider-agnostic config
- * waiting on a decision. MSG91 sits behind an abstract class for the same two
- * reasons the payment gateway does: tests must exercise delivery without the
- * network, and no other code should be able to reach the vendor SDK directly.
- *
- * WHY THE FLOW API AND NOT MSG91'S OTP API
- * ----------------------------------------
- * MSG91 offers a SendOTP API that generates and verifies the code itself. Using
- * it would move verification into the vendor while the platform already owns OTP
- * state — codes are hashed under `OTP_HASH_SECRET`, attempt-counted and expired
- * against `OtpRequest`, and the delete-account flow has to consume a code at a
- * later step. Two sources of truth for "is this code valid" is exactly the
- * ambiguity the OTP module was written to avoid, so only the templated Flow API
- * is used: our code travels as a template variable and MSG91 just delivers it.
- *
- * SMS IS OTP-ONLY
- * ---------------
- * The client's answer G1 keeps SMS for one-time codes alone, deliberately, as a
- * cost saving. The seam therefore models that single job rather than a general
- * "send a message" channel; a second SMS use would be a deliberate widening.
- */
+
 
 export interface SmsDeliveryResult {
   /** MSG91's request id for the send; null when the provider did not return one. */
   providerMessageId: string | null;
   /**
-   * MSG91's balance endpoint reported zero immediately before this send.
+   * MSG91's balance endpoint read as zero immediately before this send.
    *
-   * Advisory, never a refusal. See `MSG91_BALANCE_URL`: the reading is not
-   * trustworthy enough to gate on, but a zero is worth repeating to a caller in
-   * development when the client swears the account is funded — that mismatch is
-   * the thing worth investigating.
+   * Advisory only. See `MSG91_BALANCE_URL`: the reading is not trustworthy
+   * enough to gate on.
    */
   reportedZeroBalance: boolean;
 }
@@ -82,6 +54,8 @@ export const MSG91_FLOW_URL = 'https://control.msg91.com/api/v5/flow/';
  * It is therefore used only to raise a flag, never to block a send: a false
  * zero would lock every user out of signing in, which is a worse failure than
  * the silence it would be trying to prevent.
+ * The reading is also no longer surfaced to the caller, because for this
+ * account it has repeatedly disagreed with the funded dashboard.
  */
 export const MSG91_BALANCE_URL = 'https://control.msg91.com/api/balance.php';
 
@@ -164,7 +138,7 @@ export class Msg91SmsGateway extends SmsGateway {
       throw new Error('MSG91 is not configured');
     }
 
-    const reportedZeroBalance = await this.warnIfUnfunded();
+    const reportedZeroBalance = await this.noteIfBalanceLooksEmpty();
 
     // The Flow API addresses the send with `flow_id` plus a `recipients` array:
     // the number and that template's variables live on the recipient, not at the
@@ -220,28 +194,25 @@ export class Msg91SmsGateway extends SmsGateway {
     return { providerMessageId: parsed?.message ?? null, reportedZeroBalance };
   }
 
-  /**
-   * Notes when the wallet looks empty, and sends anyway.
-   *
-   * MSG91 accepts a Flow request, answers `type: "success"` with a request id,
-   * and can drop the message afterwards for want of credit, which to this
-   * gateway is indistinguishable from a delivered code. An earlier version of
-   * this file refused the send outright on a zero reading. That was wrong: the
-   * balance endpoint is a legacy figure that reported zero for an account the
-   * customer could see funded, so the guard would have turned a migrating
-   * ledger into a total sign-in outage. The reading is now reported, not obeyed.
-   *
-   * Fail-open by construction: no reading (unreachable, unparseable) is not a
-   * zero, and a zero does not stop the send.
-   */
-  private async warnIfUnfunded(): Promise<boolean> {
+/**
+ * Notes when the legacy balance endpoint reads as zero, and sends anyway.
+ *
+ * MSG91 accepts a Flow request, answers `type: "success"` with a request id,
+ * and can drop the message afterwards for want of credit, which to this
+ * gateway is indistinguishable from a delivered code. The balance endpoint is
+ * a legacy figure that has reported zero for accounts the customer could see
+ * funded, so this log is advisory only: it no longer warns the caller, and it
+ * never blocks the send.
+ *
+ * Fail-open by construction: no reading (unreachable, unparseable) is not a
+ * zero, and a zero does not stop the send.
+ */
+  private async noteIfBalanceLooksEmpty(): Promise<boolean> {
     const balance = await this.currentBalance();
     if (balance === null || balance > 0) return false;
 
-    this.logger.error(
-      'MSG91 reports a zero SMS balance, so this code may be accepted and then dropped. ' +
-        'Sending anyway: the balance figure is not reliable enough to block on. ' +
-        'Confirm delivery in the MSG91 panel, and check the account the authkey belongs to.',
+    this.logger.debug(
+      'MSG91 balance endpoint read as zero before this send; sending anyway.',
     );
     return true;
   }
