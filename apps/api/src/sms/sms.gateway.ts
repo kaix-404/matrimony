@@ -1,15 +1,13 @@
 import { Logger } from '@nestjs/common';
 
-
-
 export interface SmsDeliveryResult {
   /** MSG91's request id for the send; null when the provider did not return one. */
   providerMessageId: string | null;
   /**
    * MSG91's balance endpoint read as zero immediately before this send.
    *
-   * Advisory only. See `MSG91_BALANCE_URL`: the reading is not trustworthy
-   * enough to gate on.
+   * Advisory only: it is no longer surfaced to the caller, because for this
+   * account the reading has repeatedly disagreed with the funded dashboard.
    */
   reportedZeroBalance: boolean;
 }
@@ -51,11 +49,9 @@ export const MSG91_FLOW_URL = 'https://control.msg91.com/api/v5/flow/';
  * MSG91 documents no general wallet-balance API (its own FAQ asks for the use
  * case before granting one), and the account this was built against returned
  * `0` on every route while the customer's dashboard showed a funded balance.
- * It is therefore used only to raise a flag, never to block a send: a false
- * zero would lock every user out of signing in, which is a worse failure than
- * the silence it would be trying to prevent.
- * The reading is also no longer surfaced to the caller, because for this
- * account it has repeatedly disagreed with the funded dashboard.
+ * It is therefore only reported, never obeyed, and never shown to a user: a
+ * false zero would strand every user at the OTP screen or scare them with a
+ * warning about a wallet they cannot see.
  */
 export const MSG91_BALANCE_URL = 'https://control.msg91.com/api/balance.php';
 
@@ -64,7 +60,7 @@ const MSG91_TRANSACTIONAL_ROUTE = '4';
 
 /**
  * A balance reading, or `null` when the probe could not produce one. `null` is
- * deliberately distinct from `0`: only a confirmed zero may block a send.
+ * deliberately distinct from `0`: only a confirmed zero raises the flag.
  */
 function parseBalance(raw: string): number | null {
   const text = raw.trim();
@@ -194,26 +190,25 @@ export class Msg91SmsGateway extends SmsGateway {
     return { providerMessageId: parsed?.message ?? null, reportedZeroBalance };
   }
 
-/**
- * Notes when the legacy balance endpoint reads as zero, and sends anyway.
- *
- * MSG91 accepts a Flow request, answers `type: "success"` with a request id,
- * and can drop the message afterwards for want of credit, which to this
- * gateway is indistinguishable from a delivered code. The balance endpoint is
- * a legacy figure that has reported zero for accounts the customer could see
- * funded, so this log is advisory only: it no longer warns the caller, and it
- * never blocks the send.
- *
- * Fail-open by construction: no reading (unreachable, unparseable) is not a
- * zero, and a zero does not stop the send.
- */
+  /**
+   * Reads the legacy balance endpoint and notes when it claims zero, then sends
+   * anyway.
+   *
+   * MSG91 accepts a Flow request, answers `type: "success"` with a request id,
+   * and can drop the message afterwards for want of credit, which to this
+   * gateway is indistinguishable from a delivered code. The balance endpoint is
+   * a legacy figure that has reported zero for accounts the customer could see
+   * funded, so this is a debug log only: it never blocks a send and never
+   * reaches a user's screen.
+   *
+   * Fail-open by construction: no reading (unreachable, unparseable) is not a
+   * zero, and a zero does not stop the send.
+   */
   private async noteIfBalanceLooksEmpty(): Promise<boolean> {
     const balance = await this.currentBalance();
     if (balance === null || balance > 0) return false;
 
-    this.logger.debug(
-      'MSG91 balance endpoint read as zero before this send; sending anyway.',
-    );
+    this.logger.debug('MSG91 balance endpoint read as zero before this send; sending anyway.');
     return true;
   }
 

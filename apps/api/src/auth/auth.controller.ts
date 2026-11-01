@@ -34,7 +34,9 @@ import {
 
 @Controller('auth')
 export class AuthController {
-
+  // A plain field rather than a constructor parameter: `Logger` is not a
+  // provider in `AuthModule`, so injecting it made Nest refuse to boot.
+  private readonly logger = new Logger(AuthController.name);
 
   constructor(
     private readonly otp: OtpService,
@@ -43,7 +45,6 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly prisma: PrismaClient,
     private readonly sms: SmsGateway,
-    private readonly logger: Logger,
   ) {}
 
   /**
@@ -98,12 +99,11 @@ export class AuthController {
       response.dev_code = issued.code;
     } else {
       try {
-        const delivery = await this.sms.sendOtp({ mobile: body.mobile, code: issued.code });
-
-        // The zero-balance reading is advisory and known to be unreliable for
-        // this account, so it is no longer surfaced to the caller.
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        void delivery.reportedZeroBalance;
+        // The delivery result is deliberately not inspected for a zero balance:
+        // MSG91's balance endpoint disagrees with the funded dashboard for this
+        // account, and surfacing that reading stranded users behind a warning
+        // about a wallet they cannot see. Accepted sends say nothing.
+        await this.sms.sendOtp({ mobile: body.mobile, code: issued.code });
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
 
@@ -121,8 +121,8 @@ export class AuthController {
         this.logger.warn(`MSG91 send failed; echoing dev_code instead: ${detail}`);
         response.dev_code = issued.code;
         // Without this the app shows a development code and looks like a
-        // working send, which is how an unusable wallet hid for days.
-        response.delivery_warning = `No message was sent (${detail}). Use the development code below.`;
+        // working send, which is how a broken send path hid for days.
+        response.delivery_warning = 'No message was sent. Use the development code below.';
       }
     }
 
