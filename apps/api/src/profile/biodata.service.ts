@@ -8,7 +8,7 @@ import {
   type BiodataField,
   type BiodataValue,
 } from '@matrimony/shared';
-import { extractPdfText } from './pdf-text.js';
+import { extractPdfText } from './pdf-text';
 
 /**
  * Biodata import — read a document, propose profile fields.

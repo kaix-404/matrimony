@@ -35,7 +35,7 @@ import {
   type CompletePhotoUploadInput,
   type InitiatePhotoUploadInput,
   type SetVisibilityInput,
-} from './dto.js';
+} from './dto';
 import {
   InitiateBiodataUploadSchema,
   ParseBiodataSchema,
