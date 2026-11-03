@@ -37,7 +37,7 @@
       "bundler": "metro"
     },
     "extra": {
-      "apiBaseUrl": "http://localhost:4000/api/v1"
+      "apiBaseUrl": "https://matrimony-api-2bmy.onrender.com/api/v1"
     }
   }
 }
