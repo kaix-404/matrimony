@@ -28,7 +28,7 @@ COPY . .
 
 RUN npm run build -w @matrimony/shared
 RUN npm run prisma:generate -w @matrimony/api
-RUN cd /app && npm exec --workspace=@matrimony/api -- nest build
+RUN npm run build -w @matrimony/api
 RUN npm run build -w @matrimony/admin
 
 FROM base AS runner
