@@ -24,10 +24,12 @@ COPY packages/shared/package.json packages/shared/
 
 RUN npm install
 
-COPY . .RUN npm run build -w @matrimony/shared
-    RUN npm run prisma:generate -w @matrimony/api
-    RUN cd /app/apps/api && node ../../node_modules/.bin/nest build
-    RUN npm run build -w @matrimony/admin
+COPY . .
+
+RUN npm run build -w @matrimony/shared
+RUN npm run prisma:generate -w @matrimony/api
+RUN cd /app/apps/api && node ../../node_modules/.bin/nest build
+RUN npm run build -w @matrimony/admin
 
 FROM base AS runner
 
