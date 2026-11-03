@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Networth Matrimony — Find Your Match</title>
+  <meta name="description" content="Networth Matrimony helps you find meaningful connections based on shared values and life goals." />
+  <meta name="theme-color" content="#FF5A43" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <style>
+    :root {
+      --primary: #FF5A43;
+      --primary-deep: #B83280;
+      --bg: #FFFFFF;
+      --surface: #F4F4F6;
+      --surface-alt: #F8F9FB;
+      --text: #1C1917;
+      --text-strong: #2C2724;
+      --text-muted: #8E8E93;
+      --radius: 24px;
+      --shadow: 0 8px 32px rgba(28, 25, 23, 0.08);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%);
+      color: white;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle at 30% 40%, rgba(255,255,255,0.15) 0%, transparent 50%);
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 520px;
+    }
+
+    .hero h1 {
+      font-size: clamp(2.2rem, 6vw, 3.5rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      line-height: 1.1;
+    }
+
+    .hero p {
+      font-size: 1.15rem;
+      opacity: 0.9;
+      margin-bottom: 32px;
+      line-height: 1.5;
+    }
+
+    .hero-phone {
+      width: 280px;
+      height: 560px;
+      background: rgba(255,255,255,0.12);
+      border-radius: 40px;
+      border: 3px solid rgba(255,255,255,0.25);
+      backdrop-filter: blur(20px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 32px;
+      position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+
+    .hero-phone::after {
+      content: '';
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 120px;
+      height: 6px;
+      background: rgba(255,255,255,0.3);
+      border-radius: 3px;
+    }
+
+    .hero-phone-inner {
+      text-align: center;
+      opacity: 0.9;
+      font-size: 0.9rem;
+      letter-spacing: 0.05em;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 14px 28px;
+      border-radius: 100px;
+      font-size: 1rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: transform 0.15s, box-shadow 0.15s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: white;
+      color: var(--primary);
+      box-shadow: var(--shadow);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.15);
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.15);
+      color: white;
+      border: 1px solid rgba(255,255,255,0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255,255,255,0.25);
+      transform: translateY(-2px);
+    }
+
+    .features {
+      padding: 80px 24px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    .features h2 {
+      text-align: center;
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 48px;
+      color: var(--text-strong);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 24px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .feature-card .icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 1.4rem;
+    }
+
+    .feature-card h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-strong);
+    }
+
+    .feature-card p {
+      font-size: 0.92rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .download-section {
+      padding: 60px 24px 80px;
+      background: var(--surface-alt);
+      text-align: center;
+    }
+
+    .download-section h2 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: var(--text-strong);
+    }
+
+    .download-section p {
+      color: var(--text-muted);
+      margin-bottom: 32px;
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .qr-box {
+      display: inline-block;
+      background: white;
+      border-radius: var(--radius);
+      padding: 24px;
+      box-shadow: var(--shadow);
+      margin-bottom: 24px;
+    }
+
+    .qr-box img {
+      width: 200px;
+      height: 200px;
+      display: block;
+      margin: 0 auto;
+    }
+
+    .qr-box p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 12px;
+    }
+
+    .footer {
+      padding: 32px 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      border-top: 1px solid var(--surface);
+    }
+
+    @media (max-width: 480px) {
+      .hero-phone {
+        width: 220px;
+        height: 440px;
+        border-radius: 30px;
+      }
+      .btn {
+        padding: 12px 20px;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-phone">
+        <div class="hero-phone-inner">📱<br/>Networth<br/>Matrimony</div>
+      </div>
+      <h1>Find Your Match</h1>
+      <p>Connect with people who share your values, lifestyle, and vision for the future.</p>
+      <div class="btn-group">
+        <a href="#download" class="btn btn-primary">Get the App</a>
+        <a href="#features" class="btn btn-secondary">Learn More</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="features" id="features">
+    <h2>Why Networth Matrimony?</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="icon">💰</div>
+        <h3>Net Worth Compatibility</h3>
+        <p>Match based on financial compatibility and shared economic goals — because money matters in relationships.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">🔒</div>
+        <h3>Privacy First</h3>
+        <p>Your profile and data stay private. You control who sees what, with end-to-end encrypted communications.</p>
+      </div>
+      <div class="feature-card">
+        <div class="icon">📱</div>
+        <h3>Simple & Intuitive</h3>
+        <p>Built with a clean, modern design. Find your match without complexity — just open the app and start exploring.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="download-section" id="download">
+    <h2>Coming Soon</h2>
+    <p>Networth Matrimony will be available on the App Store and Google Play. Join the waitlist to get early access.</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+      <a href="#" class="btn btn-primary" onclick="alert('App Store link coming soon');return false;">
+        Apple App Store
+      </a>
+      <a href="#" class="btn btn-secondary" onclick="alert('Google Play link coming soon');return false;">
+        Google Play
+      </a>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>&copy; 2026 Networth Matrimony. All rights reserved.</p>
+  </footer>
+</body>
+</html>
