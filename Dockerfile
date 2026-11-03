@@ -44,11 +44,8 @@ COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api/src/generated ./apps/api/src/generated
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/apps/admin/.next ./apps/admin/.next
-COPY --from=builder /app/apps/admin/public ./apps/admin/public
-COPY --from=builder /app/apps/admin/package.json ./apps/admin/
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-COPY --from=builder /app/apps/admin/package.json ./apps/admin/
 
 USER nestjs
 
