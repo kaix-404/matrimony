@@ -1,6 +1,6 @@
 {
   "expo": {
-    "owner": "kaix-404",
+    "owner": "alphaclark",
     "name": "Networth Matrimony",
     "slug": "networth-matrimony",
     "scheme": "networth-matrimony",
@@ -31,14 +31,23 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.networth.matrimony"
+      "package": "com.networth.matrimony",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
     "extra": {
-      "apiBaseUrl": "https://matrimony-api-2bmy.onrender.com/api/v1"
+      "apiBaseUrl": "https://matrimony-api-2bmy.onrender.com/api/v1",
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "87fd77dc-6c58-4ec6-a52f-33264243c245"
+      }
     }
   }
 }
