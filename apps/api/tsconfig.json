@@ -9,7 +9,6 @@
     "incremental": false,
     "declaration": false,
     "declarationMap": false,
-    "types": ["node", "jest", "express"],
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true
   },
