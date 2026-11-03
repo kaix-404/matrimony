@@ -93,7 +93,7 @@ export class UnlockExpiryReminder implements OnApplicationBootstrap, OnModuleDes
     try {
       await this.sweep();
     } catch (error) {
-      const code = (error as any)?.code ?? '';
+      const code = (error as Error & { code?: string })?.code ?? '';
       this.logger.error(
         `Unlock expiry reminder sweep failed; will retry on the next interval.${code ? ` [${code}]` : ''}`,
         error instanceof Error ? error.stack : String(error),

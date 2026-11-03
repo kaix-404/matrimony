@@ -60,3 +60,4 @@ infra/docker/data/
 # generated prisma client (output of `prisma generate`)
 apps/api/src/generated/
 packages/*/src/generated/
+.neon

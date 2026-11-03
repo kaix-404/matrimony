@@ -1,0 +1,99 @@
+services:
+  # --- NestJS API -----------------------------------------------------------
+  - type: web
+    name: matrimony-api
+    env: docker
+    region: singapore
+    plan: free
+    repoPath: .
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: "4000"
+      - key: API_GLOBAL_PREFIX
+        value: api/v1
+      - key: TZ
+        value: UTC
+      - key: DATABASE_URL
+        valueType: secret
+      - key: REDIS_URL
+        valueType: secret
+      - key: JWT_ACCESS_SECRET
+        valueType: secret
+      - key: JWT_REFRESH_SECRET
+        valueType: secret
+      - key: OTP_HASH_SECRET
+        valueType: secret
+      - key: MFA_ENCRYPTION_KEY
+        valueType: secret
+      - key: S3_ENDPOINT
+        valueType: secret
+      - key: S3_BUCKET
+        valueType: secret
+      - key: S3_ACCESS_KEY
+        valueType: secret
+      - key: S3_SECRET_KEY
+        valueType: secret
+      - key: S3_FORCE_PATH_STYLE
+        value: "true"
+      - key: S3_SIGNED_URL_TTL
+        value: "300"
+      - key: ADMIN_API_BASE_URL
+        value: "https://matrimony-api.onrender.com/api/v1"
+      - key: API_CORS_ORIGINS
+        value: "https://matrimony-admin.onrender.com"
+      # Payment & notification secrets — add when ready
+      # - key: RAZORPAY_KEY_ID
+      #   valueType: secret
+      # - key: RAZORPAY_KEY_SECRET
+      #   valueType: secret
+      # - key: RAZORPAY_WEBHOOK_SECRET
+      #   valueType: secret
+      # - key: CASHFREE_CLIENT_ID
+      #   valueType: secret
+      # - key: CASHFREE_CLIENT_SECRET
+      #   valueType: secret
+      # - key: FCM_SERVICE_ACCOUNT_JSON
+      #   valueType: secret
+      # - key: SMS_PROVIDER_API_KEY
+      #   valueType: secret
+      # - key: SMS_SENDER_ID
+      #   valueType: secret
+      # - key: SMS_TEMPLATE_ID
+      #   valueType: secret
+      # - key: SMS_DLT_ENTITY_ID
+      #   valueType: secret
+      # - key: SMS_DLT_TEMPLATE_ID
+      #   valueType: secret
+      # - key: EMAIL_PROVIDER_API_KEY
+      #   valueType: secret
+      # - key: EMAIL_FROM_ADDRESS
+      #   valueType: secret
+    healthCheckPath: /api/v1/health/ready
+    healthCheckPort: 4000
+    autoDeploy: true
+    rootDirectory: .
+    maxDuration: 60
+
+  # --- Next.js Admin Dashboard ---------------------------------------------
+  - type: web
+    name: matrimony-admin
+    env: node
+    region: singapore
+    plan: free
+    runtime: node
+    buildCommand: npm run build -w @matrimony/admin
+    startCommand: npm run start -w @matrimony/admin
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_API_BASE_URL
+        value: "https://matrimony-api.onrender.com/api/v1"
+      - key: NEXT_TELEMETRY_DISABLE
+        value: "1"
+    healthCheckPath: /login
+    autoDeploy: true
+    rootDirectory: .
