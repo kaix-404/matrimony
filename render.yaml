@@ -42,9 +42,9 @@ services:
       - key: S3_SIGNED_URL_TTL
         value: "300"
       - key: ADMIN_API_BASE_URL
-        value: "https://matrimony-api.onrender.com/api/v1"
+        value: "https://matrimony-api-2bmy.onrender.com/api/v1"
       - key: API_CORS_ORIGINS
-        value: "https://matrimony-admin.onrender.com"
+        value: "https://matrimony-admin-2bmy.onrender.com"
       # Payment & notification secrets — add when ready
       # - key: RAZORPAY_KEY_ID
       #   valueType: secret
