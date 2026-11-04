@@ -1,17 +1,8 @@
 const { getDefaultConfig } = require('@expo/metro-config');
 
-const root = require('path').resolve(__dirname, '..');
-
-module.exports = (() => {
-  const config = getDefaultConfig(__dirname);
-
-  // Add the repository root to Metro's resolver paths so that
-  // expo/AppEntry.js can resolve ../../App when expo is hoisted
-  // to the root node_modules.
-  config.resolver.nodeModulesPaths = [
-    ...config.resolver.nodeModulesPaths,
-    root,
-  ];
-
-  return config;
-})();
+// The app is a self-contained Expo project: its entry is `expo-router/entry`
+// (declared in package.json "main"), and every Expo/React Native dependency is
+// declared here rather than duplicated in the repository root. Expo SDK 52's
+// default config resolves workspace packages in this monorepo, so no manual
+// nodeModulesPaths override is needed.
+module.exports = getDefaultConfig(__dirname);

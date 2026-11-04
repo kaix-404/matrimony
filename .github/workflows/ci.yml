@@ -78,10 +78,12 @@ jobs:
         run: npm run typecheck && npm run lint && npm run test && npm run build
 
       # Bundle the mobile app for web to catch broken imports/routes.
-      # Run from within apps/mobile so the local @expo/cli finds metro in
-      # its own node_modules instead of the root workspace's @expo/cli.
+      # Runs inside apps/mobile: the app declares its own Expo/React Native
+      # dependencies and its entry (expo-router/entry), so the workspace root
+      # no longer needs duplicate copies of those packages.
       - name: Bundle the mobile app
-        run: npx expo export --platform web --output-dir apps/mobile/dist
+        working-directory: apps/mobile
+        run: npx expo export --platform web --output-dir dist
 
       # Catches schema/SQL drift that `prisma validate` cannot: validate only
       # parses the schema, it does not prove the SQL applies.
