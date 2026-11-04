@@ -11,7 +11,8 @@ COPY apps/api/package.json apps/api/
 COPY apps/admin/package.json apps/admin/
 COPY packages/shared/package.json packages/shared/
 
-# --legacy-peer-deps resolves @types/react@18.3.31 vs react-native@0.76.3 conflict
+# LEGACY_PEER_DEPS_FIX: --legacy-peer-deps resolves @types/react@18.3.31 vs react-native@0.76.3 conflict
+# THIS_MARKER_FORCES_RENDER_CACHE_INVALIDATION_v1
 RUN npm install --legacy-peer-deps
 
 COPY . .
