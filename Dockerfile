@@ -22,7 +22,7 @@ COPY apps/api/package.json apps/api/
 COPY apps/admin/package.json apps/admin/
 COPY packages/shared/package.json packages/shared/
 
-RUN npm install
+RUN npm install --legacy-peer-deps
 
 COPY . .
 
