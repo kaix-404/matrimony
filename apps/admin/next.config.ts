@@ -21,6 +21,16 @@ const nextConfig: NextConfig = {
   experimental: {
     agentUpgrade: 'security',
   },
+  // Webpack 5 (Next.js 16) schema requires resolve.alias values to be
+  // oneOf: [array of strings, false, non-empty string].
+  // styled-jsx adds an alias 'styled-jsx/style$' that must be normalized.
+  webpack: (config) => {
+    // Suppress the styled-jsx alias that would fail webpack schema validation
+    config.resolve.alias = config.resolve.alias || {};
+    config.resolve.alias['styled-jsx$'] = false;
+    config.resolve.alias['styled-jsx/style$'] = false;
+    return config;
+  },
 };
 
 export default nextConfig;

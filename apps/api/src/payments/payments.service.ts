@@ -911,5 +911,6 @@ function toMinor(value: unknown): number | undefined {
  * same error class across versions.
  */
 function isUniqueViolation(error: unknown): boolean {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  const prismaError = error as Prisma.PrismaClientKnownRequestError;
+  return prismaError.code === 'P2002';
 }
