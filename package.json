@@ -53,6 +53,8 @@
   },
   "dependencies": {
     "@neon/config": "^1.10.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "@neon/env": "^1.6.8",
