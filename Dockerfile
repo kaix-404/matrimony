@@ -12,13 +12,12 @@ COPY apps/admin/package.json apps/admin/
 COPY packages/shared/package.json packages/shared/
 
 # --legacy-peer-deps resolves @types/react@18.3.31 vs react-native@0.76.3 conflict
-# Ensures prisma CLI is available via devDependencies
 RUN npm install --legacy-peer-deps
 
 COPY . .
 
 RUN npm run build -w @matrimony/shared
-RUN npm run prisma:generate -w @matrimony/api
+RUN npx prisma generate -w @matrimony/api
 RUN npm run build -w @matrimony/api
 RUN npm run build -w @matrimony/admin
 
