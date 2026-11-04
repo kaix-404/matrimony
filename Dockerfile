@@ -17,8 +17,10 @@ RUN npm install --legacy-peer-deps
 COPY . .
 
 RUN npm run build -w @matrimony/shared
-# Use --schema to explicitly point to the API's Prisma schema
-RUN npx prisma generate --schema apps/api/prisma/schema.prisma
+# Use npx with explicit schema path so Prisma generates the client correctly
+# regardless of cwd or monorepo structure. Pin to 7.10.1 which matches
+# the project's @matrimony/api devDependency ^7.0.0.
+RUN npx prisma@7.10.1 generate --schema apps/api/prisma/schema.prisma
 RUN npm run build -w @matrimony/api
 RUN npm run build -w @matrimony/admin
 
