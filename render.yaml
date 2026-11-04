@@ -85,7 +85,7 @@ services:
     region: singapore
     plan: free
     runtime: node
-    buildCommand: npm run build -w @matrimony/admin
+    buildCommand: npm install --legacy-peer-deps && npm run build -w @matrimony/admin
     startCommand: npm run start -w @matrimony/admin
     envVars:
       - key: NODE_ENV
