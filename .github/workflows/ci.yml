@@ -81,9 +81,8 @@ jobs:
       # Run from within apps/mobile so the local @expo/cli finds metro in
       # its own node_modules instead of the root workspace's @expo/cli.
       - name: Bundle the mobile app
-        run: npx --prefix apps/mobile expo export --platform web --output-dir dist
-        env:
-          PATH: apps/mobile/node_modules/.bin:/usr/bin:/bin
+        run: npx expo export --platform web --output-dir dist
+        working-directory: apps/mobile
 
       # Catches schema/SQL drift that `prisma validate` cannot: validate only
       # parses the schema, it does not prove the SQL applies.
