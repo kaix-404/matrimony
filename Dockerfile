@@ -2,17 +2,6 @@ FROM node:22-slim AS base
 
 ENV NODE_ENV=production
 
-FROM base AS deps
-
-WORKDIR /app
-
-COPY package.json package-lock.json ./
-COPY apps/api/package.json apps/api/
-COPY apps/admin/package.json apps/admin/
-COPY packages/shared/package.json packages/shared/
-
-RUN npm install --production
-
 FROM base AS builder
 
 WORKDIR /app
@@ -45,7 +34,6 @@ COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api/src/generated ./apps/api/src/generated
 COPY --from=builder /app/apps/api/package.json ./apps/api/
 COPY --from=builder /app/apps/admin/.next ./apps/admin/.next
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 USER nestjs
