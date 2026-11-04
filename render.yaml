@@ -1,5 +1,5 @@
 services:
-  # --- NestJS API + Admin -----------------------------------------------------------
+  # --- NestJS API -----------------------------------------------------------
   - type: web
     name: matrimony-api
     env: docker
@@ -77,6 +77,26 @@ services:
     autoDeploy: true
     rootDirectory: .
     maxDuration: 60
+
+  # --- Admin Dashboard (Next.js) --------------------------------------------
+  - type: web
+    name: matrimony-admin
+    env: node
+    region: singapore
+    plan: free
+    runtime: node
+    buildCommand: npm run build
+    startCommand: node .next/standalone/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: API_BASE_URL
+        value: "https://matrimony-api-2bmy.onrender.com/api/v1"
+      - key: ADMIN_API_BASE_URL
+        value: "https://matrimony-api-2bmy.onrender.com/api/v1"
+    healthCheckPath: /api/health
+    autoDeploy: true
+    rootDirectory: .
 
   # --- Landing Page ---------------------------------------------------------
   - type: web
