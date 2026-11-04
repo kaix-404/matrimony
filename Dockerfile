@@ -8,7 +8,6 @@ WORKDIR /app
 
 COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
-COPY apps/admin/package.json apps/admin/
 COPY packages/shared/package.json packages/shared/
 
 # --legacy-peer-deps resolves @types/react@18.3.31 vs react-native@0.76.3 conflict
@@ -17,8 +16,8 @@ RUN npm install --legacy-peer-deps
 COPY . .
 
 RUN npm run build -w @matrimony/shared
+RUN npx prisma@7.10.1 generate --schema apps/api/prisma/schema.prisma
 RUN npm run build -w @matrimony/api
-RUN npm run build -w @matrimony/admin
 
 FROM base AS runner
 
@@ -33,8 +32,6 @@ COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api/src/generated ./apps/api/src/generated
 COPY --from=builder /app/apps/api/package.json ./apps/api/
-COPY --from=builder /app/apps/admin/.next ./apps/admin/.next
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 USER nestjs
 
