@@ -83,9 +83,8 @@ jobs:
       - name: Bundle the mobile app
         run: npx expo export --platform web --output-dir dist
         working-directory: apps/mobile
-        shell: bash -el -o pipefail
         env:
-          PATH: apps/mobile/node_modules/.bin:${{ env.PATH }}
+          PATH: apps/mobile/node_modules/.bin:/usr/bin:/bin
 
       # Catches schema/SQL drift that `prisma validate` cannot: validate only
       # parses the schema, it does not prove the SQL applies.
