@@ -29,6 +29,7 @@ jobs:
 
       - name: Build Android APK
         env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_API_BASE_URL: https://matrimony-api-2bmy.onrender.com/api/v1
           EXPO_NO_CACHE: '1'
         run: eas build --platform android --profile preview --non-interactive --no-wait
