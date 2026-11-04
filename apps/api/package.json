@@ -40,6 +40,7 @@
     "@nestjs/throttler": "^6.3.0",
     "@prisma/adapter-pg": "^7.0.0",
     "@prisma/client": "^7.0.0",
+    "@prisma/client-runtime-utils": "^7.10.1",
     "class-transformer": "^0.5.1",
     "decimal.js": "^10.4.3",
     "dotenv": "^16.4.7",

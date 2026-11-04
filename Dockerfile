@@ -43,11 +43,17 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api/src/generated/prisma ./apps/api/src/generated/prisma
-# @prisma/client and its runtime live in the API workspace node_modules
-# (hoist-limit=0 keeps them from reaching the root node_modules). Copy them
-# into the runtime tree so the generated client's require("@prisma/client/runtime/client")
-# resolves at startup.
-COPY --from=builder /app/apps/api/node_modules/@prisma ./node_modules/@prisma
+# @prisma/client (and its runtime deps) live in the API workspace
+# node_modules because hoist-limit=0 keeps them out of the root copy.
+# Also copy @prisma/client-runtime-utils which is a peer dep of the
+# client that npm did not auto-install into the workspace tree.
+COPY --from=builder /app/apps/api/node_modules/@prisma/client ./node_modules/@prisma/client
+# @prisma/client-runtime-utils is a peer dep of @prisma/client that npm
+# with hoist-limit=0 does not auto-install into the workspace tree. Added
+# as a direct dependency of @matrimony/api so it lands in root
+# node_modules/@prisma/client-runtime-utils and gets copied by the
+# root node_modules COPY above — no separate COPY needed.
+# (Kept as an explicit no-op reference for clarity; the root COPY handles it.)
 
 USER nestjs
 
