@@ -11,12 +11,12 @@ COPY apps/api/package.json apps/api/
 COPY apps/admin/package.json apps/admin/
 COPY packages/shared/package.json packages/shared/
 
-RUN npm install --legacy-peer-deps
+RUN npm ci --legacy-peer-deps
 
 COPY . .
 
 RUN npm run build -w @matrimony/shared
-RUN npm run prisma:generate -w @matrimony/api
+RUN npx --yes -w @matrimony/api prisma generate
 RUN npm run build -w @matrimony/api
 RUN npm run build -w @matrimony/admin
 
