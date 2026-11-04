@@ -49,19 +49,19 @@
     "react-helmet-async": "^2.0.0",
     "react-native-helmet-async": "^2.0.0",
     "prettier": "^3.4.2",
-    "react": "19.3.0",
-    "react-dom": "19.3.0",
     "typescript": "^5.7.2"
   },
   "dependencies": {
     "@neon/config": "^1.10.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
     "@neon/env": "^1.6.8",
     "@nestjs/cli": "^11.0.0",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.12"
   },
   "overrides": {
-    "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
   }
 }
