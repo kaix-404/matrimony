@@ -8,6 +8,7 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+COPY scripts/ ./scripts/
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 
@@ -52,7 +53,7 @@ COPY --from=builder /app/apps/api/node_modules/@prisma/client ./node_modules/@pr
 # with hoist-limit=0 does not auto-install into the workspace tree. Added
 # as a direct dependency of @matrimony/api so it lands in root
 # node_modules/@prisma/client-runtime-utils and gets copied by the
-# root node_modules COPY above — no separate COPY needed.
+# root node_modules COPY above â€” no separate COPY needed.
 # (Kept as an explicit no-op reference for clarity; the root COPY handles it.)
 
 USER nestjs
