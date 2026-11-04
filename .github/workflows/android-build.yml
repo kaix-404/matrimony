@@ -61,6 +61,13 @@ jobs:
           # Prebuild native Android project
           npx expo prebuild --platform android --clean 2>&1 | tee /tmp/prebuild.log
 
+          # Copy secure-store XML resource files (expo-secure-store plugin
+          # adds references to these in AndroidManifest.xml but does not
+          # generate the files themselves)
+          mkdir -p android/app/src/main/res/xml
+          cp ../resources/xml/secure_store_backup_rules.xml android/app/src/main/res/xml/
+          cp ../resources/xml/secure_store_data_extraction_rules.xml android/app/src/main/res/xml/
+
           # Build debug APK (no signing required)
           cd android
           ./gradlew assembleDebug --no-daemon 2>&1 | tee /tmp/gradle.log
