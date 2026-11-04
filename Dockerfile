@@ -42,6 +42,12 @@ COPY --from=builder /app/packages/shared ./packages/shared
 COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+COPY --from=builder /app/apps/api/src/generated/prisma ./apps/api/src/generated/prisma
+# @prisma/client and its runtime live in the API workspace node_modules
+# (hoist-limit=0 keeps them from reaching the root node_modules). Copy them
+# into the runtime tree so the generated client's require("@prisma/client/runtime/client")
+# resolves at startup.
+COPY --from=builder /app/apps/api/node_modules/@prisma ./node_modules/@prisma
 
 USER nestjs
 
