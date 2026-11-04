@@ -1,5 +1,5 @@
 services:
-  # --- NestJS API -----------------------------------------------------------
+  # --- NestJS API + Admin -----------------------------------------------------------
   - type: web
     name: matrimony-api
     env: docker
@@ -78,26 +78,6 @@ services:
     rootDirectory: .
     maxDuration: 60
 
-  # --- Admin Dashboard ------------------------------------------------------
-  - type: web
-    name: matrimony-admin
-    env: node
-    region: singapore
-    plan: free
-    runtime: node
-    buildCommand: npm install --legacy-peer-deps && npm run build -w @matrimony/admin
-    startCommand: npm run start -w @matrimony/admin
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: ADMIN_API_BASE_URL
-        value: "https://matrimony-api-2bmy.onrender.com/api/v1"
-      - key: NEXT_TELEMETRY_DISABLE
-        value: "1"
-    healthCheckPath: /login
-    autoDeploy: true
-    rootDirectory: .
-
   # --- Landing Page ---------------------------------------------------------
   - type: web
     name: matrimony-landing
@@ -114,7 +94,7 @@ services:
     autoDeploy: true
     rootDirectory: .
 
-  # --- Mobile App (Expo) --------------------------------------------------
+  # --- Mobile App (Expo) ----------------------------------------------------
   # The mobile app is an Expo/React Native app. It is NOT deployed as a
   # Render web service. Build standalone APKs/IPAs via EAS Build:
   #   npx eas-build.yml  (configure in eas.json)
