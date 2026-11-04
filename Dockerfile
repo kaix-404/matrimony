@@ -1,11 +1,9 @@
-FROM node:22-slim AS base
+# syntax=docker/dockerfile:1
 
-ENV NODE_ENV=production
-
-# Cache-busting marker: changes on every git commit force Render to rebuild from scratch
-# Marker: Dockerfile-v20261104-prebuilt-dist-v1
-
-FROM base AS builder
+# --- Build stage -------------------------------------------------------------
+# NODE_ENV is deliberately NOT set to production here: npm would omit
+# devDependencies, and `nest build` needs typescript + @nestjs/cli + prisma.
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
@@ -13,14 +11,25 @@ COPY package.json package-lock.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 
-# --legacy-peer-deps resolves @types/react@18.3.31 vs react-native@0.76.3 conflict
+# --legacy-peer-deps resolves the @types/react@18 vs react-native@0.76.3
+# peer conflict that comes from the mobile workspace being in the tree.
 RUN npm install --legacy-peer-deps
 
 COPY . .
 
-RUN npm run build -w @matrimony/shared
+# CRITICAL: the generated Prisma client is gitignored, so it is absent from a
+# fresh clone. Without this step every Prisma type is missing and the API build
+# fails with "Cannot find module '../generated/prisma/client'" plus ~74
+# cascading implicit-any errors. `prisma generate` needs no database.
+RUN npm run prisma:generate -w @matrimony/api
 
-FROM base AS runner
+RUN npm run build -w @matrimony/shared
+RUN npm run build -w @matrimony/api
+
+# --- Runtime stage -----------------------------------------------------------
+FROM node:22-slim AS runner
+
+ENV NODE_ENV=production
 
 WORKDIR /app
 
@@ -28,18 +37,17 @@ RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nestjs
 
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/packages/shared ./packages/shared
-# Copy pre-built dist from builder - already compiled locally (committed to repo)
+COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
-COPY --from=builder /app/apps/api/src/generated ./apps/api/src/generated
-COPY --from=builder /app/apps/api/package.json ./apps/api/
 
 USER nestjs
 
 EXPOSE 4000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://localhost:4000/api/v1/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
 CMD ["node", "apps/api/dist/main.js"]

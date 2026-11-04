@@ -1,5 +1,8 @@
 services:
-  # --- NestJS API -----------------------------------------------------------
+  # --- NestJS API (Docker) ---------------------------------------------------
+  # The Dockerfile installs with --legacy-peer-deps (.npmrc), runs
+  # `prisma generate` (the generated client is gitignored, so a fresh clone does
+  # not have it), then builds shared + api.
   - type: web
     name: matrimony-api
     env: docker
@@ -78,23 +81,24 @@ services:
     rootDirectory: .
     maxDuration: 60
 
-  # --- Admin Dashboard (Next.js) --------------------------------------------
+  # --- Admin Dashboard (Next.js, Node runtime) -------------------------------
+  # @matrimony/shared resolves to packages/shared/dist, so it is built first.
+  # `next start` serves the normal build; there is no `output: 'standalone'` in
+  # next.config.ts, so a standalone server.js does not exist.
   - type: web
     name: matrimony-admin
     env: node
     region: singapore
     plan: free
     runtime: node
-    buildCommand: npm run build
-    startCommand: node .next/standalone/server.js
+    buildCommand: npm run build -w @matrimony/shared && npm run build -w @matrimony/admin
+    startCommand: npm run start -w @matrimony/admin
     envVars:
       - key: NODE_ENV
         value: production
-      - key: API_BASE_URL
-        value: "https://matrimony-api-2bmy.onrender.com/api/v1"
       - key: ADMIN_API_BASE_URL
         value: "https://matrimony-api-2bmy.onrender.com/api/v1"
-    healthCheckPath: /api/health
+    healthCheckPath: /login
     autoDeploy: true
     rootDirectory: .
 
@@ -116,9 +120,6 @@ services:
 
   # --- Mobile App (Expo) ----------------------------------------------------
   # The mobile app is an Expo/React Native app. It is NOT deployed as a
-  # Render web service. Build standalone APKs/IPAs via EAS Build:
-  #   npx eas-build.yml  (configure in eas.json)
-  # Env vars needed for the mobile app (set in EAS environment or app.json):
+  # Render web service. Standalone APKs are built by .github/workflows/android-build.yml.
+  # Env vars needed for the app (set in EAS environment or app.json):
   #   EXPO_PUBLIC_API_BASE_URL = https://matrimony-api-2bmy.onrender.com/api/v1
-  #   EXPO_PUBLIC_APP_VERSION   = (optional, for display)
-  # The app.json already has apiBaseUrl set to the production API URL.

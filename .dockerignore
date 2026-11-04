@@ -1,0 +1,36 @@
+# Dependencies (installed inside the image)
+**/node_modules
+**/.pnpm-store
+
+# Build output (regenerated inside the image)
+**/dist
+**/.next
+**/out
+**/*.tsbuildinfo
+
+# Generated Prisma client (regenerated inside the image)
+apps/api/src/generated
+packages/*/src/generated
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+**/.render-secrets
+**/*.pem
+**/*.key
+*firebase-adminsdk*.json
+*service-account*.json
+*credentials*.json
+
+# Repo / dev noise
+.git
+.gitignore
+.github
+.vscode
+.idea
+coverage
+logs
+*.log
+**/.turbo
+**/.expo
