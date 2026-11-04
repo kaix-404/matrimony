@@ -2,6 +2,9 @@ FROM node:22-slim AS base
 
 ENV NODE_ENV=production
 
+# Cache-busting marker: changes on every git commit force Render to rebuild from scratch
+# Marker: Dockerfile-v20261104-prebuilt-dist-v1
+
 FROM base AS builder
 
 WORKDIR /app
@@ -17,10 +20,6 @@ COPY . .
 
 RUN npm run build -w @matrimony/shared
 
-# Copy PRE-BUILT dist from local repo - no build step needed in Docker
-# Avoids all TypeScript compilation errors in Docker CI
-# dist/ is already built and committed to the repo locally
-
 FROM base AS runner
 
 WORKDIR /app
@@ -30,7 +29,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages/shared ./packages/shared
-# Copy pre-built dist from builder - already compiled locally
+# Copy pre-built dist from builder - already compiled locally (committed to repo)
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api/src/generated ./apps/api/src/generated
