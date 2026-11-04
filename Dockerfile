@@ -17,7 +17,8 @@ RUN npm install --legacy-peer-deps
 COPY . .
 
 RUN npm run build -w @matrimony/shared
-RUN npx prisma generate -w @matrimony/api
+# Use --schema to explicitly point to the API's Prisma schema
+RUN npx prisma generate --schema apps/api/prisma/schema.prisma
 RUN npm run build -w @matrimony/api
 RUN npm run build -w @matrimony/admin
 
