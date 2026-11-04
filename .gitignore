@@ -5,6 +5,8 @@ node_modules/
 
 # build output
 dist/
+# Allow shared package dist (needed for mobile app EAS builds)
+!packages/shared/dist/
 build/
 .next/
 out/
