@@ -16,7 +16,7 @@ RUN npm ci --legacy-peer-deps
 COPY . .
 
 RUN npm run build -w @matrimony/shared
-RUN npx --yes -w @matrimony/api prisma generate
+RUN npm run prisma:generate -w @matrimony/api
 RUN npm run build -w @matrimony/api
 RUN npm run build -w @matrimony/admin
 
