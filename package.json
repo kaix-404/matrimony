@@ -34,6 +34,13 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "metro": "^0.81.5",
+    "react-native": "0.76.3",
+    "react-native-web": "0.19.13",
+    "react-native-safe-area-context": "5.11.0",
+    "react-native-screens": "4.0.0",
+    "react-native-gesture-handler": "2.20.0",
+    "react-native-reanimated": "3.16.0",
+    "expo-router": "4.0.22",
     "prettier": "^3.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0",
