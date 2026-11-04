@@ -51,6 +51,10 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: https://matrimony-api-2bmy.onrender.com/api/v1
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
         run: |
+          # Without pipefail a failing gradle's exit status is masked by `tee`,
+          # so the job and the upload both reported success while no APK existed.
+          set -o pipefail
+
           cd apps/mobile
 
           # Prebuild native Android project
@@ -58,7 +62,9 @@ jobs:
 
           # Build debug APK (no signing required)
           cd android
-          ./gradlew assembleDebug 2>&1 | tee /tmp/gradle.log
+          ./gradlew assembleDebug --no-daemon 2>&1 | tee /tmp/gradle.log
+
+          ls -la app/build/outputs/apk/debug/
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -66,3 +72,5 @@ jobs:
           name: matrimony-app-debug
           path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+          # Fail loudly instead of reporting success with nothing uploaded.
+          if-no-files-found: error
