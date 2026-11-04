@@ -26,4 +26,21 @@ find . -path "*/node_modules" -type d | while read -r nm; do
   done
 done
 
+# Patch expo-router's _ctx.web.js to default EXPO_ROUTER_APP_ROOT to "."
+# when the env var is not set. Metro's require.context fails with
+# "Invalid call" when the first arg is undefined. The .env file normally
+# provides this var for local dev, but CI may not have it.
+#
+# Using "." as default works because:
+# - Locally: .env sets EXPO_ROUTER_APP_ROOT=. so it's already defined
+# - CI: working-directory is apps/mobile/, so "." = apps/mobile/ which
+#   contains src/app/ (the route files)
+CTX_WEB="node_modules/expo-router/_ctx.web.js"
+if [ -f "$CTX_WEB" ]; then
+  if ! grep -q "EXPO_ROUTER_APP_ROOT ||" "$CTX_WEB" 2>/dev/null; then
+    echo "Patching $CTX_WEB to default EXPO_ROUTER_APP_ROOT to '.'"
+    sed -i 's/process\.env\.EXPO_ROUTER_APP_ROOT/process.env.EXPO_ROUTER_APP_ROOT || ".\/"/g' "$CTX_WEB"
+  fi
+fi
+
 echo "Done."

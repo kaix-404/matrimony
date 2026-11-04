@@ -83,9 +83,7 @@ jobs:
       # no longer needs duplicate copies of those packages.
       - name: Bundle the mobile app
         working-directory: apps/mobile
-        run: |
-          export EXPO_ROUTER_APP_ROOT=$(pwd)
-          npx expo export --platform web --output-dir dist
+        run: npx expo export --platform web --output-dir dist
 
       # Catches schema/SQL drift that `prisma validate` cannot: validate only
       # parses the schema, it does not prove the SQL applies.

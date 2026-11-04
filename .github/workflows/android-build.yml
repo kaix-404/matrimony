@@ -65,8 +65,8 @@ jobs:
           # adds references to these in AndroidManifest.xml but does not
           # generate the files themselves)
           mkdir -p android/app/src/main/res/xml
-          cp ../resources/xml/secure_store_backup_rules.xml android/app/src/main/res/xml/
-          cp ../resources/xml/secure_store_data_extraction_rules.xml android/app/src/main/res/xml/
+          cp resources/xml/secure_store_backup_rules.xml android/app/src/main/res/xml/
+          cp resources/xml/secure_store_data_extraction_rules.xml android/app/src/main/res/xml/
 
           # Build debug APK (no signing required)
           cd android
