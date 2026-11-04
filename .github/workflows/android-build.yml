@@ -32,32 +32,33 @@ jobs:
           java-version: 21
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android command-line tools
         run: |
-          sdkmanager "commandlinetools" 2>&1 | tee /tmp/sdkmanager.log
-          sdkmanager --licenses < /dev/null 2>&1 || true
+          export ANDROID_HOME=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}
+          export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
 
-      - name: Install required SDK components
-        run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.1" "ndk;26.1.10909125" 2>&1 | tee /tmp/sdkmanager2.log
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
-          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
-          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+          # Accept all licenses non-interactively
+          yes | sdkmanager --licenses > /dev/null 2>&1
+
+          # Install required components (platforms, build-tools, NDK)
+          sdkmanager "platforms;android-35" "build-tools;35.0.1" "ndk;26.1.10909125" 2>&1 | tee /tmp/sdkmanager.log
+
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
 
       - name: Build Android app
         env:
           EXPO_PUBLIC_API_BASE_URL: https://matrimony-api-2bmy.onrender.com/api/v1
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
         run: |
           cd apps/mobile
 
           # Prebuild native Android project
           npx expo prebuild --platform android --clean 2>&1 | tee /tmp/prebuild.log
 
-          # Build release APK
+          # Build debug APK (no signing required)
           cd android
-          ./gradlew assembleRelease 2>&1 | tee /tmp/gradle.log
+          ./gradlew assembleDebug 2>&1 | tee /tmp/gradle.log
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
