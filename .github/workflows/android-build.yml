@@ -1,0 +1,67 @@
+name: Android APK Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android command-line tools
+        run: |
+          sdkmanager "commandlinetools" 2>&1 | tee /tmp/sdkmanager.log
+          sdkmanager --licenses < /dev/null 2>&1 || true
+
+      - name: Install required SDK components
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.1" "ndk;26.1.10909125" 2>&1 | tee /tmp/sdkmanager2.log
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+
+      - name: Build Android app
+        env:
+          EXPO_PUBLIC_API_BASE_URL: https://matrimony-api-2bmy.onrender.com/api/v1
+        run: |
+          cd apps/mobile
+
+          # Prebuild native Android project
+          npx expo prebuild --platform android --clean 2>&1 | tee /tmp/prebuild.log
+
+          # Build release APK
+          cd android
+          ./gradlew assembleRelease 2>&1 | tee /tmp/gradle.log
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: matrimony-app-debug
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

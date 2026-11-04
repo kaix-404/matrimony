@@ -77,12 +77,14 @@ jobs:
       - name: Typecheck, lint, test and build
         run: npm run typecheck && npm run lint && npm run test && npm run build
 
-      # Metro bundles every route, so a broken import or route file fails CI
-      # rather than only surfacing on a device. No native toolchain is needed
-      # for the web target, which exercises the same module graph.
+      # Bundle the mobile app for web to catch broken imports/routes.
+      # Runs from the mobile app directory so metro resolves from its own
+      # node_modules rather than the root workspace.
       - name: Bundle the mobile app
         run: npx expo export --platform web --output-dir dist
         working-directory: apps/mobile
+        env:
+          NODE_PATH: apps/mobile/node_modules
 
       # Catches schema/SQL drift that `prisma validate` cannot: validate only
       # parses the schema, it does not prove the SQL applies.
