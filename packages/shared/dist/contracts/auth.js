@@ -1,0 +1,159 @@
+"use strict";
+/**
+ * Authentication contracts — spec sections 6, 7, 41; client answer D9.
+ *
+ * WHY MOBILE ONLY
+ * ---------------
+ * Section 6 identifies a user by mobile number alone: no email, no password.
+ * The request schemas therefore have no email field to forget to validate, and
+ * no password field that could be stored by mistake. Adding either later is a
+ * schema change, which is the point — it should be deliberate.
+ *
+ * OTP CODES ARE 6 DIGITS
+ * ----------------------
+ * Short numeric codes are guessable, so `OtpRequest` stores a hash and the
+ * service enforces an attempt ceiling per request. The number of digits is
+ * declared once here and asserted against the service, so a "temporarily"
+ * 4-digit code cannot pass validation in one place and be generated as 6 in
+ * another.
+ */
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CurrentUserSchema = exports.RefreshSchema = exports.TokenPairSchema = exports.CompleteRegistrationSchema = exports.VerifyOtpSchema = exports.SMS_UNAVAILABLE_CODE = exports.OtpRequestedSchema = exports.RequestOtpSchema = exports.OTP_PURPOSES = exports.IndianMobileSchema = exports.OTP_CODE_LENGTH = void 0;
+const zod_1 = require("zod");
+/** Digit count for OTP codes. Mirrors `OTP_CODE_LENGTH` in the OTP service. */
+exports.OTP_CODE_LENGTH = 6;
+/**
+ * Normalises an Indian mobile number to its 10-digit form.
+ *
+ * Clients send this inconsistently — `9876543210`, `+919876543210`,
+ * `919876543210` are the same person — and the number is the sole account
+ * identifier, so the two spellings must not create two accounts. Normalising at
+ * the edge is what guarantees that; validating only that "it looks like a
+ * number" would let the duplication through.
+ */
+exports.IndianMobileSchema = zod_1.z
+    .string()
+    .trim()
+    // Spaces, dashes and brackets are formatting, not identity. Clients add them
+    // when a user types or auto-formats a number, and rejecting "+91 98765 43210"
+    // would fail a legitimate input rather than prevent a duplicate account.
+    .transform((v) => v.replace(/[\s\-()]/g, ''))
+    .transform((v) => v.replace(/^\+91/, '').replace(/^91(?=[6-9]\d{9}$)/, ''))
+    .refine((v) => /^[6-9]\d{9}$/.test(v), 'must be a 10-digit Indian mobile number');
+exports.OTP_PURPOSES = ['REGISTRATION', 'LOGIN', 'DELETE_ACCOUNT', 'CATEGORY_REVIEW'];
+// ---------------------------------------------------------------------------
+// Requests
+// ---------------------------------------------------------------------------
+/**
+ * Requesting a code never reveals whether the mobile is already registered.
+ *
+ * A registration endpoint that answers differently for a known number is a free
+ * enumeration oracle for the entire user base, so the response shape is
+ * identical either way and account existence is decided later, at verify time,
+ * where it is only observable to someone who holds the code.
+ */
+exports.RequestOtpSchema = zod_1.z
+    .object({
+    mobile: exports.IndianMobileSchema,
+    purpose: zod_1.z.enum(exports.OTP_PURPOSES),
+    /** Free-form device identifier; recorded for rate-limit auditing only. */
+    device_id: zod_1.z.string().max(128).optional(),
+})
+    .strict();
+/**
+ * What the client is told after requesting a code. Identical for every outcome;
+ * only `resend_after_seconds` varies, and that varies by cooldown, not by
+ * whether the account exists.
+ */
+exports.OtpRequestedSchema = zod_1.z
+    .object({
+    message: zod_1.z.string(),
+    /** Seconds until another code may be requested. */
+    resend_after_seconds: zod_1.z.number().int().nonnegative(),
+    expires_in_seconds: zod_1.z.number().int().positive(),
+    /**
+     * Development only: set when the code was NOT texted and is echoed below
+     * as `dev_code` instead, so a developer is told the SMS did not go out
+     * rather than assuming delivery worked.
+     */
+    delivery_warning: zod_1.z.string().optional(),
+})
+    .strict();
+/**
+ * The machine-readable `code` on a failed `POST /auth/otp/request` when the API
+ * could not hand the code to the SMS provider, so no message was sent.
+ *
+ * A code rather than a message because the two audiences need different words.
+ * The operator needs "the SMS wallet is empty" — that is what the API says in
+ * its logs, and it is meaningless on a phone. A client that can recognise this
+ * code can show copy that is honest to the user ("we could not text you just
+ * now") without publishing a vendor diagnostic, and can tell a refusal apart
+ * from a validation error or an outage instead of printing a generic failure.
+ */
+exports.SMS_UNAVAILABLE_CODE = 'SMS_UNAVAILABLE';
+exports.VerifyOtpSchema = zod_1.z
+    .object({
+    mobile: exports.IndianMobileSchema,
+    purpose: zod_1.z.enum(exports.OTP_PURPOSES),
+    code: zod_1.z
+        .string()
+        .trim()
+        .regex(new RegExp(`^\\d{${exports.OTP_CODE_LENGTH}}$`), `must be exactly ${exports.OTP_CODE_LENGTH} digits`),
+})
+    .strict();
+/**
+ * Registration continues after a code is verified.
+ *
+ * `networth_category` is required here rather than at OTP time because it is a
+ * schema foreign key: `User.networthCategory` is non-null, so a user row cannot
+ * exist before a category is chosen. Requiring it later would mean a partial
+ * user row, which section 36 forbids.
+ */
+exports.CompleteRegistrationSchema = zod_1.z
+    .object({
+    mobile: exports.IndianMobileSchema,
+    /** Net-worth band key from `net_worth_category_ref`, not a hardcoded enum. */
+    networth_category: zod_1.z.string().min(1).max(64),
+})
+    .strict();
+// ---------------------------------------------------------------------------
+// Tokens
+// ---------------------------------------------------------------------------
+exports.TokenPairSchema = zod_1.z
+    .object({
+    access_token: zod_1.z.string().min(1),
+    refresh_token: zod_1.z.string().min(1),
+    token_type: zod_1.z.literal('Bearer'),
+    expires_in: zod_1.z.number().int().positive(),
+})
+    .strict();
+exports.RefreshSchema = zod_1.z.object({ refresh_token: zod_1.z.string().min(1) }).strict();
+/**
+ * The authenticated user as the app sees it.
+ *
+ * Deliberately narrow. This is not a profile: no name, no contact details, no
+ * net-worth figures. It carries only what the app needs to decide navigation
+ * and gating — the next onboarding step, and which sections to show.
+ */
+exports.CurrentUserSchema = zod_1.z
+    .object({
+    id: zod_1.z.string().min(1),
+    mobile: zod_1.z.string().min(1),
+    status: zod_1.z.enum([
+        'PENDING_CATEGORY',
+        'PENDING_VERIFICATION',
+        'AWAITING_SETUP_FEE',
+        'ACTIVE',
+        'SUSPENDED',
+        'DELETED',
+    ]),
+    networth_category: zod_1.z.string().min(1),
+    is_phone_verified: zod_1.z.boolean(),
+    identity_verified: zod_1.z.boolean(),
+    setup_fee_paid: zod_1.z.boolean(),
+    /** True only when status is ACTIVE: verified, paid, not suspended. */
+    can_discover: zod_1.z.boolean(),
+    profile_complete: zod_1.z.boolean(),
+})
+    .strict();
+//# sourceMappingURL=auth.js.map
