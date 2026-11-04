@@ -83,6 +83,8 @@ jobs:
       # no longer needs duplicate copies of those packages.
       - name: Bundle the mobile app
         working-directory: apps/mobile
+        env:
+          EXPO_ROUTER_APP_ROOT: ${{ github.workspace }}/apps/mobile
         run: npx expo export --platform web --output-dir dist
 
       # Catches schema/SQL drift that `prisma validate` cannot: validate only
