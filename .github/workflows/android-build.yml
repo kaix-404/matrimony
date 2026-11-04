@@ -29,7 +29,8 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          # Expo SDK 52 / RN 0.76 are built and tested against JDK 17.
+          java-version: 17
 
       - name: Setup Android SDK
         run: |
@@ -65,6 +66,15 @@ jobs:
           ./gradlew assembleDebug --no-daemon 2>&1 | tee /tmp/gradle.log
 
           ls -la app/build/outputs/apk/debug/
+
+      - name: Publish failure detail to the run summary
+        if: failure()
+        run: |
+          {
+            echo '## Build logs (tail)'
+            echo '### prebuild'; tail -n 60 /tmp/prebuild.log 2>/dev/null || echo 'no prebuild log'
+            echo '### gradle'; tail -n 120 /tmp/gradle.log 2>/dev/null || echo 'no gradle log'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
