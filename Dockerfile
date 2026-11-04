@@ -12,9 +12,7 @@ COPY apps/admin/package.json apps/admin/
 COPY packages/shared/package.json packages/shared/
 
 # --legacy-peer-deps resolves @types/react@18.3.31 vs react-native@0.76.3 conflict
-# ENV change forces fresh npm install cache (Render caches on instruction + context)
-ENV NPM_CONFIG_LEGACY_PEER_DEPS=true
-
+# Ensures prisma CLI is available via devDependencies
 RUN npm install --legacy-peer-deps
 
 COPY . .
