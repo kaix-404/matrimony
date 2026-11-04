@@ -34,7 +34,8 @@
   "devDependencies": {
     "@types/node": "^22.10.2",
     "prettier": "^3.4.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "eslint": "^9.39.5"
   },
   "dependencies": {
     "@neon/config": "^1.10.0",
