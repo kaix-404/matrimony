@@ -16,7 +16,8 @@ RUN npm install --legacy-peer-deps
 COPY . .
 
 RUN npm run build -w @matrimony/shared
-RUN npm run build -w @matrimony/api
+# Build API with tsc (works locally; nest build fails in Docker CI)
+RUN npx tsc -p apps/api/tsconfig.json
 
 FROM base AS runner
 
