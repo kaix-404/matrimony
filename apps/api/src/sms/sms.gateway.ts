@@ -126,6 +126,18 @@ export class Msg91SmsGateway extends SmsGateway {
       // instead. In production the controller fails closed, so a missing
       // credential shows up as a 503 rather than a silently undelivered code.
       this.logger.warn('MSG91 SMS is not configured; one-time codes will not be sent');
+    } else {
+      // The one thing a blank SMS cannot tell you. MSG91 answers `success` and
+      // bills the send even when the recipient's variable keys do not match the
+      // template's placeholder; the message then arrives with the code's slot
+      // empty, which looks identical to a working integration from every other
+      // angle. Logging the name we send turns "the SMS has no code" into a
+      // one-line check here instead of a hunt through the vendor dashboard.
+      //
+      // Not a secret: it is the placeholder name of the approved DLT template.
+      this.logger.log(
+        `MSG91 flow sends: template ${config.templateId}, variable "${config.templateVariable}", sender ${config.senderId}`,
+      );
     }
   }
 

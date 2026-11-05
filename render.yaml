@@ -71,6 +71,16 @@ services:
       #   valueType: secret
       # - key: SMS_DLT_TEMPLATE_ID
       #   valueType: secret
+      # The OTP template's placeholder, and the dialling code. Neither is a
+      # secret, and the first is the one SMS setting that can be wrong while
+      # everything still looks right: MSG91 answers `success` and bills the send
+      # when the variable name does not match the approved template, and the SMS
+      # then arrives with the code's slot empty. Case-sensitive; it must match
+      # the placeholder in the DLT-approved template (recorded as `var1`).
+      - key: SMS_OTP_TEMPLATE_VAR
+        value: var1
+      - key: SMS_COUNTRY_CODE
+        value: "91"
       # - key: EMAIL_PROVIDER_API_KEY
       #   valueType: secret
       # - key: EMAIL_FROM_ADDRESS
