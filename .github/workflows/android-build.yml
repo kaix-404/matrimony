@@ -68,11 +68,14 @@ jobs:
           cp resources/xml/secure_store_backup_rules.xml android/app/src/main/res/xml/
           cp resources/xml/secure_store_data_extraction_rules.xml android/app/src/main/res/xml/
 
-          # Build debug APK (no signing required)
+          # Build a release APK. A debug build does not embed the JS bundle
+          # (it loads from the Metro dev server), so it is unusable on a test
+          # device. The generated release build signs with the debug keystore,
+          # which is what we want for an APK distributed outside a store.
           cd android
-          ./gradlew assembleDebug --no-daemon 2>&1 | tee /tmp/gradle.log
+          ./gradlew assembleRelease --no-daemon 2>&1 | tee /tmp/gradle.log
 
-          ls -la app/build/outputs/apk/debug/
+          ls -la app/build/outputs/apk/release/
 
       - name: Publish failure detail to the run summary
         if: failure()
@@ -86,8 +89,8 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: matrimony-app-debug
-          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          name: matrimony-app-release
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
           # Fail loudly instead of reporting success with nothing uploaded.
           if-no-files-found: error
