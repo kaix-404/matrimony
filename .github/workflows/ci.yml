@@ -81,8 +81,20 @@ jobs:
       # Runs inside apps/mobile: the app declares its own Expo/React Native
       # dependencies and its entry (expo-router/entry), so the workspace root
       # no longer needs duplicate copies of those packages.
+      #
+      # NODE_ENV must not be "test" here, even though the rest of the job sets
+      # it. babel-preset-expo's expo-router plugin deliberately skips inlining
+      # EXPO_ROUTER_APP_ROOT when NODE_ENV === "test" (it is meant for unit
+      # tests), which leaves `require.context(process.env.EXPO_ROUTER_APP_ROOT,
+      # ...)` in expo-router/_ctx.web.js and breaks the web bundle with
+      # "First argument of `require.context` should be a string".
       - name: Bundle the mobile app
         working-directory: apps/mobile
+        env:
+          NODE_ENV: production
+          # Public, build-time values baked into the bundle. Committed here
+          # because CI has no .env (it is gitignored).
+          EXPO_PUBLIC_API_BASE_URL: https://matrimony-api-2bmy.onrender.com/api/v1
         run: npx expo export --platform web --output-dir dist
 
       # Catches schema/SQL drift that `prisma validate` cannot: validate only

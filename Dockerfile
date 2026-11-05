@@ -8,7 +8,6 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-COPY scripts/ ./scripts/
 COPY apps/api/package.json apps/api/
 COPY packages/shared/package.json packages/shared/
 
