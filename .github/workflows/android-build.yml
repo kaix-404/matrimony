@@ -12,12 +12,15 @@ concurrency:
 jobs:
   build:
     name: Build Android APK
-    runs-on: ubuntu-latest
+    # Pinned rather than ubuntu-latest: the Android SDK/NDK paths below and
+    # the toolchain versions come from the runner image, and ubuntu-latest is
+    # rolling over to Ubuntu 26. Pin the image the APK is known to build on.
+    runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -26,11 +29,11 @@ jobs:
         run: npm ci
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           # Expo SDK 52 / RN 0.76 are built and tested against JDK 17.
-          java-version: 17
+          java-version: '17'
 
       - name: Setup Android SDK
         run: |
@@ -87,7 +90,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: matrimony-app-release
           path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
