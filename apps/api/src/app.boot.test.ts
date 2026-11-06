@@ -102,6 +102,24 @@ describe('application bootstrap (section 41)', () => {
     expect(instance.get('query parser')).toBe('extended');
   });
 
+  it('registers the identity-verification routes and refuses an unsigned webhook', async () => {
+    // VerificationModule existed but was never imported here, so every
+    // /verification route answered 404 in production while the status report
+    // called the phase complete. A 401 proves the route is routed and guarded;
+    // a 404 would mean it is still missing.
+    const status = await request(app.getHttpServer()).get('/api/verification/status');
+    expect(status.status).toBe(401);
+
+    // The webhook has no user session, so its only credential is the HMAC over
+    // the raw body. Without one it must not be processed.
+    const webhook = await request(app.getHttpServer())
+      .post('/api/verification/webhook')
+      .set('content-type', 'application/json')
+      .send({ event_type: 'DIGILOCKER_VERIFICATION_SUCCESS' });
+    expect(webhook.status).toBe(401);
+    expect(webhook.body.message).toBe('Invalid webhook signature');
+  });
+
   it('refuses to boot on an invalid environment', () => {
     // Fails closed: a deployment missing secrets must not start half-working.
     expect(() => loadEnv({ ...TEST_ENV, JWT_ACCESS_SECRET: undefined } as Record<string, unknown>)).toThrow(

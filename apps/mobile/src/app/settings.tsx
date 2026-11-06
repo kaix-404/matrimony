@@ -175,6 +175,11 @@ export default function SettingsScreen() {
 
       <PrimaryButton
         variant="outline"
+        label="Identity verification"
+        onPress={() => router.push('/verification')}
+      />
+      <PrimaryButton
+        variant="outline"
         label="Delete account"
         onPress={() => router.push('/delete-account')}
       />

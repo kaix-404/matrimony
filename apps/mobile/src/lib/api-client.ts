@@ -25,6 +25,7 @@ import type {
   RecommendationsResponse,
   TokenPair,
   UnlockedProfileResponse,
+  VerificationStatusResponse,
   UnlockListResponse,
   UpdateProfileInput,
 } from '@matrimony/shared';
@@ -33,6 +34,7 @@ import {
   CreateProfileSchema,
   CreateUnlockOrderSchema,
   DiscoveryQuerySchema,
+  InitiateVerificationSchema,
   ListNotificationsQuerySchema,
   NetWorthVisibilityPreferenceSchema,
   RecommendationsQuerySchema,
@@ -367,6 +369,29 @@ class ApiClient {
     const body = NetWorthVisibilityPreferenceSchema.parse(input);
     return this.fetchJson('me/visibility', {
       method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  // -- identity verification (D9) -------------------------------------------
+
+  /** The caller's KYC state. `NOT_STARTED` is a normal answer, not an error. */
+  async getVerificationStatus(token: string): Promise<VerificationStatusResponse> {
+    return this.fetchJson('verification/status', { headers: authHeaders(token) });
+  }
+
+  /**
+   * Starts a DigiLocker attempt and returns the consent URL to open.
+   *
+   * Nothing here can declare verification successful: the verdict only arrives
+   * through the vendor's signed webhook, and the app learns it by re-reading
+   * the status.
+   */
+  async startVerification(token: string): Promise<VerificationStatusResponse> {
+    const body = InitiateVerificationSchema.parse({ provider: 'DIGILOCKER' });
+    return this.fetchJson('verification/initiate', {
+      method: 'POST',
       body: JSON.stringify(body),
       headers: authHeaders(token),
     });

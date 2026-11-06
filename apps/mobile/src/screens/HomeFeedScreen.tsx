@@ -37,6 +37,20 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
 
   const filtersActive = Object.keys(filters).length > 0;
 
+  // D9: verification comes before the fee, and an unverified account is not
+  // discoverable either. Like the fee gate below, this state has one action.
+  if (user?.status === 'PENDING_VERIFICATION') {
+    return (
+      <AppShell>
+        <View style={styles.gated}>
+          <HeaderBar />
+          <VerificationBanner />
+        </View>
+        <BottomNav />
+      </AppShell>
+    );
+  }
+
   // D9: discovery withholds the feed until the setup fee settles, so showing an
   // empty feed here would be a dead end. This state has one action: pay.
   if (user?.status === 'AWAITING_SETUP_FEE') {
@@ -119,6 +133,22 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
         onClose={() => setSheetOpen(false)}
       />
     </AppShell>
+  );
+}
+
+/** The account has registered but not passed the mandatory identity check. */
+function VerificationBanner() {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      style={styles.banner}
+      onPress={() => router.push('/verification')}
+    >
+      <Text style={styles.bannerTitle}>Verify your identity</Text>
+      <Text style={styles.bannerBody}>
+        Complete a one-time Aadhaar check through DigiLocker to activate your account.
+      </Text>
+    </Pressable>
   );
 }
 

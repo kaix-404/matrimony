@@ -17,6 +17,7 @@ import { UnlockModule } from './unlock/unlock.module';
 import { ModerationModule } from './moderation/moderation.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
+import { VerificationModule } from './verification/verification.module';
 import type { Env } from './config/env';
 
 /**
@@ -47,6 +48,10 @@ import type { Env } from './config/env';
     UnlockModule,
     ModerationModule,
     NotificationsModule,
+    // D9: identity verification. Without this import the controller existed but
+    // was never registered, so /verification/* answered 404 in production while
+    // the status report called the phase complete.
+    VerificationModule,
     AdminModule,
     ThrottlerModule.forRootAsync({
       inject: ['ENV'],
