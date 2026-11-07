@@ -387,6 +387,39 @@ export declare const AdminPrincipalSchema: z.ZodObject<{
 }>;
 export type AdminPrincipalShape = z.infer<typeof AdminPrincipalSchema>;
 /**
+ * One member account, as an administrator opens it.
+ *
+ * It answers the question support is actually asked - "why can this member not
+ * browse, or not be found" - so it carries the three gates (phone, identity,
+ * setup fee), the net-worth band and the profile's moderation state.
+ *
+ * It deliberately carries no profile content: no name, no photograph, no
+ * contact details, no birth date. Those are a separately permission-checked read
+ * (section 13), and this view must not become a way around it. `profile` is the
+ * administration metadata only, which is why it can say APPROVED without
+ * showing what was approved.
+ */
+export interface AdminUserDetailView {
+    id: string;
+    email: string | null;
+    mobile: string;
+    status: AdminUserStatus;
+    createdAt: string;
+    lastLoginAt: string | null;
+    isPhoneVerified: boolean;
+    identityVerifiedAt: string | null;
+    setupFeePaidAt: string | null;
+    networthCategory: string;
+    categoryReviewNote: string | null;
+    categoryChangedAt: string | null;
+    deletedAt: string | null;
+    profile: {
+        id: string;
+        status: string;
+        visibility: string;
+    } | null;
+}
+/**
  * The account lifecycle states the member list can filter on.
  *
  * Declared here rather than reused from the auth contract because this is a

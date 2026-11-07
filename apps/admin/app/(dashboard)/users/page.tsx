@@ -134,6 +134,7 @@ export default async function UsersPage({
                   <th>Mobile</th>
                   <th>Status</th>
                   <th>Registered</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -156,6 +157,9 @@ export default async function UsersPage({
                       </span>
                     </td>
                     <td>{formatDateTime(user.createdAt)}</td>
+                    <td>
+                      <Link href={`/users/${user.id}`}>Open</Link>
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -27,6 +27,7 @@ import type {
   AdminReviewReportInput,
   AdminRoleSlug,
   AdminRoleView,
+  AdminUserDetailView,
   AdminUserStatus,
   AdminUserView,
   AdminVerificationStatus,
@@ -274,6 +275,58 @@ export class AdminService {
     private readonly audit: AuditService,
     private readonly clock: ClockService,
   ) {}
+
+  /**
+   * One member account, for the support conversation about it.
+   *
+   * The three gates are the point: a member who says "I still cannot browse" is
+   * either unverified, unpaid, or suspended, and the answer is a timestamp away.
+   * The profile contributes its id and moderation state so an administrator can
+   * act on it (grant an unlock) without this view exposing any of its content.
+   */
+  async getUser(id: string): Promise<AdminUserDetailView> {
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        mobile: true,
+        status: true,
+        createdAt: true,
+        lastLoginAt: true,
+        isPhoneVerified: true,
+        identityVerifiedAt: true,
+        setupFeePaidAt: true,
+        networthCategory: true,
+        categoryReviewNote: true,
+        categoryChangedAt: true,
+        deletedAt: true,
+        profile: { select: { id: true, status: true, visibility: true } },
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      id: row.id,
+      email: row.email,
+      mobile: row.mobile,
+      status: row.status as AdminUserStatus,
+      createdAt: row.createdAt.toISOString(),
+      lastLoginAt: row.lastLoginAt ? row.lastLoginAt.toISOString() : null,
+      isPhoneVerified: row.isPhoneVerified,
+      identityVerifiedAt: row.identityVerifiedAt ? row.identityVerifiedAt.toISOString() : null,
+      setupFeePaidAt: row.setupFeePaidAt ? row.setupFeePaidAt.toISOString() : null,
+      networthCategory: row.networthCategory,
+      categoryReviewNote: row.categoryReviewNote,
+      categoryChangedAt: row.categoryChangedAt ? row.categoryChangedAt.toISOString() : null,
+      deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+      profile: row.profile
+        ? { id: row.profile.id, status: row.profile.status, visibility: row.profile.visibility }
+        : null,
+    };
+  }
 
   /**
    * The member account list, optionally narrowed by lifecycle state or a search

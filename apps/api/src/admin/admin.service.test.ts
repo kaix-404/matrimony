@@ -104,6 +104,18 @@ function setup() {
       email: 'asha.rao@example.com' as string | null,
       mobile: '9876543210',
       createdAt: new Date('2026-09-01T04:00:00.000Z'),
+      lastLoginAt: new Date('2026-11-05T06:30:00.000Z') as Date | null,
+      isPhoneVerified: true,
+      identityVerifiedAt: new Date('2026-09-05T06:00:00.000Z') as Date | null,
+      setupFeePaidAt: new Date('2026-09-05T06:05:00.000Z') as Date | null,
+      categoryReviewNote: null as string | null,
+      categoryChangedAt: null as Date | null,
+      deletedAt: null as Date | null,
+      profile: { id: 'profile_1', status: 'APPROVED', visibility: 'ACTIVE' } as {
+        id: string;
+        status: string;
+        visibility: string;
+      } | null,
     },
     {
       id: 'user_2',
@@ -854,6 +866,40 @@ describe('AdminService.listDataRequests', () => {
 
     const none = await service.listDataRequests(20, undefined, 'COMPLETED');
     expect(none.requests).toEqual([]);
+  });
+});
+
+describe('AdminService.getUser', () => {
+  it('reports the gates, the band and the profile state', async () => {
+    const { service } = setup();
+
+    const view = await service.getUser('user_1');
+
+    expect(view).toMatchObject({
+      id: 'user_1',
+      status: 'ACTIVE',
+      networthCategory: 'BELOW_2CR',
+      isPhoneVerified: true,
+      identityVerifiedAt: '2026-09-05T06:00:00.000Z',
+      setupFeePaidAt: '2026-09-05T06:05:00.000Z',
+      lastLoginAt: '2026-11-05T06:30:00.000Z',
+      deletedAt: null,
+      profile: { id: 'profile_1', status: 'APPROVED', visibility: 'ACTIVE' },
+    });
+  });
+
+  it('carries no profile content beyond its state', async () => {
+    const { service } = setup();
+
+    const view = await service.getUser('user_1');
+
+    expect(Object.keys(view.profile ?? {}).sort()).toEqual(['id', 'status', 'visibility']);
+  });
+
+  it('reports a missing account as not found', async () => {
+    const { service } = setup();
+
+    await expect(service.getUser('user_missing')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 

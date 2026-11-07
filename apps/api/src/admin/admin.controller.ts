@@ -33,6 +33,7 @@ import {
   type AdminReviewReportInput,
   type AdminRoleSlug,
   type AdminRoleView,
+  type AdminUserDetailView,
   type AdminUserView,
 } from '@matrimony/shared';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
@@ -137,6 +138,13 @@ export class AdminController {
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminUserView> {
     return this.adminService.resetMfa(id, principal.id);
+  }
+
+  /** Section 24: one member account, with the gates that decide what it can do. */
+  @Get('users/:id')
+  @RequirePermission('user:read')
+  async getUser(@Param('id') id: string): Promise<AdminUserDetailView> {
+    return this.adminService.getUser(id);
   }
 
   /**

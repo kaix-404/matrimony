@@ -210,9 +210,6 @@ exports.AdminPrincipalSchema = zod_1.z
     roles: zod_1.z.array(exports.AdminRoleSlugSchema),
 })
     .strict();
-// ---------------------------------------------------------------------------
-// Admin list queries
-// ---------------------------------------------------------------------------
 /**
  * The account lifecycle states the member list can filter on.
  *
