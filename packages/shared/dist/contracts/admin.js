@@ -17,7 +17,7 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListUsersQuerySchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const enums_js_1 = require("../enums.js");
@@ -94,6 +94,12 @@ exports.ADMIN_PERMISSIONS = {
         action: 'handle',
         sensitive: true,
         description: 'Fulfil a data export/erasure request',
+    },
+    'identity_verify:read': {
+        resource: 'identity_verify',
+        action: 'read',
+        sensitive: false,
+        description: "View members' identity-verification state and failure reasons",
     },
     'identity_verify:review': {
         resource: 'identity_verify',
@@ -218,6 +224,22 @@ exports.AdminPrincipalSchema = zod_1.z
 exports.AdminListUsersQuerySchema = zod_1.z.object({
     limit: zod_1.z.coerce.number().int().positive().max(100).optional().default(20),
     cursor: zod_1.z.string().min(1).optional(),
+});
+// ---------------------------------------------------------------------------
+// Identity verification (the D9 read surface, section 24)
+// ---------------------------------------------------------------------------
+/**
+ * The four states a stored row can hold.
+ *
+ * `NOT_STARTED` is deliberately absent. It is the answer the member-facing status
+ * endpoint gives for an account with no verification row at all, so it is not a
+ * value this list can filter on — asking for it could only ever return nothing.
+ */
+exports.ADMIN_VERIFICATION_STATUSES = ['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'];
+exports.AdminListVerificationsQuerySchema = zod_1.z.object({
+    limit: zod_1.z.coerce.number().int().positive().max(100).optional().default(20),
+    cursor: zod_1.z.string().min(1).optional(),
+    status: zod_1.z.enum(exports.ADMIN_VERIFICATION_STATUSES).optional(),
 });
 // ---------------------------------------------------------------------------
 // Admin management (section 24: roles and administrators)

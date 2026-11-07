@@ -8,6 +8,7 @@ import {
   AdminListDataRequestsQuerySchema,
   AdminListReportsQuerySchema,
   AdminListUsersQuerySchema,
+  AdminListVerificationsQuerySchema,
   AdminPublishPricingSchema,
   AdminResolveDataRequestSchema,
   AdminReviewReportSchema,
@@ -23,6 +24,7 @@ import {
   type AdminListDataRequestsQuery,
   type AdminListReportsQuery,
   type AdminListUsersQuery,
+  type AdminListVerificationsQuery,
   type AdminPricingView,
   type AdminPrincipal,
   type AdminPublishPricingInput,
@@ -62,6 +64,22 @@ export class AdminController {
     @Query(new ZodValidationPipe(AdminListUsersQuerySchema)) query: AdminListUsersQuery,
   ) {
     return this.adminService.listUsers(query.limit, query.cursor);
+  }
+
+  /**
+   * The identity-verification list (D9).
+   *
+   * A read of Aadhaar-derived state, so it is its own permission rather than
+   * riding on `identity_verify:review`: a support agent who answers "why did my
+   * check fail" should not need the grant that decides the check.
+   */
+  @Get('verifications')
+  @RequirePermission('identity_verify:read')
+  async listVerifications(
+    @Query(new ZodValidationPipe(AdminListVerificationsQuerySchema))
+    query: AdminListVerificationsQuery,
+  ) {
+    return this.adminService.listVerifications(query.limit, query.cursor, query.status);
   }
 
   @Get('roles')

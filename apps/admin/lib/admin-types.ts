@@ -1,4 +1,4 @@
-import type { AdminReportView, AdminUserView } from '@matrimony/shared';
+import type { AdminReportView, AdminUserView, AdminVerificationView } from '@matrimony/shared';
 
 /**
  * Collection metadata. The admin list endpoints return it in camelCase (the
@@ -30,4 +30,8 @@ export interface AdminUserList extends PageMeta {
 
 export interface AdminAdminList extends PageMeta {
   admins: AdminUserView[];
+}
+
+export interface AdminVerificationList extends PageMeta {
+  verifications: AdminVerificationView[];
 }

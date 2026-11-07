@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import type { IdentityVerificationProvider, IdentityVerificationVendor } from './verification.js';
 import {
   ADMIN_ROLE_SLUGS,
   DATA_REQUEST_STATUSES,
@@ -112,6 +113,12 @@ export const ADMIN_PERMISSIONS = {
     action: 'handle',
     sensitive: true,
     description: 'Fulfil a data export/erasure request',
+  },
+  'identity_verify:read': {
+    resource: 'identity_verify',
+    action: 'read',
+    sensitive: false,
+    description: "View members' identity-verification state and failure reasons",
   },
   'identity_verify:review': {
     resource: 'identity_verify',
@@ -305,6 +312,64 @@ export const AdminListUsersQuerySchema = z.object({
   cursor: z.string().min(1).optional(),
 });
 export type AdminListUsersQuery = z.infer<typeof AdminListUsersQuerySchema>;
+
+// ---------------------------------------------------------------------------
+// Identity verification (the D9 read surface, section 24)
+// ---------------------------------------------------------------------------
+
+/**
+ * The four states a stored row can hold.
+ *
+ * `NOT_STARTED` is deliberately absent. It is the answer the member-facing status
+ * endpoint gives for an account with no verification row at all, so it is not a
+ * value this list can filter on — asking for it could only ever return nothing.
+ */
+export const ADMIN_VERIFICATION_STATUSES = ['PENDING', 'VERIFIED', 'FAILED', 'EXPIRED'] as const;
+export type AdminVerificationStatus = (typeof ADMIN_VERIFICATION_STATUSES)[number];
+
+export const AdminListVerificationsQuerySchema = z.object({
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+  cursor: z.string().min(1).optional(),
+  status: z.enum(ADMIN_VERIFICATION_STATUSES).optional(),
+});
+export type AdminListVerificationsQuery = z.infer<typeof AdminListVerificationsQuerySchema>;
+
+/**
+ * One member's identity check, as support needs to read it: whether it passed,
+ * and if it did not, why.
+ *
+ * Deliberately absent: `nameOnId` (the name printed on the Aadhaar, which the
+ * member-facing flow uses only to warn about a mismatch), `providerReference`
+ * and `screeningResult`. None of them answers "is this person verified, and if
+ * not, what happened", and the first two are supplier-side material that a
+ * support screen has no reason to hold. `aadhaarLast4` is carried only because
+ * it is already masked to four digits and is how a member identifies the check
+ * they are calling about.
+ */
+export interface AdminVerificationView {
+  id: string;
+  userId: string;
+  /** The member's mobile: the handle they quote when they call in. */
+  memberMobile: string;
+  /** The account's lifecycle status, so a KYC result is read in context. */
+  memberStatus: string;
+  provider: IdentityVerificationProvider;
+  vendor: IdentityVerificationVendor | null;
+  status: AdminVerificationStatus;
+  aadhaarLast4: string | null;
+  yearOfBirth: number | null;
+  failureCode: string | null;
+  failureReason: string | null;
+  /**
+   * When Aadhaar-processing consent was recorded. H3 requires it to precede the
+   * supplier call, and this timestamp is how that ordering is checked after the
+   * fact rather than assumed.
+   */
+  consentedAt: string | null;
+  verifiedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // ---------------------------------------------------------------------------
 // Admin management (section 24: roles and administrators)

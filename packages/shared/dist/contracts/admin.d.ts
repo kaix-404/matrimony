@@ -16,6 +16,7 @@
  * the key rather than only in the database.
  */
 import { z } from 'zod';
+import type { IdentityVerificationProvider, IdentityVerificationVendor } from './verification.js';
 import { type AdminRoleSlug, type DataRequestStatus, type DataRequestType, type ReportActionType, type ReportStatus } from '../enums.js';
 export interface AdminPermissionDescriptor {
     /** The noun being acted on, e.g. `user`, `pricing`. */
@@ -150,6 +151,12 @@ export declare const ADMIN_PERMISSIONS: {
         readonly sensitive: true;
         readonly description: "Fulfil a data export/erasure request";
     };
+    readonly 'identity_verify:read': {
+        readonly resource: "identity_verify";
+        readonly action: "read";
+        readonly sensitive: false;
+        readonly description: "View members' identity-verification state and failure reasons";
+    };
     readonly 'identity_verify:review': {
         readonly resource: "identity_verify";
         readonly action: "review";
@@ -165,7 +172,7 @@ export declare const ADMIN_PERMISSIONS: {
 };
 /** Every valid permission key. A guard can require nothing outside this union. */
 export type AdminPermissionKey = keyof typeof ADMIN_PERMISSIONS;
-export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:review" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:review" | "admin:manage")[]]>;
+export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "admin:manage")[]]>;
 export declare const AdminRoleSlugSchema: z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>;
 /** The resolved `Permission` rows the seed should create. */
 export declare function permissionCatalogueRows(): Array<{
@@ -399,6 +406,65 @@ export declare const AdminListUsersQuerySchema: z.ZodObject<{
 }>;
 export type AdminListUsersQuery = z.infer<typeof AdminListUsersQuerySchema>;
 /**
+ * The four states a stored row can hold.
+ *
+ * `NOT_STARTED` is deliberately absent. It is the answer the member-facing status
+ * endpoint gives for an account with no verification row at all, so it is not a
+ * value this list can filter on — asking for it could only ever return nothing.
+ */
+export declare const ADMIN_VERIFICATION_STATUSES: readonly ["PENDING", "VERIFIED", "FAILED", "EXPIRED"];
+export type AdminVerificationStatus = (typeof ADMIN_VERIFICATION_STATUSES)[number];
+export declare const AdminListVerificationsQuerySchema: z.ZodObject<{
+    limit: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    cursor: z.ZodOptional<z.ZodString>;
+    status: z.ZodOptional<z.ZodEnum<["PENDING", "VERIFIED", "FAILED", "EXPIRED"]>>;
+}, "strip", z.ZodTypeAny, {
+    limit: number;
+    status?: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED" | undefined;
+    cursor?: string | undefined;
+}, {
+    status?: "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED" | undefined;
+    limit?: number | undefined;
+    cursor?: string | undefined;
+}>;
+export type AdminListVerificationsQuery = z.infer<typeof AdminListVerificationsQuerySchema>;
+/**
+ * One member's identity check, as support needs to read it: whether it passed,
+ * and if it did not, why.
+ *
+ * Deliberately absent: `nameOnId` (the name printed on the Aadhaar, which the
+ * member-facing flow uses only to warn about a mismatch), `providerReference`
+ * and `screeningResult`. None of them answers "is this person verified, and if
+ * not, what happened", and the first two are supplier-side material that a
+ * support screen has no reason to hold. `aadhaarLast4` is carried only because
+ * it is already masked to four digits and is how a member identifies the check
+ * they are calling about.
+ */
+export interface AdminVerificationView {
+    id: string;
+    userId: string;
+    /** The member's mobile: the handle they quote when they call in. */
+    memberMobile: string;
+    /** The account's lifecycle status, so a KYC result is read in context. */
+    memberStatus: string;
+    provider: IdentityVerificationProvider;
+    vendor: IdentityVerificationVendor | null;
+    status: AdminVerificationStatus;
+    aadhaarLast4: string | null;
+    yearOfBirth: number | null;
+    failureCode: string | null;
+    failureReason: string | null;
+    /**
+     * When Aadhaar-processing consent was recorded. H3 requires it to precede the
+     * supplier call, and this timestamp is how that ordering is checked after the
+     * fact rather than assumed.
+     */
+    consentedAt: string | null;
+    verifiedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+/**
  * Creating an administrator.
  *
  * The password floor is 12 here, above the 8 on login: a login only has to match
@@ -413,25 +479,25 @@ export declare const AdminCreateSchema: z.ZodEffects<z.ZodObject<{
     password: z.ZodString;
     roles: z.ZodArray<z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>, "many">;
 }, "strict", z.ZodTypeAny, {
-    name: string;
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
+    name: string;
 }, {
-    name: string;
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
+    name: string;
 }>, {
-    name: string;
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
+    name: string;
 }, {
-    name: string;
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
+    name: string;
 }>;
 export type AdminCreateInput = z.infer<typeof AdminCreateSchema>;
 export declare const AdminAssignRoleSchema: z.ZodObject<{

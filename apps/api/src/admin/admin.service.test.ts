@@ -159,6 +159,48 @@ function setup() {
     },
   ];
 
+  /**
+   * Two stored identity checks: one passed, one refused at the DigiLocker consent
+   * screen. They differ in every field the support view renders, which is what
+   * lets the mapping test tell a real copy from a coincidence.
+   */
+  const verifications = [
+    {
+      id: 'ver_1',
+      userId: 'user_1',
+      provider: 'DIGILOCKER',
+      vendor: 'CASHFREE' as string | null,
+      status: 'VERIFIED' as string,
+      aadhaarLast4: '4321' as string | null,
+      yearOfBirth: 1990 as number | null,
+      failureCode: null as string | null,
+      failureReason: null as string | null,
+      verifiedAt: new Date('2026-10-05T06:00:00.000Z') as Date | null,
+      createdAt: new Date('2026-10-05T05:55:00.000Z'),
+      updatedAt: new Date('2026-10-05T06:00:00.000Z'),
+      user: { mobile: '9876543210', status: 'ACTIVE' },
+      consentRecord: { grantedAt: new Date('2026-10-05T05:54:59.000Z') } as {
+        grantedAt: Date;
+      } | null,
+    },
+    {
+      id: 'ver_2',
+      userId: 'user_2',
+      provider: 'DIGILOCKER',
+      vendor: null as string | null,
+      status: 'FAILED' as string,
+      aadhaarLast4: null as string | null,
+      yearOfBirth: null as number | null,
+      failureCode: 'DIGILOCKER_CONSENT_DENIED' as string | null,
+      failureReason: 'The member declined to share the Aadhaar document.' as string | null,
+      verifiedAt: null as Date | null,
+      createdAt: new Date('2026-10-06T09:30:00.000Z'),
+      updatedAt: new Date('2026-10-06T09:31:00.000Z'),
+      user: { mobile: '9123456780', status: 'PENDING_VERIFICATION' },
+      consentRecord: null as { grantedAt: Date } | null,
+    },
+  ];
+
   const prisma = {
     user: {
       findMany: async () => [],
@@ -235,6 +277,16 @@ function setup() {
         Object.assign(row, data);
         return row;
       }),
+    },
+    identityVerification: {
+      findMany: jest.fn(
+        async ({ take, where }: { take?: number; where?: { status?: string } } = {}) => {
+          const filtered = where?.status
+            ? verifications.filter((row) => row.status === where.status)
+            : verifications;
+          return typeof take === 'number' ? filtered.slice(0, take) : filtered;
+        },
+      ),
     },
     report: {
       findMany: async ({ where }: { where?: { status?: string } } = {}) =>
@@ -313,7 +365,18 @@ function setup() {
   const clock = new FrozenClock(new Date('2026-10-14T12:00:00.000Z'));
   const service = new AdminService(prisma as never, audit as never, clock);
 
-  return { service, prisma, audit, admins, assignments, users, pricing, dataRequests, reports };
+  return {
+    service,
+    prisma,
+    audit,
+    admins,
+    assignments,
+    users,
+    pricing,
+    dataRequests,
+    reports,
+    verifications,
+  };
 }
 
 describe('AdminService.listRoles', () => {
@@ -326,6 +389,93 @@ describe('AdminService.listRoles', () => {
     expect(superAdmin.permissions).toEqual([
       { key: 'user:read', resource: 'user', action: 'read', sensitive: false },
     ]);
+  });
+});
+
+describe('AdminService.listVerifications', () => {
+  it('maps a passed check to the support view, timestamps included', async () => {
+    const { service } = setup();
+    const { verifications } = await service.listVerifications();
+
+    expect(verifications[0]).toEqual({
+      id: 'ver_1',
+      userId: 'user_1',
+      memberMobile: '9876543210',
+      memberStatus: 'ACTIVE',
+      provider: 'DIGILOCKER',
+      vendor: 'CASHFREE',
+      status: 'VERIFIED',
+      aadhaarLast4: '4321',
+      yearOfBirth: 1990,
+      failureCode: null,
+      failureReason: null,
+      consentedAt: '2026-10-05T05:54:59.000Z',
+      verifiedAt: '2026-10-05T06:00:00.000Z',
+      createdAt: '2026-10-05T05:55:00.000Z',
+      updatedAt: '2026-10-05T06:00:00.000Z',
+    });
+  });
+
+  it('carries the reason and code for a check that did not pass', async () => {
+    const { service } = setup();
+    const { verifications } = await service.listVerifications();
+    const failed = verifications.find((row) => row.id === 'ver_2')!;
+
+    expect(failed.status).toBe('FAILED');
+    expect(failed.failureCode).toBe('DIGILOCKER_CONSENT_DENIED');
+    expect(failed.failureReason).toBe('The member declined to share the Aadhaar document.');
+    // No consent row and no vendor recorded: both are nullable columns, and the
+    // view has to render an em dash rather than "undefined" for them.
+    expect(failed.consentedAt).toBeNull();
+    expect(failed.vendor).toBeNull();
+    expect(failed.verifiedAt).toBeNull();
+  });
+
+  it('narrows to one stored status and omits the predicate when none is asked for', async () => {
+    const { service, prisma } = setup();
+
+    const filtered = await service.listVerifications(20, undefined, 'FAILED');
+    expect(filtered.verifications.map((row) => row.id)).toEqual(['ver_2']);
+    expect(prisma.identityVerification.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: { status: 'FAILED' } }),
+    );
+
+    await service.listVerifications();
+    expect(prisma.identityVerification.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ where: undefined }),
+    );
+  });
+
+  it('pages by asking for one row more than the limit, and caps the limit', async () => {
+    const { service, prisma } = setup();
+
+    const firstPage = await service.listVerifications(1);
+    expect(firstPage.hasMore).toBe(true);
+    expect(firstPage.nextCursor).toBe('ver_1');
+    expect(firstPage.verifications).toHaveLength(1);
+
+    const lastPage = await service.listVerifications(5);
+    expect(lastPage.hasMore).toBe(false);
+    expect(lastPage.nextCursor).toBeNull();
+    expect(lastPage.verifications).toHaveLength(2);
+
+    await service.listVerifications(500);
+    expect(prisma.identityVerification.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ take: 101 }),
+    );
+  });
+
+  it('never selects the name on the ID or the supplier reference', async () => {
+    const { service, prisma } = setup();
+    await service.listVerifications();
+
+    const [args] = prisma.identityVerification.findMany.mock.calls[0]! as [
+      { select: Record<string, unknown> },
+    ];
+    // A support screen answers "verified, or failed and why". The Aadhaar name and
+    // the provider reference answer neither, so they must not travel with it.
+    expect(args.select).not.toHaveProperty('nameOnId');
+    expect(args.select).not.toHaveProperty('providerReference');
   });
 });
 

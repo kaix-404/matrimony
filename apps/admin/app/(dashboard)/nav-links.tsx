@@ -10,6 +10,7 @@ import { usePathname } from 'next/navigation';
 const LINKS = [
   { href: '/', label: 'Overview' },
   { href: '/reports', label: 'Moderation queue' },
+  { href: '/verifications', label: 'Identity checks' },
   { href: '/users', label: 'Members' },
   { href: '/admins', label: 'Administrators' },
 ];

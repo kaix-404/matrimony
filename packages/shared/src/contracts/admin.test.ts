@@ -39,6 +39,7 @@ describe('ADMIN_PERMISSIONS catalogue', () => {
         'admin:manage',
         'audit:read',
         'data_request:handle',
+        'identity_verify:read',
         'identity_verify:review',
         'notification:send',
         'payment:read',

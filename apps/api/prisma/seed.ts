@@ -294,6 +294,7 @@ const ROLE_GRANTS = {
     'photo:review',
     'report:review',
     'unlock:read',
+    'identity_verify:read',
     'identity_verify:review',
   ],
   FINANCE_ADMIN: ['user:read', 'payment:read', 'payment:refund', 'unlock:read', 'pricing:read', 'data_request:handle'],

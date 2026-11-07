@@ -28,11 +28,20 @@ import type {
   AdminRoleSlug,
   AdminRoleView,
   AdminUserView,
+  AdminVerificationStatus,
+  AdminVerificationView,
+  IdentityVerificationProvider,
+  IdentityVerificationVendor,
   DataRequestStatus,
   ReportActionType,
   ReportStatus,
 } from '@matrimony/shared';
-import { PrismaClient, Prisma, UserStatus } from '../prisma/prisma-client';
+import {
+  IdentityVerificationStatus as PrismaVerificationStatus,
+  Prisma,
+  PrismaClient,
+  UserStatus,
+} from '../prisma/prisma-client';
 import { ClockService } from '../common/clock/clock.service';
 import { AuditService } from './audit.service';
 import { hashPassword } from '../common/crypto/password';
@@ -76,6 +85,68 @@ function toAdminView(row: AdminRow): AdminUserView {
     mfaEnabled: row.mfaSecret !== null,
     lastLoginAt: row.lastLoginAt ? row.lastLoginAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * The identity-verification row shape the list reads.
+ *
+ * `providerReference`, `nameOnId` and `screeningResult` are absent on purpose:
+ * the support question is "verified, or failed and why", and those three are
+ * supplier material that the answer does not need.
+ */
+const VERIFICATION_SELECT = {
+  id: true,
+  userId: true,
+  provider: true,
+  vendor: true,
+  status: true,
+  aadhaarLast4: true,
+  yearOfBirth: true,
+  failureCode: true,
+  failureReason: true,
+  verifiedAt: true,
+  createdAt: true,
+  updatedAt: true,
+  user: { select: { mobile: true, status: true } },
+  consentRecord: { select: { grantedAt: true } },
+} as const;
+
+interface VerificationRow {
+  id: string;
+  userId: string;
+  provider: string;
+  vendor: string | null;
+  status: string;
+  aadhaarLast4: string | null;
+  yearOfBirth: number | null;
+  failureCode: string | null;
+  failureReason: string | null;
+  verifiedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user: { mobile: string; status: string };
+  consentRecord: { grantedAt: Date } | null;
+}
+
+/** Copies fields by name, so a selected column cannot leak by spreading the row. */
+function toVerificationView(row: VerificationRow): AdminVerificationView {
+  return {
+    id: row.id,
+    userId: row.userId,
+    memberMobile: row.user.mobile,
+    memberStatus: row.user.status,
+    provider: row.provider as IdentityVerificationProvider,
+    vendor: row.vendor as IdentityVerificationVendor | null,
+    status: row.status as AdminVerificationStatus,
+    aadhaarLast4: row.aadhaarLast4,
+    yearOfBirth: row.yearOfBirth,
+    failureCode: row.failureCode,
+    failureReason: row.failureReason,
+    consentedAt: row.consentRecord ? row.consentRecord.grantedAt.toISOString() : null,
+    verifiedAt: row.verifiedAt ? row.verifiedAt.toISOString() : null,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -216,6 +287,35 @@ export class AdminService {
     const users = hasMore ? items.slice(0, take) : items;
     const nextCursor = hasMore ? users[users.length - 1]?.id ?? null : null;
     return { users, nextCursor, hasMore };
+  }
+
+  /**
+   * The identity-verification list (D9, section 24).
+   *
+   * Newest first like every other queue, optionally narrowed to one stored state.
+   * The member's mobile is joined in because a check with no way to reach the
+   * person behind it is not actionable, and the account's lifecycle status comes
+   * with it so a passed check on a suspended account is not read as "fine".
+   *
+   * The supplier reference and the name printed on the ID are not selected: this
+   * screen answers "verified, or failed and why", and neither field is needed for
+   * that. Selecting less is the safer default when the row is Aadhaar-derived.
+   */
+  async listVerifications(limit = 20, cursor?: string, status?: AdminVerificationStatus) {
+    const take = Math.min(limit, 100);
+    const items = await this.prisma.identityVerification.findMany({
+      take: take + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      where: status ? { status: status as PrismaVerificationStatus } : undefined,
+      orderBy: { createdAt: 'desc' },
+      select: VERIFICATION_SELECT,
+    });
+    const hasMore = items.length > take;
+    const rows = hasMore ? items.slice(0, take) : items;
+    const verifications = rows.map(toVerificationView);
+    const nextCursor = hasMore ? verifications[verifications.length - 1]?.id ?? null : null;
+    return { verifications, nextCursor, hasMore };
   }
 
   /**
