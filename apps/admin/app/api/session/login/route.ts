@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { AdminLoginSchema, AdminMfaChallengeSchema, AdminTokenPairSchema } from '@matrimony/shared';
 import { API_BASE_URL } from '@/lib/env';
-import { extractMessage } from '@/lib/errors';
+import { describeUpstreamFailure, extractMessage } from '@/lib/errors';
 import { writeSessionCookies } from '@/lib/cookies';
 
 /**
@@ -22,12 +22,20 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const response = await fetch(`${API_BASE_URL}/admin/auth/login`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(parsed.data),
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/admin/auth/login`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(parsed.data),
+      cache: 'no-store',
+    });
+  } catch (caught) {
+    // Distinguished from a 4xx below: nothing was said about the credentials, so
+    // reporting "Email or password is incorrect" here would be a lie.
+    console.error('[admin-session] login could not reach the API', caught);
+    return NextResponse.json({ message: describeUpstreamFailure(caught) }, { status: 502 });
+  }
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {

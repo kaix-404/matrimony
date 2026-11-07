@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { AdminMfaVerifySchema, AdminTokenPairSchema } from '@matrimony/shared';
 import { API_BASE_URL } from '@/lib/env';
-import { extractMessage } from '@/lib/errors';
+import { describeUpstreamFailure, extractMessage } from '@/lib/errors';
 import { writeSessionCookies } from '@/lib/cookies';
 
 /**
@@ -22,12 +22,18 @@ export async function POST(request: Request): Promise<NextResponse> {
     );
   }
 
-  const response = await fetch(`${API_BASE_URL}/admin/auth/mfa/verify`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(parsed.data),
-    cache: 'no-store',
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/admin/auth/mfa/verify`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(parsed.data),
+      cache: 'no-store',
+    });
+  } catch (caught) {
+    console.error('[admin-session] MFA verify could not reach the API', caught);
+    return NextResponse.json({ message: describeUpstreamFailure(caught) }, { status: 502 });
+  }
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {

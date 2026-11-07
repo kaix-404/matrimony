@@ -50,6 +50,32 @@ export function describeError(error: unknown): string {
   return 'Something went wrong.';
 }
 
+/**
+ * The message for a request that never reached the API at all.
+ *
+ * A thrown `fetch` used to escape a route handler and reach the browser as a
+ * blank 500, which tells an operator nothing: a wrong `ADMIN_API_BASE_URL`, a
+ * refused connection and a runtime without global `fetch` all look identical.
+ * Naming the host it tried is the one detail that separates "this service is
+ * pointed at the wrong place" from "the API is unwell", and the cause message
+ * (`ECONNREFUSED`, `ENOTFOUND`) separates those two from the first. Neither is a
+ * stack or a secret, so both are safe to show on a sign-in form that only staff
+ * reach.
+ */
+export function describeUpstreamFailure(error: unknown): string {
+  let host = API_BASE_URL;
+  try {
+    host = new URL(API_BASE_URL).host;
+  } catch {
+    // Leave the raw value: an unparseable base URL is itself the finding.
+  }
+  const cause =
+    error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined;
+  return cause === undefined
+    ? `The API at ${host} could not be reached.`
+    : `The API at ${host} could not be reached (${cause}).`;
+}
+
 /** True when the API rejected the request because the session is no longer valid. */
 export function isSessionExpired(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401;
