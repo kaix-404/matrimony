@@ -717,6 +717,25 @@ export class AdminService {
    * Resolution is terminal: a request that has already been answered cannot be
    * answered again, so a double-click cannot rewrite a completed decision.
    */
+  /**
+   * One data-subject request in full.
+   *
+   * The queue answers "what needs handling"; this answers "what did we tell this
+   * member", which is what an administrator opens before deciding and what was
+   * promised to the data subject afterwards. The resolution notes are the point:
+   * a refused erasure request is a decision the member is entitled to read.
+   */
+  async getDataRequest(id: string): Promise<AdminDataRequestView> {
+    const row = await this.prisma.dataRequest.findUnique({
+      where: { id },
+      select: DATA_REQUEST_SELECT,
+    });
+    if (!row) {
+      throw new NotFoundException('Data request not found');
+    }
+    return toDataRequestView(row);
+  }
+
   async resolveDataRequest(
     id: string,
     input: AdminResolveDataRequestInput,

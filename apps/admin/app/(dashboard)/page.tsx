@@ -31,7 +31,15 @@ export default async function OverviewPage() {
             <Link href="/reports">Moderation queue</Link> - triage and resolve member reports.
           </li>
           <li>
-            <Link href="/users">Members</Link> - look up an account by id or status.
+            <Link href="/verifications">Identity checks</Link> - whether a member&rsquo;s Aadhaar
+            check passed, and why it failed if it did not.
+          </li>
+          <li>
+            <Link href="/data-requests">Data requests</Link> - access and erasure requests, and
+            the deadlines they carry.
+          </li>
+          <li>
+            <Link href="/users">Members</Link> - member accounts, newest first.
           </li>
           <li>
             <Link href="/admins">Administrators</Link> - roles and MFA posture (requires{' '}

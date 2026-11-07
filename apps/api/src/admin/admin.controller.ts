@@ -185,6 +185,13 @@ export class AdminController {
     return this.adminService.listDataRequests(query.limit, query.cursor, query.status);
   }
 
+  /** Section 21/32: one data request, including how it was resolved. */
+  @Get('data-requests/:id')
+  @RequirePermission('data_request:handle')
+  async getDataRequest(@Param('id') id: string): Promise<AdminDataRequestView> {
+    return this.adminService.getDataRequest(id);
+  }
+
   /** Section 21/32: complete or reject a data request. */
   @Post('data-requests/:id/resolve')
   @RequirePermission('data_request:handle')

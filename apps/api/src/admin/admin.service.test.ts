@@ -805,6 +805,30 @@ describe('AdminService.listDataRequests', () => {
   });
 });
 
+describe('AdminService.getDataRequest', () => {
+  it('returns the request with its deadline and resolution fields', async () => {
+    const { service } = setup();
+
+    const view = await service.getDataRequest('dr_1');
+
+    expect(view).toMatchObject({
+      id: 'dr_1',
+      userId: 'user_1',
+      type: 'EXPORT',
+      status: 'REQUESTED',
+      dueAt: '2026-10-31T00:00:00.000Z',
+      completedAt: null,
+      resolutionNotes: null,
+    });
+  });
+
+  it('reports a missing request as not found', async () => {
+    const { service } = setup();
+
+    await expect(service.getDataRequest('dr_missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
 describe('AdminService.resolveDataRequest', () => {
   it('completes a request and audits it', async () => {
     const { service, audit } = setup();
