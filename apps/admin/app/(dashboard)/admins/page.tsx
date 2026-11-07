@@ -1,22 +1,32 @@
+import { cookies } from 'next/headers';
 import type { AdminRoleView } from '@matrimony/shared';
 import { adminFetch } from '@/lib/api';
 import type { AdminAdminList } from '@/lib/admin-types';
 import { describeError, isSessionExpired, ApiError } from '@/lib/errors';
 import { formatDateTime } from '@/lib/format';
+import { readAdminClaims } from '@/lib/jwt';
 import { readParam } from '@/lib/query';
+import { ACCESS_COOKIE } from '@/lib/session';
 import { Pager } from '../pager';
+import { AdminActions } from './admin-actions';
+import { CreateAdminForm } from './create-admin-form';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Administrators - Networth Matrimony Admin' };
 
 /**
- * The administrator and role catalogue (section 24 / 33).
+ * The administrator and role catalogue (section 24 / 33), and the only screen
+ * that can add one.
  *
  * Both reads require `admin:manage`, so an operator without it sees an
  * explanatory message rather than an empty page that looks broken. The role
  * cards show the permissions each role grants as the API reports them, which is
  * the actual grant set, not the code catalogue.
+ *
+ * The forms are rendered only once the role catalogue has loaded: adding an
+ * administrator means choosing roles, and a role picker built from a failed
+ * request would offer nothing or, worse, the wrong set.
  */
 export default async function AdminsPage({
   searchParams,
@@ -24,6 +34,8 @@ export default async function AdminsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const cursor = readParam(await searchParams, 'cursor');
+  const claims = readAdminClaims((await cookies()).get(ACCESS_COOKIE)?.value);
+  const selfId = claims?.sub ?? null;
 
   let admins: AdminAdminList | null = null;
   let roles: AdminRoleView[] | null = null;
@@ -64,6 +76,7 @@ export default async function AdminsPage({
                   <th>Roles</th>
                   <th>MFA</th>
                   <th>Last sign-in</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
@@ -82,6 +95,9 @@ export default async function AdminsPage({
                       </span>
                     </td>
                     <td>{formatDateTime(admin.lastLoginAt)}</td>
+                    <td>
+                      <AdminActions admin={admin} roles={roles ?? []} selfId={selfId} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -90,6 +106,8 @@ export default async function AdminsPage({
           <Pager path="/admins" nextCursor={admins.nextCursor} cursor={cursor} />
         </div>
       ) : null}
+
+      {roles !== null ? <CreateAdminForm roles={roles} /> : null}
 
       {roles !== null ? (
         <div className="card">
