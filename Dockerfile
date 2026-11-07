@@ -43,6 +43,17 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY --from=builder /app/apps/api/src/generated/prisma ./apps/api/src/generated/prisma
+
+# `prisma db seed` runs on every boot (see CMD below), so the seed has to be
+# resolvable inside this image. It is plain TypeScript that imports four things:
+# prisma.config.ts reads prisma/seed.ts and imports the root-env loader, and the
+# seed imports the generated-client barrel and the password hasher. Those are
+# exactly the files copied here - the rest of src/ is already compiled into
+# dist/, so no other source is needed at runtime.
+COPY --from=builder /app/apps/api/prisma.config.ts ./apps/api/prisma.config.ts
+COPY --from=builder /app/apps/api/src/load-env.ts ./apps/api/src/load-env.ts
+COPY --from=builder /app/apps/api/src/prisma/prisma-client.ts ./apps/api/src/prisma/prisma-client.ts
+COPY --from=builder /app/apps/api/src/common/crypto/password.ts ./apps/api/src/common/crypto/password.ts
 # @prisma/client (and its runtime deps) live in the API workspace
 # node_modules because hoist-limit=0 keeps them out of the root copy.
 # Also copy @prisma/client-runtime-utils which is a peer dep of the
@@ -62,4 +73,14 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://localhost:4000/api/v1/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-CMD ["node", "apps/api/dist/main.js"]
+# The reference data is seeded before the server binds its port. Render's
+# pre-deploy command would be the natural home for this, but it is a paid-plan
+# feature and this service is on the free plan, so it rides on the boot instead:
+# the container cannot serve a release whose permissions the database lacks, and
+# a failed seed fails the boot rather than pretending the deploy succeeded.
+#
+# The seed is idempotent (every write is an upsert keyed on a natural key), so a
+# cold start paying a few seconds for it is cheap, and it never rewrites an
+# existing administrator's password. HOME is pointed at /tmp because npm needs a
+# writable cache and a `--system` user has no home directory.
+CMD ["sh", "-c", "HOME=/tmp npm run prisma:seed -w @matrimony/api && exec node apps/api/dist/main.js"]
