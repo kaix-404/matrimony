@@ -63,7 +63,7 @@ export class AdminController {
   async listUsers(
     @Query(new ZodValidationPipe(AdminListUsersQuerySchema)) query: AdminListUsersQuery,
   ) {
-    return this.adminService.listUsers(query.limit, query.cursor);
+    return this.adminService.listUsers(query.limit, query.cursor, query.status, query.q);
   }
 
   /**

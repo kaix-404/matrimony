@@ -20,10 +20,15 @@ export interface AdminReportList extends PageMeta {
   reports: AdminReportView[];
 }
 
-/** A member account as the admin user list shows it (ids and status, no profile). */
+/**
+ * A member account as the admin user list shows it (ids and status, no profile).
+ *
+ * `email` is nullable: registration is by mobile number, and an email address is
+ * an optional detail a member may never have given.
+ */
 export interface AdminUserSummary {
   id: string;
-  email: string;
+  email: string | null;
   mobile: string;
   status: string;
   createdAt: string;

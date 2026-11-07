@@ -146,8 +146,8 @@ export default async function DataRequestsPage({
           <Pager
             path="/data-requests"
             nextCursor={list.nextCursor}
-            status={status}
             cursor={cursor}
+            filters={{ status }}
           />
         </div>
       ) : null}

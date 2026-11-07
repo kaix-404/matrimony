@@ -118,6 +118,19 @@ describe('AdminListUsersQuerySchema', () => {
     expect(AdminListUsersQuerySchema.parse({}).limit).toBe(20);
     expect(AdminListUsersQuerySchema.safeParse({ limit: 101 }).success).toBe(false);
   });
+
+  it('accepts a status filter the lifecycle actually has', () => {
+    expect(AdminListUsersQuerySchema.parse({ status: 'AWAITING_SETUP_FEE' }).status).toBe(
+      'AWAITING_SETUP_FEE',
+    );
+    expect(AdminListUsersQuerySchema.safeParse({ status: 'PENDING' }).success).toBe(false);
+  });
+
+  it('trims a search term and refuses a one-character one', () => {
+    expect(AdminListUsersQuerySchema.parse({ q: '  98765 ' }).q).toBe('98765');
+    expect(AdminListUsersQuerySchema.safeParse({ q: '9' }).success).toBe(false);
+    expect(AdminListUsersQuerySchema.safeParse({ q: '  ' }).success).toBe(false);
+  });
 });
 
 describe('AdminCreateSchema', () => {

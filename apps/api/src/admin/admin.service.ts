@@ -27,6 +27,7 @@ import type {
   AdminReviewReportInput,
   AdminRoleSlug,
   AdminRoleView,
+  AdminUserStatus,
   AdminUserView,
   AdminVerificationStatus,
   AdminVerificationView,
@@ -274,12 +275,39 @@ export class AdminService {
     private readonly clock: ClockService,
   ) {}
 
-  async listUsers(limit = 20, cursor?: string) {
+  /**
+   * The member account list, optionally narrowed by lifecycle state or a search
+   * term.
+   *
+   * The term is matched against the mobile number and the email address, the two
+   * handles support is given on a call. It is not matched against a name: names
+   * live on the profile, which is a separate permission-checked read, and this
+   * list must not become a way to search the hidden half of a member's data. The
+   * email match is case-insensitive because email addresses are, and the mobile
+   * match is not because digits are not.
+   */
+  async listUsers(
+    limit = 20,
+    cursor?: string,
+    status?: AdminUserStatus,
+    q?: string,
+  ) {
     const take = Math.min(limit, 100);
     const items = await this.prisma.user.findMany({
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
+      where: {
+        ...(status ? { status } : {}),
+        ...(q
+          ? {
+              OR: [
+                { mobile: { contains: q } },
+                { email: { contains: q, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
+      },
       orderBy: { createdAt: 'desc' },
       select: { id: true, email: true, mobile: true, status: true, createdAt: true },
     });

@@ -17,7 +17,7 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const enums_js_1 = require("../enums.js");
@@ -214,16 +214,38 @@ exports.AdminPrincipalSchema = zod_1.z
 // Admin list queries
 // ---------------------------------------------------------------------------
 /**
- * Paging for the admin user list.
+ * The account lifecycle states the member list can filter on.
+ *
+ * Declared here rather than reused from the auth contract because this is a
+ * query surface: making a new state searchable should be a deliberate edit, not
+ * something a schema change elsewhere switches on by accident.
+ */
+exports.ADMIN_USER_STATUSES = [
+    'PENDING_CATEGORY',
+    'PENDING_VERIFICATION',
+    'AWAITING_SETUP_FEE',
+    'ACTIVE',
+    'SUSPENDED',
+    'DELETED',
+];
+/**
+ * Paging, filtering and search for the admin user list.
  *
  * `limit` is coerced because query parameters arrive as strings, and capped at
  * 100 so a single request cannot ask the database to scan the whole user table.
  * Not `.strict()`: a query string may legitimately carry extra tracking
  * parameters, and rejecting those would break a working client.
+ *
+ * `q` is the term support types while a member is on the phone: a mobile number
+ * or part of an email address. Two characters is the floor because a single one
+ * matches nearly every account and scans the whole table to say so, which is
+ * both useless and expensive. It is trimmed, so a stray space is not a search.
  */
 exports.AdminListUsersQuerySchema = zod_1.z.object({
     limit: zod_1.z.coerce.number().int().positive().max(100).optional().default(20),
     cursor: zod_1.z.string().min(1).optional(),
+    status: zod_1.z.enum(exports.ADMIN_USER_STATUSES).optional(),
+    q: zod_1.z.string().trim().min(2).max(120).optional(),
 });
 // ---------------------------------------------------------------------------
 // Identity verification (the D9 read surface, section 24)

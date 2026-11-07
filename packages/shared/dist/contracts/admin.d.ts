@@ -387,22 +387,42 @@ export declare const AdminPrincipalSchema: z.ZodObject<{
 }>;
 export type AdminPrincipalShape = z.infer<typeof AdminPrincipalSchema>;
 /**
- * Paging for the admin user list.
+ * The account lifecycle states the member list can filter on.
+ *
+ * Declared here rather than reused from the auth contract because this is a
+ * query surface: making a new state searchable should be a deliberate edit, not
+ * something a schema change elsewhere switches on by accident.
+ */
+export declare const ADMIN_USER_STATUSES: readonly ["PENDING_CATEGORY", "PENDING_VERIFICATION", "AWAITING_SETUP_FEE", "ACTIVE", "SUSPENDED", "DELETED"];
+export type AdminUserStatus = (typeof ADMIN_USER_STATUSES)[number];
+/**
+ * Paging, filtering and search for the admin user list.
  *
  * `limit` is coerced because query parameters arrive as strings, and capped at
  * 100 so a single request cannot ask the database to scan the whole user table.
  * Not `.strict()`: a query string may legitimately carry extra tracking
  * parameters, and rejecting those would break a working client.
+ *
+ * `q` is the term support types while a member is on the phone: a mobile number
+ * or part of an email address. Two characters is the floor because a single one
+ * matches nearly every account and scans the whole table to say so, which is
+ * both useless and expensive. It is trimmed, so a stray space is not a search.
  */
 export declare const AdminListUsersQuerySchema: z.ZodObject<{
     limit: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
     cursor: z.ZodOptional<z.ZodString>;
+    status: z.ZodOptional<z.ZodEnum<["PENDING_CATEGORY", "PENDING_VERIFICATION", "AWAITING_SETUP_FEE", "ACTIVE", "SUSPENDED", "DELETED"]>>;
+    q: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     limit: number;
+    status?: "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | "ACTIVE" | "SUSPENDED" | "DELETED" | undefined;
     cursor?: string | undefined;
+    q?: string | undefined;
 }, {
+    status?: "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | "ACTIVE" | "SUSPENDED" | "DELETED" | undefined;
     limit?: number | undefined;
     cursor?: string | undefined;
+    q?: string | undefined;
 }>;
 export type AdminListUsersQuery = z.infer<typeof AdminListUsersQuerySchema>;
 /**

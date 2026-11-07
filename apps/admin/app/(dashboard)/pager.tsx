@@ -15,27 +15,32 @@ import Link from 'next/link';
 export function Pager({
   path,
   nextCursor,
-  status,
   cursor,
+  filters,
 }: {
   path: string;
   nextCursor: string | null;
-  /** The active filter, carried into both links so paging cannot change it. */
-  status?: string;
   /** The cursor this page was rendered with, which makes a "first page" link. */
   cursor?: string;
+  /**
+   * The active filters, carried into both links so paging cannot change what is
+   * being read halfway down a result set.
+   */
+  filters?: Record<string, string | undefined>;
 }) {
   if (nextCursor === null && cursor === undefined) {
     return null;
   }
 
-  const href = (params: { cursor?: string }): string => {
+  const href = (nextCursorValue?: string): string => {
     const search = new URLSearchParams();
-    if (status !== undefined) {
-      search.set('status', status);
+    for (const [key, value] of Object.entries(filters ?? {})) {
+      if (value !== undefined && value.length > 0) {
+        search.set(key, value);
+      }
     }
-    if (params.cursor !== undefined) {
-      search.set('cursor', params.cursor);
+    if (nextCursorValue !== undefined) {
+      search.set('cursor', nextCursorValue);
     }
     const query = search.toString();
     return query.length > 0 ? `${path}?${query}` : path;
@@ -44,12 +49,12 @@ export function Pager({
   return (
     <div className="actions">
       {cursor !== undefined ? (
-        <Link className="btn-link" href={href({})}>
+        <Link className="btn-link" href={href()}>
           &larr; First page
         </Link>
       ) : null}
       {nextCursor !== null ? (
-        <Link className="btn-link" href={href({ cursor: nextCursor })}>
+        <Link className="btn-link" href={href(nextCursor)}>
           Next page &rarr;
         </Link>
       ) : null}

@@ -97,8 +97,30 @@ function setup() {
   ];
 
   const users = [
-    { id: 'user_1', networthCategory: 'BELOW_2CR', status: 'ACTIVE' as string },
-    { id: 'user_2', networthCategory: 'BELOW_2CR', status: 'ACTIVE' as string },
+    {
+      id: 'user_1',
+      networthCategory: 'BELOW_2CR',
+      status: 'ACTIVE' as string,
+      email: 'asha.rao@example.com' as string | null,
+      mobile: '9876543210',
+      createdAt: new Date('2026-09-01T04:00:00.000Z'),
+    },
+    {
+      id: 'user_2',
+      networthCategory: 'BELOW_2CR',
+      status: 'ACTIVE' as string,
+      email: 'RAVI@Example.com' as string | null,
+      mobile: '9123456780',
+      createdAt: new Date('2026-09-02T04:00:00.000Z'),
+    },
+    {
+      id: 'user_3',
+      networthCategory: 'BELOW_2CR',
+      status: 'SUSPENDED' as string,
+      email: null as string | null,
+      mobile: '9000000001',
+      createdAt: new Date('2026-09-03T04:00:00.000Z'),
+    },
   ];
 
   const reports = [
@@ -203,7 +225,37 @@ function setup() {
 
   const prisma = {
     user: {
-      findMany: async () => [],
+      findMany: async (
+        {
+          where,
+        }: {
+          where?: {
+            status?: string;
+            OR?: Array<{ mobile?: { contains: string }; email?: { contains: string } }>;
+          };
+        } = {},
+      ) => {
+        let rows = users;
+        if (where?.status) {
+          rows = rows.filter((row) => row.status === where.status);
+        }
+        if (where?.OR) {
+          rows = rows.filter((row) =>
+            (where.OR ?? []).some((clause) => {
+              if (clause.mobile) {
+                return row.mobile.includes(clause.mobile.contains);
+              }
+              if (clause.email) {
+                return (row.email ?? '')
+                  .toLowerCase()
+                  .includes(clause.email.contains.toLowerCase());
+              }
+              return false;
+            }),
+          );
+        }
+        return rows;
+      },
       findUnique: async ({ where }: { where: { id: string } }) =>
         users.find((u) => u.id === where.id) ?? null,
       update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
@@ -802,6 +854,48 @@ describe('AdminService.listDataRequests', () => {
 
     const none = await service.listDataRequests(20, undefined, 'COMPLETED');
     expect(none.requests).toEqual([]);
+  });
+});
+
+describe('AdminService.listUsers', () => {
+  it('lists every account, newest first', async () => {
+    const { service } = setup();
+
+    const page = await service.listUsers();
+
+    expect(page.users.map((user) => user.id)).toEqual(['user_1', 'user_2', 'user_3']);
+    expect(page.hasMore).toBe(false);
+  });
+
+  it('filters by lifecycle status', async () => {
+    const { service } = setup();
+
+    const suspended = await service.listUsers(20, undefined, 'SUSPENDED');
+    expect(suspended.users.map((user) => user.id)).toEqual(['user_3']);
+
+    const active = await service.listUsers(20, undefined, 'ACTIVE');
+    expect(active.users.map((user) => user.id)).toEqual(['user_1', 'user_2']);
+  });
+
+  it('finds an account by part of its mobile number', async () => {
+    const { service } = setup();
+
+    const page = await service.listUsers(20, undefined, undefined, '98765');
+    expect(page.users.map((user) => user.id)).toEqual(['user_1']);
+  });
+
+  it('finds an account by email regardless of case', async () => {
+    const { service } = setup();
+
+    const page = await service.listUsers(20, undefined, undefined, 'ravi@example');
+    expect(page.users.map((user) => user.id)).toEqual(['user_2']);
+  });
+
+  it('applies the search term and the status filter together', async () => {
+    const { service } = setup();
+
+    const page = await service.listUsers(20, undefined, 'SUSPENDED', 'example.com');
+    expect(page.users).toEqual([]);
   });
 });
 

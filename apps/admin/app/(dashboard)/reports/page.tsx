@@ -117,7 +117,12 @@ export default async function ReportsPage({
               </tbody>
             </table>
           )}
-          <Pager path="/reports" nextCursor={list.nextCursor} status={status} cursor={cursor} />
+          <Pager
+            path="/reports"
+            nextCursor={list.nextCursor}
+            cursor={cursor}
+            filters={{ status }}
+          />
         </div>
       ) : null}
     </>

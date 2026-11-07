@@ -160,8 +160,8 @@ export default async function VerificationsPage({
           <Pager
             path="/verifications"
             nextCursor={list.nextCursor}
-            status={status}
             cursor={cursor}
+            filters={{ status }}
           />
         </div>
       ) : null}
