@@ -73,14 +73,19 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://localhost:4000/api/v1/health/ready').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# The reference data is seeded before the server binds its port. Render's
-# pre-deploy command would be the natural home for this, but it is a paid-plan
-# feature and this service is on the free plan, so it rides on the boot instead:
-# the container cannot serve a release whose permissions the database lacks, and
-# a failed seed fails the boot rather than pretending the deploy succeeded.
+# The boot is: migrate -> seed -> serve. Render's pre-deploy command would be the
+# natural home for the first two, but it is a paid-plan feature and this service
+# is on the free plan, so they ride on the boot instead.
 #
-# The seed is idempotent (every write is an upsert keyed on a natural key), so a
+# Migrating first is what makes a schema change safe to ship: `migrate deploy`
+# applies only migrations the database has not recorded yet, so on an unchanged
+# schema it is a no-op that costs about a second. It is fail-closed - a database
+# it cannot migrate stops the boot rather than serving a release whose schema is
+# older than its code, and a P3005 (unmanaged schema, no migration history) fails
+# with a printed baseline procedure instead of a bare error code.
+#
+# The seed is idempotent too (every write is an upsert on a natural key), so a
 # cold start paying a few seconds for it is cheap, and it never rewrites an
-# existing administrator's password. HOME is pointed at /tmp because npm needs a
-# writable cache and a `--system` user has no home directory.
-CMD ["sh", "-c", "HOME=/tmp npm run prisma:seed -w @matrimony/api && exec node apps/api/dist/main.js"]
+# existing administrator's password. HOME is /tmp because npm needs a writable
+# cache and a `--system` user has no home directory.
+CMD ["sh", "-c", "HOME=/tmp node apps/api/dist/prisma/migrate-deploy.js && HOME=/tmp npm run prisma:seed -w @matrimony/api && exec node apps/api/dist/main.js"]
