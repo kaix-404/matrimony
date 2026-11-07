@@ -2,6 +2,8 @@ import { adminFetch } from '@/lib/api';
 import type { AdminUserList } from '@/lib/admin-types';
 import { describeError } from '@/lib/errors';
 import { formatDateTime } from '@/lib/format';
+import { readParam } from '@/lib/query';
+import { Pager } from '../pager';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,11 +16,19 @@ export const metadata = { title: 'Members - Networth Matrimony Admin' };
  * profile, a name or a photograph: those are a separate, permission-checked read
  * (section 13), and this list deliberately cannot become a side door to them.
  */
-export default async function UsersPage() {
+export default async function UsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const cursor = readParam(await searchParams, 'cursor');
+
   let list: AdminUserList | null = null;
   let error: string | null = null;
   try {
-    list = await adminFetch<AdminUserList>('/admin/users');
+    list = await adminFetch<AdminUserList>(
+      cursor === undefined ? '/admin/users' : `/admin/users?cursor=${encodeURIComponent(cursor)}`,
+    );
   } catch (caught) {
     error = describeError(caught);
   }
@@ -63,9 +73,7 @@ export default async function UsersPage() {
               </tbody>
             </table>
           )}
-          {list.hasMore ? (
-            <p className="notice">More accounts exist than are shown here.</p>
-          ) : null}
+          <Pager path="/users" nextCursor={list.nextCursor} cursor={cursor} />
         </div>
       ) : null}
     </>

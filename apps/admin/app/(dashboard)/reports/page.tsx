@@ -5,6 +5,8 @@ import { adminFetch } from '@/lib/api';
 import type { AdminReportList } from '@/lib/admin-types';
 import { describeError } from '@/lib/errors';
 import { formatDateTime } from '@/lib/format';
+import { readParam } from '@/lib/query';
+import { Pager } from '../pager';
 import { StatusBadge } from './status-badge';
 
 /**
@@ -30,13 +32,24 @@ export default async function ReportsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const rawStatus = Array.isArray(params.status) ? params.status[0] : params.status;
-  const status = asStatus(rawStatus);
+  const status = asStatus(readParam(params, 'status'));
+  const cursor = readParam(params, 'cursor');
+
+  const query = new URLSearchParams();
+  if (status !== undefined) {
+    query.set('status', status);
+  }
+  if (cursor !== undefined) {
+    query.set('cursor', cursor);
+  }
+  const suffix = query.toString();
 
   let list: AdminReportList | null = null;
   let error: string | null = null;
   try {
-    list = await adminFetch<AdminReportList>(status ? `/admin/reports?status=${status}` : '/admin/reports');
+    list = await adminFetch<AdminReportList>(
+      suffix.length > 0 ? `/admin/reports?${suffix}` : '/admin/reports',
+    );
   } catch (caught) {
     error = describeError(caught);
   }
@@ -104,9 +117,7 @@ export default async function ReportsPage({
               </tbody>
             </table>
           )}
-          {list.hasMore ? (
-            <p className="notice">More reports exist; narrow the filter to see the rest.</p>
-          ) : null}
+          <Pager path="/reports" nextCursor={list.nextCursor} status={status} cursor={cursor} />
         </div>
       ) : null}
     </>

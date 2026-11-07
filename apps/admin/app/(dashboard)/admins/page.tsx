@@ -3,6 +3,8 @@ import { adminFetch } from '@/lib/api';
 import type { AdminAdminList } from '@/lib/admin-types';
 import { describeError, isSessionExpired, ApiError } from '@/lib/errors';
 import { formatDateTime } from '@/lib/format';
+import { readParam } from '@/lib/query';
+import { Pager } from '../pager';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +18,21 @@ export const metadata = { title: 'Administrators - Networth Matrimony Admin' };
  * cards show the permissions each role grants as the API reports them, which is
  * the actual grant set, not the code catalogue.
  */
-export default async function AdminsPage() {
+export default async function AdminsPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const cursor = readParam(await searchParams, 'cursor');
+
   let admins: AdminAdminList | null = null;
   let roles: AdminRoleView[] | null = null;
   let error: string | null = null;
 
   try {
-    admins = await adminFetch<AdminAdminList>('/admin/admins');
+    admins = await adminFetch<AdminAdminList>(
+      cursor === undefined ? '/admin/admins' : `/admin/admins?cursor=${encodeURIComponent(cursor)}`,
+    );
     roles = await adminFetch<AdminRoleView[]>('/admin/roles');
   } catch (caught) {
     if (caught instanceof ApiError && caught.status === 403) {
@@ -77,6 +87,7 @@ export default async function AdminsPage() {
               </tbody>
             </table>
           )}
+          <Pager path="/admins" nextCursor={admins.nextCursor} cursor={cursor} />
         </div>
       ) : null}
 
