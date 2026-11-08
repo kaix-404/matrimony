@@ -7,11 +7,27 @@ interface ExpoExtra {
   apiBaseUrl?: string;
 }
 
+/**
+ * The API base URL to use, given the two places it can be configured.
+ *
+ * The environment variable wins over `app.json`, which is what the README has
+ * always promised and what a build actually needs: `app.json` pins the deployed
+ * API, so giving it precedence meant no environment could point a build
+ * anywhere else — not a local API, not a staging one. A blank value counts as
+ * unset rather than as "the empty URL", since that is how an unpopulated
+ * variable arrives.
+ */
+export function resolveApiBaseUrl(
+  fromEnv: string | undefined,
+  fromExtra: string | undefined,
+): string {
+  const candidate = fromEnv || fromExtra || DEFAULT_API_BASE_URL;
+  return candidate.replace(/\/+$/, '');
+}
+
 function getApiBaseUrl(): string {
   const extra = (Constants.expoConfig?.extra ?? {}) as ExpoExtra;
-  const fromExtra = typeof extra.apiBaseUrl === 'string' ? extra.apiBaseUrl : undefined;
-  const candidate = fromExtra ?? EXPO_PUBLIC_API_BASE_URL ?? DEFAULT_API_BASE_URL;
-  return candidate.replace(/\/+$/, '');
+  return resolveApiBaseUrl(EXPO_PUBLIC_API_BASE_URL, extra.apiBaseUrl);
 }
 
 export const config = {
