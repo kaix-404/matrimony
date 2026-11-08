@@ -27,6 +27,8 @@ import type {
   ProfileCompleteness,
   ProfileInterests,
   RecommendationsResponse,
+  ReportReasonListResponse,
+  ReportSummary,
   TokenPair,
   UnlockedProfileResponse,
   VerificationStatusResponse,
@@ -38,6 +40,7 @@ import {
   CompleteRegistrationSchema,
   CreateDataRequestSchema,
   CreateProfileSchema,
+  CreateReportSchema,
   CreateUnlockOrderSchema,
   DiscoveryQuerySchema,
   InitiateVerificationSchema,
@@ -443,6 +446,36 @@ class ApiClient {
   async unblockProfile(profileId: string, token: string): Promise<void> {
     return this.fetchJson(`blocks/${encodeURIComponent(profileId)}`, {
       method: 'DELETE',
+      headers: authHeaders(token),
+    });
+  }
+
+  // -- trust and safety -----------------------------------------------------
+
+  /** Section 20: the reasons the report form renders. Never invented client-side. */
+  async listReportReasons(token: string): Promise<ReportReasonListResponse> {
+    return this.fetchJson('reports/reasons', { headers: authHeaders(token) });
+  }
+
+  /**
+   * Files a report about one profile.
+   *
+   * 201 whether or not an identical report was already open, so a retried submit
+   * after a dropped connection reads as success rather than sending the member
+   * back to file it again.
+   */
+  async reportProfile(
+    input: { profileId: string; reasonId: string; description?: string },
+    token: string,
+  ): Promise<ReportSummary> {
+    const body = CreateReportSchema.parse({
+      profile_id: input.profileId,
+      reason_id: input.reasonId,
+      ...(input.description ? { description: input.description } : {}),
+    });
+    return this.fetchJson('reports', {
+      method: 'POST',
+      body: JSON.stringify(body),
       headers: authHeaders(token),
     });
   }

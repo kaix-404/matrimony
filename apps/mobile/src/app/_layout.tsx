@@ -27,6 +27,7 @@ export default function RootLayout() {
           <Stack.Screen name="unlocks" />
           <Stack.Screen name="blocks" />
           <Stack.Screen name="data-request" />
+          <Stack.Screen name="report" />
           <Stack.Screen name="notifications" />
           <Stack.Screen name="checkout" />
           <Stack.Screen name="verification" />

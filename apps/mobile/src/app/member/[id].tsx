@@ -1,13 +1,5 @@
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { FullProfile, PreviewPhoto } from '@matrimony/shared';
@@ -211,12 +203,24 @@ export default function MemberScreen() {
       ) : null}
 
       {token ? (
-        <PrimaryButton
-          variant="outline"
-          label="Block this profile"
-          onPress={confirmBlock}
-          loading={blocking}
-        />
+        <>
+          <PrimaryButton
+            variant="outline"
+            label="Block this profile"
+            onPress={confirmBlock}
+            loading={blocking}
+          />
+          {/*
+            Section 20. Reporting is offered on any profile the member can reach,
+            locked or not: what is being reported is a photo and the public part
+            of the profile, and a complaint should not have to wait for a payment.
+          */}
+          <PrimaryButton
+            variant="outline"
+            label="Report this profile"
+            onPress={() => router.push({ pathname: '/report', params: { profileId: id } })}
+          />
+        </>
       ) : null}
     </Screen>
   );
