@@ -3,6 +3,8 @@ import { ApiError, parseApiErrorBody } from './api-errors';
 import type {
   AccountDeletionResult,
   BiodataExtraction,
+  BlockedListResponse,
+  BlockResult,
   BiodataUploadTicket,
   CreateProfileInput,
   CurrentUser,
@@ -30,6 +32,7 @@ import type {
   UpdateProfileInput,
 } from '@matrimony/shared';
 import {
+  BlockProfileSchema,
   CompleteRegistrationSchema,
   CreateProfileSchema,
   CreateUnlockOrderSchema,
@@ -408,6 +411,40 @@ class ApiClient {
 
   async listUnlocks(token: string): Promise<UnlockListResponse> {
     return this.fetchJson('unlocks', { headers: authHeaders(token) });
+  }
+
+  /**
+   * Section 19: the profiles this account has blocked.
+   *
+   * The list carries a photo and a timestamp, never a name. Blocking is not
+   * unlocking, and section 13 withholds the name until payment, so this screen
+   * identifies a blocked profile the same way the feed did.
+   */
+  async listBlocks(token: string): Promise<BlockedListResponse> {
+    return this.fetchJson('blocks', { headers: authHeaders(token) });
+  }
+
+  /**
+   * Blocks a profile, which also removes it from discovery in both directions.
+   *
+   * The API answers 201 whether or not the row already existed, so a retry after
+   * a dropped connection is not an error the user has to understand.
+   */
+  async blockProfile(profileId: string, token: string): Promise<BlockResult> {
+    const body = BlockProfileSchema.parse({ profile_id: profileId });
+    return this.fetchJson('blocks', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  /** Unblocks a profile. 204, including for a profile that was never blocked. */
+  async unblockProfile(profileId: string, token: string): Promise<void> {
+    return this.fetchJson(`blocks/${encodeURIComponent(profileId)}`, {
+      method: 'DELETE',
+      headers: authHeaders(token),
+    });
   }
 
   /**

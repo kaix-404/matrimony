@@ -175,6 +175,11 @@ export default function SettingsScreen() {
 
       <PrimaryButton
         variant="outline"
+        label="Blocked profiles"
+        onPress={() => router.push('/blocks')}
+      />
+      <PrimaryButton
+        variant="outline"
         label="Identity verification"
         onPress={() => router.push('/verification')}
       />

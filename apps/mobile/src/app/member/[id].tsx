@@ -1,5 +1,13 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import type { FullProfile, PreviewPhoto } from '@matrimony/shared';
@@ -42,6 +50,7 @@ export default function MemberScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
+  const [blocking, setBlocking] = useState(false);
 
   const load = useCallback(async () => {
     if (!token || !id) return;
@@ -62,6 +71,44 @@ export default function MemberScreen() {
       void load().finally(() => setLoading(false));
     }, [ready, load]),
   );
+
+  /**
+   * Hides this profile from discovery in both directions (section 19).
+   *
+   * A block is reversible only from Settings, so it asks first and then leaves the
+   * page: staying on the profile of somebody just blocked would keep showing a
+   * person the user has said they do not want to see.
+   */
+  const block = useCallback(async () => {
+    if (!token || !id) return;
+    setBlocking(true);
+    setError(null);
+    try {
+      await apiClient.blockProfile(id, token);
+      router.back();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not block this profile.');
+    } finally {
+      setBlocking(false);
+    }
+  }, [token, id]);
+
+  const confirmBlock = useCallback(() => {
+    Alert.alert(
+      'Block this profile?',
+      'They will not appear in your feed, and you will not appear in theirs. You can undo this in Settings.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Block',
+          style: 'destructive',
+          onPress: () => {
+            void block();
+          },
+        },
+      ],
+    );
+  }, [block]);
 
   /** Open a Razorpay order for this member, then hand off to the checkout screen. */
   const startUnlock = useCallback(async () => {
@@ -161,6 +208,15 @@ export default function MemberScreen() {
           />
           {error !== null ? <Text style={styles.error}>{error}</Text> : null}
         </>
+      ) : null}
+
+      {token ? (
+        <PrimaryButton
+          variant="outline"
+          label="Block this profile"
+          onPress={confirmBlock}
+          loading={blocking}
+        />
       ) : null}
     </Screen>
   );
