@@ -319,6 +319,12 @@ function setup() {
         pricing.push(row);
         return row;
       }),
+      findMany: async () =>
+        [...pricing].sort(
+          (a, b) =>
+            a.category.localeCompare(b.category) ||
+            b.effectiveFrom.getTime() - a.effectiveFrom.getTime(),
+        ),
     },
     profile: {
       findUnique: async ({ where }: { where: { id: string } }) =>
@@ -779,6 +785,36 @@ describe('AdminService.changeCategory', () => {
     await expect(
       service.changeCategory('nobody', { category: 'ABOVE_10CR', reason: 'x' }, 'admin_actor'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminService.listPricing', () => {
+  it('returns every version, newest first within a band', async () => {
+    const { service } = setup();
+
+    await service.publishPricing(
+      { category: 'BELOW_2CR', baseAmount: '99.00', gstPercent: 18 },
+      'admin_actor',
+    );
+
+    const versions = await service.listPricing();
+
+    expect(versions.map((version) => version.version)).toEqual([2, 1]);
+    // Exactly one version per band is in force; publishing closes the previous one.
+    expect(versions.map((version) => version.effectiveTo === null)).toEqual([true, false]);
+    expect(versions[0]).toMatchObject({
+      category: 'BELOW_2CR',
+      baseAmount: '99.00',
+      gstRate: '0.1800',
+      effectiveFrom: '2026-10-14T12:00:00.000Z',
+    });
+  });
+
+  it('answers with an empty list when no price has ever been published', async () => {
+    const { service, prisma } = setup();
+    prisma.pricingConfig.findMany = async () => [];
+
+    await expect(service.listPricing()).resolves.toEqual([]);
   });
 });
 

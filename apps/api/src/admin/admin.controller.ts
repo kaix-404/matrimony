@@ -162,6 +162,16 @@ export class AdminController {
     return this.adminService.changeCategory(id, body, principal.id);
   }
 
+  /**
+   * Section 29: current and historical prices, so a change is made against what
+   * is actually in force rather than from memory.
+   */
+  @Get('pricing')
+  @RequirePermission('pricing:read')
+  async listPricing(): Promise<AdminPricingView[]> {
+    return this.adminService.listPricing();
+  }
+
   /** F2(a) / section 29: publish a new pricing version for one band. */
   @Post('pricing')
   @RequirePermission('pricing:write')

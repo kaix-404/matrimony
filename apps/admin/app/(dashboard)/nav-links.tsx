@@ -13,6 +13,7 @@ const LINKS = [
   { href: '/verifications', label: 'Identity checks' },
   { href: '/data-requests', label: 'Data requests' },
   { href: '/users', label: 'Members' },
+  { href: '/pricing', label: 'Pricing' },
   { href: '/admins', label: 'Administrators' },
 ];
 

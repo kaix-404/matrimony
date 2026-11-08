@@ -656,6 +656,21 @@ export class AdminService {
   }
 
   /**
+   * Section 29: every pricing version, newest first within each band.
+   *
+   * Publishing is append-only, so a price change is only reviewable as history:
+   * the row that is in force is the one with no `effectiveTo`, and the ones
+   * before it are what a member was charged last week. Both come from here, so
+   * an administrator can see the current price before replacing it.
+   */
+  async listPricing(): Promise<AdminPricingView[]> {
+    const rows = await this.prisma.pricingConfig.findMany({
+      orderBy: [{ category: 'asc' }, { effectiveFrom: 'desc' }],
+    });
+    return rows.map(toPricingView);
+  }
+
+  /**
    * Section 29: publish a new pricing version.
    *
    * Append-only, so the currently-active row is closed and a new version opened
