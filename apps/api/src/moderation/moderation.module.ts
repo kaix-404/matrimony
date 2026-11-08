@@ -5,6 +5,8 @@ import { AccountDeletionService } from './account-deletion.service';
 import { AccountRetentionSweeper } from './account-retention.sweeper';
 import { BlocksController } from './blocks.controller';
 import { BlocksService } from './blocks.service';
+import { DataRequestsController } from './data-requests.controller';
+import { DataRequestsService } from './data-requests.service';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 
@@ -28,8 +30,19 @@ import { ReportsService } from './reports.service';
  */
 @Module({
   imports: [AuthModule],
-  controllers: [BlocksController, ReportsController, AccountDeletionController],
-  providers: [BlocksService, ReportsService, AccountDeletionService, AccountRetentionSweeper],
-  exports: [BlocksService, ReportsService, AccountDeletionService],
+  controllers: [
+    BlocksController,
+    ReportsController,
+    AccountDeletionController,
+    DataRequestsController,
+  ],
+  providers: [
+    BlocksService,
+    ReportsService,
+    AccountDeletionService,
+    AccountRetentionSweeper,
+    DataRequestsService,
+  ],
+  exports: [BlocksService, ReportsService, AccountDeletionService, DataRequestsService],
 })
 export class ModerationModule {}

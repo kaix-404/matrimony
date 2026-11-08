@@ -90,8 +90,7 @@ export default function SettingsScreen() {
     setList(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
   }
 
-  const changed =
-    !sameSet(discover, pristine.discover) || !sameSet(visibleTo, pristine.visibleTo);
+  const changed = !sameSet(discover, pristine.discover) || !sameSet(visibleTo, pristine.visibleTo);
 
   async function save() {
     if (!token) return;
@@ -167,7 +166,9 @@ export default function SettingsScreen() {
           devices.map((device) => (
             <View key={device.id} style={styles.deviceRow}>
               <Text style={styles.deviceName}>{device.platform}</Text>
-              <Text style={styles.deviceMeta}>Last active {formatDate(String(device.last_seen_at))}</Text>
+              <Text style={styles.deviceMeta}>
+                Last active {formatDate(String(device.last_seen_at))}
+              </Text>
             </View>
           ))
         )}
@@ -177,6 +178,11 @@ export default function SettingsScreen() {
         variant="outline"
         label="Blocked profiles"
         onPress={() => router.push('/blocks')}
+      />
+      <PrimaryButton
+        variant="outline"
+        label="Request a copy of your data"
+        onPress={() => router.push('/data-request')}
       />
       <PrimaryButton
         variant="outline"

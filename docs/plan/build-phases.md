@@ -84,8 +84,8 @@ exists as C3 (`UNLOCK_EXPIRY_REMINDER_HOURS`).
 
 ## Phase 5 — Trust and safety
 
-Sections 19-21. Blocking and reporting are built; section 21's deletion flow and
-the admin review queue are not.
+Sections 19-21. Blocking, reporting, deletion, data requests and the admin review
+queue are all built.
 
 Built:
 
@@ -107,12 +107,21 @@ Built:
 - Both enforce the section 12 rule that a profile id from another net-worth band
   answers 404 rather than 403. The distinction would confirm that an id exists
   in a band the caller was never shown.
+- `POST /data-requests`, `GET /data-requests` — section 21's access right, from
+  the member's side. The admin queue could list and resolve `DataRequest` rows,
+  but nothing in the product could create one, so every entry in it had to be
+  written by hand. Both routes are scoped by the token subject and there is no
+  `/data-requests/:id`. Only `EXPORT` is requestable: erasure is already
+  `POST /account/delete`, behind an OTP, and a second erasure path would file a
+  request that nothing performs. The row carries a `dueAt` 30 days out, computed
+  from server time, because the deadline promised when the request was filed is
+  what the queue sorts by. Filing twice while one is open returns the open
+  request instead of a second row, and a resolved request does not block a new
+  one — wanting a fresh copy later is a new request, not a duplicate. Nothing
+  generates the archive: producing it stays an administrative act.
 
-Remaining:
-
-- The admin review queue. It cannot start before an admin can authenticate —
-  `AdminUser` and `AdminRole` exist in the schema with no service behind them —
-  so it needs a sequencing decision against Phase 8's RBAC work.
+The admin review queue landed with Phase 8 rather than here, because it could
+not start before an admin could authenticate.
 
 Section 21 deletion is built: `POST /account/delete` soft-deletes the user,
 profile and live sessions behind an OTP, and `AccountRetentionSweeper` erases the

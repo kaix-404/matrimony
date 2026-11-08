@@ -10,6 +10,7 @@ export * from './contracts/master-data.js';
 export * from './contracts/discovery.js';
 export * from './contracts/payments.js';
 export * from './contracts/trust-safety.js';
+export * from './contracts/data-requests.js';
 export * from './contracts/verification.js';
 export * from './contracts/notifications.js';
 export * from './contracts/devices.js';

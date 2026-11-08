@@ -8,6 +8,8 @@ import type {
   BiodataUploadTicket,
   CreateProfileInput,
   CurrentUser,
+  DataRequest,
+  DataRequestListResponse,
   DeviceTokenResponse,
   DiscoveryResponse,
   ExpiredUnlockResponse,
@@ -34,6 +36,7 @@ import type {
 import {
   BlockProfileSchema,
   CompleteRegistrationSchema,
+  CreateDataRequestSchema,
   CreateProfileSchema,
   CreateUnlockOrderSchema,
   DiscoveryQuerySchema,
@@ -50,10 +53,7 @@ import {
 } from '@matrimony/shared';
 
 /** A profile seen through the unlock paywall: locked, expired or unlocked. */
-export type ViewedProfile =
-  | LockedProfileResponse
-  | UnlockedProfileResponse
-  | ExpiredUnlockResponse;
+export type ViewedProfile = LockedProfileResponse | UnlockedProfileResponse | ExpiredUnlockResponse;
 
 /** A reserved upload slot: the key to confirm with and the PUT to send bytes to. */
 export interface PhotoUploadTicket {
@@ -445,6 +445,32 @@ class ApiClient {
       method: 'DELETE',
       headers: authHeaders(token),
     });
+  }
+
+  // -- privacy --------------------------------------------------------------
+
+  /**
+   * Section 21: asks for a copy of this member's own data.
+   *
+   * The API books the request and tells us the date we owe them an answer; it
+   * does not build the archive. Asking again while one is open returns that same
+   * request, so a retried tap cannot queue duplicate work for an administrator.
+   */
+  async requestDataExport(token: string): Promise<DataRequest> {
+    const body = CreateDataRequestSchema.parse({ type: 'EXPORT' });
+    return this.fetchJson('data-requests', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  /**
+   * The member's own requests, newest first — including the reason a request was
+   * refused, which is the part they are entitled to read.
+   */
+  async listDataRequests(token: string): Promise<DataRequestListResponse> {
+    return this.fetchJson('data-requests', { headers: authHeaders(token) });
   }
 
   /**

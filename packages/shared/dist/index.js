@@ -26,6 +26,7 @@ __exportStar(require("./contracts/master-data.js"), exports);
 __exportStar(require("./contracts/discovery.js"), exports);
 __exportStar(require("./contracts/payments.js"), exports);
 __exportStar(require("./contracts/trust-safety.js"), exports);
+__exportStar(require("./contracts/data-requests.js"), exports);
 __exportStar(require("./contracts/verification.js"), exports);
 __exportStar(require("./contracts/notifications.js"), exports);
 __exportStar(require("./contracts/devices.js"), exports);
