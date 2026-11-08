@@ -284,7 +284,10 @@ export class UnlockService {
    * Claiming rather than merely selecting also keeps the "who owns this table"
    * rule: `ContactUnlock` is written here and nowhere else.
    */
-  async claimDueReminders(leadMs: number, now: Date = this.clock.now()): Promise<DueUnlockReminder[]> {
+  async claimDueReminders(
+    leadMs: number,
+    now: Date = this.clock.now(),
+  ): Promise<DueUnlockReminder[]> {
     if (!this.prisma?.contactUnlock?.findMany) {
       return [];
     }
@@ -419,7 +422,13 @@ export class UnlockService {
    */
   private contactFor(target: NonNullable<Target>): UnlockedProfileResponse['contact'] {
     const { user } = target;
-    if (user.isAnonymised || user.deletedAt !== null) {
+    // A suspended account is in the same position as a deleted one from the
+    // buyer's side: what they paid for can no longer be handed out. Suspension
+    // is the sanction a harassment report ends in, so an unlock bought while the
+    // account was in good standing must not keep delivering that member's phone
+    // number — and the row stays readable, with the reason, as section 21 does
+    // for a deletion.
+    if (user.isAnonymised || user.deletedAt !== null || user.status !== 'ACTIVE') {
       return {
         mobile: '',
         is_available: false,

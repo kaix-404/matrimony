@@ -203,15 +203,10 @@ function makeService(
       },
     },
     adminGrantAudit: {
-      findFirst: async ({
-        where,
-      }: {
-        where: { targetUserId: string; targetProfileId: string };
-      }) =>
+      findFirst: async ({ where }: { where: { targetUserId: string; targetProfileId: string } }) =>
         grants.find(
           (g) =>
-            g.targetUserId === where.targetUserId &&
-            g.targetProfileId === where.targetProfileId,
+            g.targetUserId === where.targetUserId && g.targetProfileId === where.targetProfileId,
         ) ?? null,
       findMany: async ({ where }: { where: { targetUserId: string } }) =>
         grants.filter((g) => g.targetUserId === where.targetUserId),
@@ -517,6 +512,38 @@ describe('UnlockService', () => {
       // A block outranks a paid unlock. Checking the unlock first would let a
       // blocked pair keep reading a profile the blocker asked to be left alone.
       await expect(service.view(VIEWER, PROFILE)).rejects.toThrow('Profile not found');
+    });
+
+    it('withholds the contact of a member suspended after the unlock was bought', async () => {
+      const { service } = makeService({
+        unlocks: [unlock()],
+        profiles: [
+          profile({
+            user: {
+              id: TARGET_OWNER,
+              networthCategory: 'B',
+              mobile: '919876543210',
+              isAnonymised: false,
+              deletedAt: null,
+              status: 'SUSPENDED',
+              blocksInitiated: [],
+              blockedBy: [],
+            },
+          }),
+        ],
+      });
+
+      const result = await service.view(VIEWER, PROFILE);
+
+      if (result.profile_locked) throw new Error('expected an unlocked response');
+      // Suspension is the sanction a harassment report ends in, so the number
+      // the buyer paid for must stop being delivered. The row still reads, with
+      // the reason, as section 21 does for a deletion.
+      expect(result.contact).toEqual({
+        mobile: '',
+        is_available: false,
+        hidden_reason: 'This profile is no longer active.',
+      });
     });
 
     it('hides a profile that blocked the viewer', async () => {
