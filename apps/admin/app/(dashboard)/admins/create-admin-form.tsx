@@ -53,7 +53,10 @@ export function CreateAdminForm({ roles }: { roles: AdminRoleView[] }) {
         sign-in. Roles decide what they can do; the API checks every one of them.
       </p>
 
-      <form onSubmit={handleSubmit}>
+      {/* `method` is not decoration: a form with no method is a GET, and this one
+          carries the new administrator's password. A browser that never hydrated
+          would otherwise put it in the URL and the access logs. */}
+      <form method="post" onSubmit={handleSubmit}>
         <label htmlFor="new-name">Name</label>
         <input
           id="new-name"
