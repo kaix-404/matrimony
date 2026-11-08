@@ -21,6 +21,8 @@ import type { IdentityVerificationProvider, IdentityVerificationVendor } from '.
 import {
   ADMIN_ROLE_SLUGS,
   DATA_REQUEST_STATUSES,
+  PHOTO_STATUSES,
+  PHOTO_TYPES,
   REPORT_ACTION_TYPES,
   REPORT_STATUSES,
   type AdminRoleSlug,
@@ -50,7 +52,12 @@ export interface AdminPermissionDescriptor {
  * cannot be granted, and a key here is always grantable.
  */
 export const ADMIN_PERMISSIONS = {
-  'user:read': { resource: 'user', action: 'read', sensitive: false, description: 'View user accounts' },
+  'user:read': {
+    resource: 'user',
+    action: 'read',
+    sensitive: false,
+    description: 'View user accounts',
+  },
   'user:suspend': {
     resource: 'user',
     action: 'suspend',
@@ -69,19 +76,54 @@ export const ADMIN_PERMISSIONS = {
     sensitive: true,
     description: 'Move a user between net-worth categories (F2(a): Super Admin only)',
   },
-  'profile:read': { resource: 'profile', action: 'read', sensitive: false, description: 'View profiles' },
-  'profile:approve': { resource: 'profile', action: 'approve', sensitive: false, description: 'Approve a profile' },
-  'profile:reject': { resource: 'profile', action: 'reject', sensitive: false, description: 'Reject a profile' },
+  'profile:read': {
+    resource: 'profile',
+    action: 'read',
+    sensitive: false,
+    description: 'View profiles',
+  },
+  'profile:approve': {
+    resource: 'profile',
+    action: 'approve',
+    sensitive: false,
+    description: 'Approve a profile',
+  },
+  'profile:reject': {
+    resource: 'profile',
+    action: 'reject',
+    sensitive: false,
+    description: 'Reject a profile',
+  },
   'profile:suspend': {
     resource: 'profile',
     action: 'suspend',
     sensitive: true,
     description: 'Suspend a profile',
   },
-  'photo:review': { resource: 'photo', action: 'review', sensitive: false, description: 'Approve or reject a photo' },
-  'payment:read': { resource: 'payment', action: 'read', sensitive: false, description: 'View payments' },
-  'payment:refund': { resource: 'payment', action: 'refund', sensitive: true, description: 'Refund a payment' },
-  'unlock:read': { resource: 'unlock', action: 'read', sensitive: false, description: 'View contact unlocks' },
+  'photo:review': {
+    resource: 'photo',
+    action: 'review',
+    sensitive: false,
+    description: 'Approve or reject a photo',
+  },
+  'payment:read': {
+    resource: 'payment',
+    action: 'read',
+    sensitive: false,
+    description: 'View payments',
+  },
+  'payment:refund': {
+    resource: 'payment',
+    action: 'refund',
+    sensitive: true,
+    description: 'Refund a payment',
+  },
+  'unlock:read': {
+    resource: 'unlock',
+    action: 'read',
+    sensitive: false,
+    description: 'View contact unlocks',
+  },
   'unlock:grant': {
     resource: 'unlock',
     action: 'grant',
@@ -94,7 +136,12 @@ export const ADMIN_PERMISSIONS = {
     sensitive: false,
     description: 'Review and resolve a report',
   },
-  'pricing:read': { resource: 'pricing', action: 'read', sensitive: false, description: 'View pricing versions' },
+  'pricing:read': {
+    resource: 'pricing',
+    action: 'read',
+    sensitive: false,
+    description: 'View pricing versions',
+  },
   'pricing:write': {
     resource: 'pricing',
     action: 'write',
@@ -107,7 +154,12 @@ export const ADMIN_PERMISSIONS = {
     sensitive: false,
     description: 'Compose and send an announcement',
   },
-  'audit:read': { resource: 'audit', action: 'read', sensitive: false, description: 'Read the audit log' },
+  'audit:read': {
+    resource: 'audit',
+    action: 'read',
+    sensitive: false,
+    description: 'Read the audit log',
+  },
   'data_request:handle': {
     resource: 'data_request',
     action: 'handle',
@@ -690,3 +742,75 @@ export const AdminReviewReportSchema = z
     path: ['notes'],
   });
 export type AdminReviewReportInput = z.infer<typeof AdminReviewReportSchema>;
+
+// ---------------------------------------------------------------------------
+// Photo review queue (section 9)
+// ---------------------------------------------------------------------------
+
+export const AdminListPhotosQuerySchema = z.object({
+  status: z.enum(PHOTO_STATUSES).optional().default('PENDING_REVIEW'),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+  cursor: z.string().min(1).optional(),
+});
+export type AdminListPhotosQuery = z.infer<typeof AdminListPhotosQuerySchema>;
+
+/**
+ * A photo as the review queue shows it.
+ *
+ * `url` is a short-lived presigned GET, not an object key: an administrator
+ * cannot decide about an image they cannot see, and handing the console the key
+ * would either mean it builds its own signed URL (with credentials it must not
+ * hold) or that the bucket is public. It expires, like every other image URL in
+ * the product (section 41).
+ *
+ * The ids and the member's first name are enough to triage; the queue does not
+ * repeat contact details, which live on the user endpoint behind `user:read`.
+ */
+export const AdminPhotoViewSchema = z
+  .object({
+    id: z.string().min(1),
+    profile_id: z.string().min(1),
+    profile_name: z.string().nullable(),
+    status: z.enum(PHOTO_STATUSES),
+    photo_type: z.enum(PHOTO_TYPES),
+    url: z.string().min(1),
+    uploaded_at: z.string().datetime(),
+    reviewed_at: z.string().datetime().nullable(),
+    rejection_reason: z.string().nullable(),
+    reviewed_by_admin_id: z.string().nullable(),
+  })
+  .strict();
+export type AdminPhotoView = z.infer<typeof AdminPhotoViewSchema>;
+
+export const AdminPhotoListResponseSchema = z
+  .object({
+    photos: z.array(AdminPhotoViewSchema),
+    nextCursor: z.string().nullable(),
+    hasMore: z.boolean(),
+  })
+  .strict();
+export type AdminPhotoListResponse = z.infer<typeof AdminPhotoListResponseSchema>;
+
+/**
+ * Approving or rejecting one photo.
+ *
+ * `REJECT` must say why: a rejection with no reason leaves the member looking at
+ * a photo that simply vanished, and section 9's rejection path exists precisely
+ * so they can be told. `APPROVE` carries no reason, and any sent one is refused
+ * rather than stored, so a stale form cannot attach an explanation to an approval.
+ */
+export const AdminReviewPhotoSchema = z
+  .object({
+    decision: z.enum(['APPROVE', 'REJECT']),
+    rejection_reason: z.string().trim().max(500).optional(),
+  })
+  .strict()
+  .refine((value) => value.decision !== 'REJECT' || (value.rejection_reason ?? '').length > 0, {
+    message: 'A rejection requires a reason',
+    path: ['rejection_reason'],
+  })
+  .refine((value) => value.decision !== 'APPROVE' || value.rejection_reason === undefined, {
+    message: 'An approval carries no rejection reason',
+    path: ['rejection_reason'],
+  });
+export type AdminReviewPhotoInput = z.infer<typeof AdminReviewPhotoSchema>;

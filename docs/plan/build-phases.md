@@ -47,6 +47,16 @@ values, master-list endpoints (community, education, profession), and photo
 upload to S3-compatible storage with presigned URLs. Photos are never locked
 behind payment and only `APPROVED` photos reach another user.
 
+That rule was two-thirds built: photos arrive as `PENDING_REVIEW`, every read path
+filters on `APPROVED`, and until the review queue landed nothing could ever set
+it, so no member's photo was visible to anybody. The queue is `GET /admin/photos`
+plus `POST /admin/photos/:id/review` behind the already-seeded `photo:review`
+permission, with a console page that shows a signed thumbnail (expiring in
+minutes, like every other image URL) and takes an approve or a rejection with a
+reason. It is ordered oldest-first, unlike every other queue here: a report is
+answered by whoever is working, but an unapproved photo is a member who cannot be
+seen, so the longest wait goes next.
+
 ## Phase 3 — Discovery ✅
 
 The read path. Candidates are selected by the **two-way** visibility rule rather

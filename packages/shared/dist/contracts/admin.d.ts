@@ -819,4 +819,165 @@ export declare const AdminReviewReportSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     notes?: string | undefined;
 }>;
 export type AdminReviewReportInput = z.infer<typeof AdminReviewReportSchema>;
+export declare const AdminListPhotosQuerySchema: z.ZodObject<{
+    status: z.ZodDefault<z.ZodOptional<z.ZodEnum<["PENDING_REVIEW", "APPROVED", "REJECTED"]>>>;
+    limit: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    cursor: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    limit: number;
+    cursor?: string | undefined;
+}, {
+    status?: "REJECTED" | "PENDING_REVIEW" | "APPROVED" | undefined;
+    limit?: number | undefined;
+    cursor?: string | undefined;
+}>;
+export type AdminListPhotosQuery = z.infer<typeof AdminListPhotosQuerySchema>;
+/**
+ * A photo as the review queue shows it.
+ *
+ * `url` is a short-lived presigned GET, not an object key: an administrator
+ * cannot decide about an image they cannot see, and handing the console the key
+ * would either mean it builds its own signed URL (with credentials it must not
+ * hold) or that the bucket is public. It expires, like every other image URL in
+ * the product (section 41).
+ *
+ * The ids and the member's first name are enough to triage; the queue does not
+ * repeat contact details, which live on the user endpoint behind `user:read`.
+ */
+export declare const AdminPhotoViewSchema: z.ZodObject<{
+    id: z.ZodString;
+    profile_id: z.ZodString;
+    profile_name: z.ZodNullable<z.ZodString>;
+    status: z.ZodEnum<["PENDING_REVIEW", "APPROVED", "REJECTED"]>;
+    photo_type: z.ZodEnum<["SINGLE", "FAMILY"]>;
+    url: z.ZodString;
+    uploaded_at: z.ZodString;
+    reviewed_at: z.ZodNullable<z.ZodString>;
+    rejection_reason: z.ZodNullable<z.ZodString>;
+    reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
+}, "strict", z.ZodTypeAny, {
+    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    id: string;
+    profile_id: string;
+    profile_name: string | null;
+    photo_type: "SINGLE" | "FAMILY";
+    url: string;
+    uploaded_at: string;
+    reviewed_at: string | null;
+    rejection_reason: string | null;
+    reviewed_by_admin_id: string | null;
+}, {
+    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    id: string;
+    profile_id: string;
+    profile_name: string | null;
+    photo_type: "SINGLE" | "FAMILY";
+    url: string;
+    uploaded_at: string;
+    reviewed_at: string | null;
+    rejection_reason: string | null;
+    reviewed_by_admin_id: string | null;
+}>;
+export type AdminPhotoView = z.infer<typeof AdminPhotoViewSchema>;
+export declare const AdminPhotoListResponseSchema: z.ZodObject<{
+    photos: z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        profile_id: z.ZodString;
+        profile_name: z.ZodNullable<z.ZodString>;
+        status: z.ZodEnum<["PENDING_REVIEW", "APPROVED", "REJECTED"]>;
+        photo_type: z.ZodEnum<["SINGLE", "FAMILY"]>;
+        url: z.ZodString;
+        uploaded_at: z.ZodString;
+        reviewed_at: z.ZodNullable<z.ZodString>;
+        rejection_reason: z.ZodNullable<z.ZodString>;
+        reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
+    }, "strict", z.ZodTypeAny, {
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        id: string;
+        profile_id: string;
+        profile_name: string | null;
+        photo_type: "SINGLE" | "FAMILY";
+        url: string;
+        uploaded_at: string;
+        reviewed_at: string | null;
+        rejection_reason: string | null;
+        reviewed_by_admin_id: string | null;
+    }, {
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        id: string;
+        profile_id: string;
+        profile_name: string | null;
+        photo_type: "SINGLE" | "FAMILY";
+        url: string;
+        uploaded_at: string;
+        reviewed_at: string | null;
+        rejection_reason: string | null;
+        reviewed_by_admin_id: string | null;
+    }>, "many">;
+    nextCursor: z.ZodNullable<z.ZodString>;
+    hasMore: z.ZodBoolean;
+}, "strict", z.ZodTypeAny, {
+    photos: {
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        id: string;
+        profile_id: string;
+        profile_name: string | null;
+        photo_type: "SINGLE" | "FAMILY";
+        url: string;
+        uploaded_at: string;
+        reviewed_at: string | null;
+        rejection_reason: string | null;
+        reviewed_by_admin_id: string | null;
+    }[];
+    nextCursor: string | null;
+    hasMore: boolean;
+}, {
+    photos: {
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        id: string;
+        profile_id: string;
+        profile_name: string | null;
+        photo_type: "SINGLE" | "FAMILY";
+        url: string;
+        uploaded_at: string;
+        reviewed_at: string | null;
+        rejection_reason: string | null;
+        reviewed_by_admin_id: string | null;
+    }[];
+    nextCursor: string | null;
+    hasMore: boolean;
+}>;
+export type AdminPhotoListResponse = z.infer<typeof AdminPhotoListResponseSchema>;
+/**
+ * Approving or rejecting one photo.
+ *
+ * `REJECT` must say why: a rejection with no reason leaves the member looking at
+ * a photo that simply vanished, and section 9's rejection path exists precisely
+ * so they can be told. `APPROVE` carries no reason, and any sent one is refused
+ * rather than stored, so a stale form cannot attach an explanation to an approval.
+ */
+export declare const AdminReviewPhotoSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
+    decision: z.ZodEnum<["APPROVE", "REJECT"]>;
+    rejection_reason: z.ZodOptional<z.ZodString>;
+}, "strict", z.ZodTypeAny, {
+    decision: "APPROVE" | "REJECT";
+    rejection_reason?: string | undefined;
+}, {
+    decision: "APPROVE" | "REJECT";
+    rejection_reason?: string | undefined;
+}>, {
+    decision: "APPROVE" | "REJECT";
+    rejection_reason?: string | undefined;
+}, {
+    decision: "APPROVE" | "REJECT";
+    rejection_reason?: string | undefined;
+}>, {
+    decision: "APPROVE" | "REJECT";
+    rejection_reason?: string | undefined;
+}, {
+    decision: "APPROVE" | "REJECT";
+    rejection_reason?: string | undefined;
+}>;
+export type AdminReviewPhotoInput = z.infer<typeof AdminReviewPhotoSchema>;
 //# sourceMappingURL=admin.d.ts.map

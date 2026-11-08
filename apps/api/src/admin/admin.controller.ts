@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import {
   AdminAssignRoleSchema,
   AdminChangeCategorySchema,
@@ -6,11 +16,13 @@ import {
   AdminGrantUnlockSchema,
   AdminListAdminsQuerySchema,
   AdminListDataRequestsQuerySchema,
+  AdminListPhotosQuerySchema,
   AdminListReportsQuerySchema,
   AdminListUsersQuerySchema,
   AdminListVerificationsQuerySchema,
   AdminPublishPricingSchema,
   AdminResolveDataRequestSchema,
+  AdminReviewPhotoSchema,
   AdminReviewReportSchema,
   AdminRoleSlugSchema,
   type AdminAssignRoleInput,
@@ -22,14 +34,18 @@ import {
   type AdminGrantUnlockView,
   type AdminListAdminsQuery,
   type AdminListDataRequestsQuery,
+  type AdminListPhotosQuery,
   type AdminListReportsQuery,
   type AdminListUsersQuery,
   type AdminListVerificationsQuery,
+  type AdminPhotoListResponse,
+  type AdminPhotoView,
   type AdminPricingView,
   type AdminPrincipal,
   type AdminPublishPricingInput,
   type AdminReportView,
   type AdminResolveDataRequestInput,
+  type AdminReviewPhotoInput,
   type AdminReviewReportInput,
   type AdminRoleSlug,
   type AdminRoleView,
@@ -198,7 +214,8 @@ export class AdminController {
   @Get('data-requests')
   @RequirePermission('data_request:handle')
   async listDataRequests(
-    @Query(new ZodValidationPipe(AdminListDataRequestsQuerySchema)) query: AdminListDataRequestsQuery,
+    @Query(new ZodValidationPipe(AdminListDataRequestsQuerySchema))
+    query: AdminListDataRequestsQuery,
   ) {
     return this.adminService.listDataRequests(query.limit, query.cursor, query.status);
   }
@@ -220,6 +237,27 @@ export class AdminController {
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminDataRequestView> {
     return this.adminService.resolveDataRequest(id, body, principal.id);
+  }
+
+  /** Section 9: the photo review queue, oldest upload first. */
+  @Get('photos')
+  @RequirePermission('photo:review')
+  async listPhotos(
+    @Query(new ZodValidationPipe(AdminListPhotosQuerySchema)) query: AdminListPhotosQuery,
+  ): Promise<AdminPhotoListResponse> {
+    return this.adminService.listPhotos(query.limit, query.cursor, query.status);
+  }
+
+  /** Section 9: approve or reject one photo. */
+  @Post('photos/:id/review')
+  @RequirePermission('photo:review')
+  @HttpCode(200)
+  async reviewPhoto(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminReviewPhotoSchema)) body: AdminReviewPhotoInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminPhotoView> {
+    return this.adminService.reviewPhoto(id, body, principal.id);
   }
 
   /** Section 30: the moderation queue, optionally filtered by status. */

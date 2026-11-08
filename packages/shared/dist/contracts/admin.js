@@ -17,7 +17,7 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const enums_js_1 = require("../enums.js");
@@ -31,7 +31,12 @@ const enums_js_1 = require("../enums.js");
  * cannot be granted, and a key here is always grantable.
  */
 exports.ADMIN_PERMISSIONS = {
-    'user:read': { resource: 'user', action: 'read', sensitive: false, description: 'View user accounts' },
+    'user:read': {
+        resource: 'user',
+        action: 'read',
+        sensitive: false,
+        description: 'View user accounts',
+    },
     'user:suspend': {
         resource: 'user',
         action: 'suspend',
@@ -50,19 +55,54 @@ exports.ADMIN_PERMISSIONS = {
         sensitive: true,
         description: 'Move a user between net-worth categories (F2(a): Super Admin only)',
     },
-    'profile:read': { resource: 'profile', action: 'read', sensitive: false, description: 'View profiles' },
-    'profile:approve': { resource: 'profile', action: 'approve', sensitive: false, description: 'Approve a profile' },
-    'profile:reject': { resource: 'profile', action: 'reject', sensitive: false, description: 'Reject a profile' },
+    'profile:read': {
+        resource: 'profile',
+        action: 'read',
+        sensitive: false,
+        description: 'View profiles',
+    },
+    'profile:approve': {
+        resource: 'profile',
+        action: 'approve',
+        sensitive: false,
+        description: 'Approve a profile',
+    },
+    'profile:reject': {
+        resource: 'profile',
+        action: 'reject',
+        sensitive: false,
+        description: 'Reject a profile',
+    },
     'profile:suspend': {
         resource: 'profile',
         action: 'suspend',
         sensitive: true,
         description: 'Suspend a profile',
     },
-    'photo:review': { resource: 'photo', action: 'review', sensitive: false, description: 'Approve or reject a photo' },
-    'payment:read': { resource: 'payment', action: 'read', sensitive: false, description: 'View payments' },
-    'payment:refund': { resource: 'payment', action: 'refund', sensitive: true, description: 'Refund a payment' },
-    'unlock:read': { resource: 'unlock', action: 'read', sensitive: false, description: 'View contact unlocks' },
+    'photo:review': {
+        resource: 'photo',
+        action: 'review',
+        sensitive: false,
+        description: 'Approve or reject a photo',
+    },
+    'payment:read': {
+        resource: 'payment',
+        action: 'read',
+        sensitive: false,
+        description: 'View payments',
+    },
+    'payment:refund': {
+        resource: 'payment',
+        action: 'refund',
+        sensitive: true,
+        description: 'Refund a payment',
+    },
+    'unlock:read': {
+        resource: 'unlock',
+        action: 'read',
+        sensitive: false,
+        description: 'View contact unlocks',
+    },
     'unlock:grant': {
         resource: 'unlock',
         action: 'grant',
@@ -75,7 +115,12 @@ exports.ADMIN_PERMISSIONS = {
         sensitive: false,
         description: 'Review and resolve a report',
     },
-    'pricing:read': { resource: 'pricing', action: 'read', sensitive: false, description: 'View pricing versions' },
+    'pricing:read': {
+        resource: 'pricing',
+        action: 'read',
+        sensitive: false,
+        description: 'View pricing versions',
+    },
     'pricing:write': {
         resource: 'pricing',
         action: 'write',
@@ -88,7 +133,12 @@ exports.ADMIN_PERMISSIONS = {
         sensitive: false,
         description: 'Compose and send an announcement',
     },
-    'audit:read': { resource: 'audit', action: 'read', sensitive: false, description: 'Read the audit log' },
+    'audit:read': {
+        resource: 'audit',
+        action: 'read',
+        sensitive: false,
+        description: 'Read the audit log',
+    },
     'data_request:handle': {
         resource: 'data_request',
         action: 'handle',
@@ -406,5 +456,68 @@ exports.AdminReviewReportSchema = zod_1.z
     .refine((value) => value.status !== 'ACTIONED' || (value.notes ?? '').length > 0, {
     message: 'An actioned report requires review notes',
     path: ['notes'],
+});
+// ---------------------------------------------------------------------------
+// Photo review queue (section 9)
+// ---------------------------------------------------------------------------
+exports.AdminListPhotosQuerySchema = zod_1.z.object({
+    status: zod_1.z.enum(enums_js_1.PHOTO_STATUSES).optional().default('PENDING_REVIEW'),
+    limit: zod_1.z.coerce.number().int().positive().max(100).optional().default(20),
+    cursor: zod_1.z.string().min(1).optional(),
+});
+/**
+ * A photo as the review queue shows it.
+ *
+ * `url` is a short-lived presigned GET, not an object key: an administrator
+ * cannot decide about an image they cannot see, and handing the console the key
+ * would either mean it builds its own signed URL (with credentials it must not
+ * hold) or that the bucket is public. It expires, like every other image URL in
+ * the product (section 41).
+ *
+ * The ids and the member's first name are enough to triage; the queue does not
+ * repeat contact details, which live on the user endpoint behind `user:read`.
+ */
+exports.AdminPhotoViewSchema = zod_1.z
+    .object({
+    id: zod_1.z.string().min(1),
+    profile_id: zod_1.z.string().min(1),
+    profile_name: zod_1.z.string().nullable(),
+    status: zod_1.z.enum(enums_js_1.PHOTO_STATUSES),
+    photo_type: zod_1.z.enum(enums_js_1.PHOTO_TYPES),
+    url: zod_1.z.string().min(1),
+    uploaded_at: zod_1.z.string().datetime(),
+    reviewed_at: zod_1.z.string().datetime().nullable(),
+    rejection_reason: zod_1.z.string().nullable(),
+    reviewed_by_admin_id: zod_1.z.string().nullable(),
+})
+    .strict();
+exports.AdminPhotoListResponseSchema = zod_1.z
+    .object({
+    photos: zod_1.z.array(exports.AdminPhotoViewSchema),
+    nextCursor: zod_1.z.string().nullable(),
+    hasMore: zod_1.z.boolean(),
+})
+    .strict();
+/**
+ * Approving or rejecting one photo.
+ *
+ * `REJECT` must say why: a rejection with no reason leaves the member looking at
+ * a photo that simply vanished, and section 9's rejection path exists precisely
+ * so they can be told. `APPROVE` carries no reason, and any sent one is refused
+ * rather than stored, so a stale form cannot attach an explanation to an approval.
+ */
+exports.AdminReviewPhotoSchema = zod_1.z
+    .object({
+    decision: zod_1.z.enum(['APPROVE', 'REJECT']),
+    rejection_reason: zod_1.z.string().trim().max(500).optional(),
+})
+    .strict()
+    .refine((value) => value.decision !== 'REJECT' || (value.rejection_reason ?? '').length > 0, {
+    message: 'A rejection requires a reason',
+    path: ['rejection_reason'],
+})
+    .refine((value) => value.decision !== 'APPROVE' || value.rejection_reason === undefined, {
+    message: 'An approval carries no rejection reason',
+    path: ['rejection_reason'],
 });
 //# sourceMappingURL=admin.js.map

@@ -136,6 +136,21 @@ function setup() {
     },
   ];
 
+  const photos = [
+    {
+      id: 'photo_1',
+      profileId: 'profile_2',
+      status: 'PENDING_REVIEW' as string,
+      photoType: 'SINGLE',
+      objectKey: 'photos/profile_2/1.jpg',
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      reviewedAt: null as Date | null,
+      rejectionReason: null as string | null,
+      reviewedByAdminId: null as string | null,
+      profile: { firstName: 'Ravi' },
+    },
+  ];
+
   const reports = [
     {
       id: 'rep_1',
@@ -378,6 +393,19 @@ function setup() {
         },
       ),
     },
+    profilePhoto: {
+      findMany: async ({ where }: { where?: { status?: string } } = {}) =>
+        where?.status ? photos.filter((p) => p.status === where.status) : photos,
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        photos.find((p) => p.id === where.id) ?? null,
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const row = photos.find((p) => p.id === where.id)!;
+          Object.assign(row, data);
+          return row;
+        },
+      ),
+    },
     $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => fn(prisma),
     adminRole: {
       findMany: async ({ where }: { where?: { slug?: { in: string[] } } } = {}) => {
@@ -458,14 +486,24 @@ function setup() {
   // Recorded rather than queried: what these tests care about is which member
   // learns of a decision, not how the notification row is stored.
   const notifications = { created: [] as Array<Record<string, unknown>> };
-  const service = new AdminService(prisma as never, audit as never, clock, {
-    create: async (input: Record<string, unknown>) => {
-      notifications.created.push(input);
-      return { id: `notif_${notifications.created.length}` };
-    },
-  } as never);
+  // Stands in for the bucket: the view's job is to carry a signed URL, and the
+  // signing itself is covered by the storage tests.
+  const storage = { presignDownload: async (key: string) => `https://cdn.test/${key}?sig=abc` };
+  const service = new AdminService(
+    prisma as never,
+    audit as never,
+    clock,
+    {
+      create: async (input: Record<string, unknown>) => {
+        notifications.created.push(input);
+        return { id: `notif_${notifications.created.length}` };
+      },
+    } as never,
+    storage as never,
+  );
 
   return {
+    photos,
     service,
     prisma,
     audit,
@@ -1288,6 +1326,118 @@ describe('AdminService.reviewReport', () => {
     const { service } = setup();
     await expect(
       service.reviewReport('nobody', { status: 'DISMISSED', action: 'DISMISS' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminService.listPhotos', () => {
+  it('lists the pending queue with a signed URL and the member it belongs to', async () => {
+    const { service } = setup();
+
+    const queue = await service.listPhotos();
+
+    expect(queue.photos).toEqual([
+      {
+        id: 'photo_1',
+        profile_id: 'profile_2',
+        profile_name: 'Ravi',
+        status: 'PENDING_REVIEW',
+        photo_type: 'SINGLE',
+        url: 'https://cdn.test/photos/profile_2/1.jpg?sig=abc',
+        uploaded_at: '2026-10-01T00:00:00.000Z',
+        reviewed_at: null,
+        rejection_reason: null,
+        reviewed_by_admin_id: null,
+      },
+    ]);
+    expect(queue.hasMore).toBe(false);
+  });
+
+  it('carries a signed URL rather than the storage key alone', async () => {
+    const { service } = setup();
+
+    const queue = await service.listPhotos();
+
+    expect(queue.photos[0]?.url).toContain('sig=');
+    expect(queue.photos[0]).not.toHaveProperty('objectKey');
+  });
+
+  it('defaults to the photos nobody has decided yet', async () => {
+    const { service, photos } = setup();
+    photos.push({ ...photos[0]!, id: 'photo_2', status: 'APPROVED' });
+
+    const queue = await service.listPhotos();
+
+    expect(queue.photos.map((p) => p.id)).toEqual(['photo_1']);
+  });
+});
+
+describe('AdminService.reviewPhoto', () => {
+  it('approves a photo and records who decided it', async () => {
+    const { service, photos, audit } = setup();
+
+    const result = await service.reviewPhoto('photo_1', { decision: 'APPROVE' }, 'admin_actor');
+
+    expect(result.status).toBe('APPROVED');
+    expect(result.reviewed_at).toBe('2026-10-14T12:00:00.000Z');
+    expect(result.reviewed_by_admin_id).toBe('admin_actor');
+    expect(result.rejection_reason).toBeNull();
+    expect(photos[0]!.status).toBe('APPROVED');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'photo:review',
+        resourceId: 'photo_1',
+        previousValue: { status: 'PENDING_REVIEW' },
+        newValue: expect.objectContaining({ status: 'APPROVED' }),
+      }),
+    );
+  });
+
+  it('keeps the reason on a rejection', async () => {
+    const { service, photos } = setup();
+
+    const result = await service.reviewPhoto(
+      'photo_1',
+      { decision: 'REJECT', rejection_reason: 'Blurry photo' },
+      'admin_actor',
+    );
+
+    expect(result.status).toBe('REJECTED');
+    expect(result.rejection_reason).toBe('Blurry photo');
+    expect(photos[0]!.status).toBe('REJECTED');
+  });
+
+  it('clears an old reason when a rejected photo is later approved', async () => {
+    const { service, photos } = setup();
+    photos[0]!.status = 'REJECTED';
+    photos[0]!.rejectionReason = 'Blurry photo';
+
+    const result = await service.reviewPhoto('photo_1', { decision: 'APPROVE' }, 'admin_actor');
+
+    expect(result.status).toBe('APPROVED');
+    expect(result.rejection_reason).toBeNull();
+  });
+
+  it('treats the decision already recorded as done rather than as an error', async () => {
+    const { service, audit } = setup();
+    await service.reviewPhoto('photo_1', { decision: 'APPROVE' }, 'admin_actor');
+    (audit.record as jest.Mock).mockClear();
+
+    const again = await service.reviewPhoto(
+      'photo_1',
+      { decision: 'APPROVE' },
+      'another_moderator',
+    );
+
+    expect(again.status).toBe('APPROVED');
+    // Nothing changed, so nothing is audited a second time.
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing photo', async () => {
+    const { service } = setup();
+    await expect(
+      service.reviewPhoto('nobody', { decision: 'APPROVE' }, 'admin_actor'),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

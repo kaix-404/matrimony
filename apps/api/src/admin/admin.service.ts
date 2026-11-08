@@ -22,10 +22,13 @@ import type {
   AdminGrantUnlockInput,
   AdminGrantUnlockView,
   AdminPermissionKey,
+  AdminPhotoListResponse,
+  AdminPhotoView,
   AdminPricingView,
   AdminPublishPricingInput,
   AdminReportView,
   AdminResolveDataRequestInput,
+  AdminReviewPhotoInput,
   AdminReviewReportInput,
   AdminRoleSlug,
   AdminRoleView,
@@ -37,6 +40,7 @@ import type {
   IdentityVerificationProvider,
   IdentityVerificationVendor,
   DataRequestStatus,
+  PhotoStatus,
   ReportActionType,
   ReportStatus,
 } from '@matrimony/shared';
@@ -47,6 +51,7 @@ import {
   UserStatus,
 } from '../prisma/prisma-client';
 import { ClockService } from '../common/clock/clock.service';
+import { StorageService } from '../storage/s3.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from './audit.service';
 import { hashPassword } from '../common/crypto/password';
@@ -152,6 +157,54 @@ function toVerificationView(row: VerificationRow): AdminVerificationView {
     verifiedAt: row.verifiedAt ? row.verifiedAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+const PHOTO_SELECT = {
+  id: true,
+  profileId: true,
+  status: true,
+  photoType: true,
+  objectKey: true,
+  createdAt: true,
+  reviewedAt: true,
+  rejectionReason: true,
+  reviewedByAdminId: true,
+  profile: { select: { firstName: true } },
+} as const;
+
+interface PhotoRow {
+  id: string;
+  profileId: string;
+  status: string;
+  photoType: string;
+  objectKey: string;
+  createdAt: Date;
+  reviewedAt: Date | null;
+  rejectionReason: string | null;
+  reviewedByAdminId: string | null;
+  profile: { firstName: string | null } | null;
+}
+
+/**
+ * Section 9: a photo as the reviewer sees it.
+ *
+ * The URL is signed here, at the moment of the read, rather than stored or
+ * cached: it expires in minutes, so a queue page left open overnight has to be
+ * refreshed to still show anything, which is the property section 41 asks for.
+ */
+function toPhotoView(row: PhotoRow, url: string): AdminPhotoView {
+  return {
+    id: row.id,
+    profile_id: row.profileId,
+    profile_name: row.profile ? row.profile.firstName : null,
+    status: row.status as AdminPhotoView['status'],
+    photo_type: row.photoType as AdminPhotoView['photo_type'],
+    url,
+    uploaded_at: row.createdAt.toISOString(),
+    reviewed_at: row.reviewedAt ? row.reviewedAt.toISOString() : null,
+    rejection_reason: row.rejectionReason,
+    reviewed_by_admin_id: row.reviewedByAdminId,
   };
 }
 
@@ -280,6 +333,7 @@ export class AdminService {
     private readonly audit: AuditService,
     private readonly clock: ClockService,
     private readonly notifications: NotificationsService,
+    private readonly storage: StorageService,
   ) {}
 
   /**
@@ -890,6 +944,104 @@ export class AdminService {
    * one most likely to need a response, and an old one that has gone unhandled
    * this long is not made more urgent by being shown first.
    */
+  /**
+   * Section 9: the photo review queue.
+   *
+   * Oldest first, unlike every other queue here. A report and a data request are
+   * answered by whoever is working; an unapproved photo is a member who cannot be
+   * seen in anybody's feed, so the one who has waited longest goes next. Sorting
+   * newest-first would let a busy day starve the people at the back forever.
+   *
+   * The cursor is the photo id, and the order is stable because uploads have
+   * distinct creation times and the id breaks any tie.
+   */
+  async listPhotos(
+    limit = 20,
+    cursor?: string,
+    status: PhotoStatus = 'PENDING_REVIEW',
+  ): Promise<AdminPhotoListResponse> {
+    const take = Math.min(limit, 100);
+    const items = await this.prisma.profilePhoto.findMany({
+      take: take + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      where: { status: status as never },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: PHOTO_SELECT,
+    });
+
+    const hasMore = items.length > take;
+    const rows = hasMore ? items.slice(0, take) : items;
+    const photos = await Promise.all(
+      rows.map(async (row) => toPhotoView(row, await this.storage.presignDownload(row.objectKey))),
+    );
+    return {
+      photos,
+      nextCursor: hasMore ? (photos[photos.length - 1]?.id ?? null) : null,
+      hasMore,
+    };
+  }
+
+  /**
+   * Section 9: approve or reject one photo.
+   *
+   * Repeating the decision already recorded is a no-op rather than an error: the
+   * queue page a moderator is looking at can be minutes stale, and two
+   * moderators pressing the same button is not a failure to explain — it is the
+   * outcome both asked for. Anything else is a real change and is audited with
+   * the status it replaced.
+   *
+   * Rejection requires a reason (enforced by the contract, not here, so a client
+   * cannot send an empty one) because it is the only thing the member will have
+   * to explain why their photo disappeared.
+   */
+  async reviewPhoto(
+    id: string,
+    input: AdminReviewPhotoInput,
+    actingAdminId: string,
+  ): Promise<AdminPhotoView> {
+    const row = await this.prisma.profilePhoto.findUnique({ where: { id }, select: PHOTO_SELECT });
+    if (!row) {
+      throw new NotFoundException('Photo not found');
+    }
+
+    const approving = input.decision === 'APPROVE';
+    const nextStatus = approving ? 'APPROVED' : 'REJECTED';
+
+    if (row.status === nextStatus) {
+      return toPhotoView(row, await this.storage.presignDownload(row.objectKey));
+    }
+
+    // Read before the write: the audit line is about the status this decision
+    // replaced, not about what the row says once it has been updated.
+    const previousStatus = row.status;
+
+    const updated = await this.prisma.profilePhoto.update({
+      where: { id },
+      data: {
+        status: nextStatus as never,
+        reviewedAt: this.clock.now(),
+        reviewedByAdminId: actingAdminId,
+        // An approval clears the old reason: a photo that is now visible must not
+        // carry the explanation with which it was once refused.
+        rejectionReason: approving ? null : (input.rejection_reason ?? null),
+      },
+      select: PHOTO_SELECT,
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'photo:review',
+      resourceType: 'ProfilePhoto',
+      resourceId: id,
+      previousValue: { status: previousStatus },
+      newValue: { status: nextStatus, rejectionReason: updated.rejectionReason },
+      reason: input.rejection_reason ?? null,
+    });
+
+    return toPhotoView(updated, await this.storage.presignDownload(updated.objectKey));
+  }
+
   async listReports(limit = 20, cursor?: string, status?: ReportStatus) {
     const take = Math.min(limit, 100);
     const items = await this.prisma.report.findMany({

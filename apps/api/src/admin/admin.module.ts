@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { StorageModule } from '../storage/storage.module';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { AdminAuthController } from './admin-auth.controller';
@@ -23,7 +24,7 @@ import { PermissionsGuard } from './rbac/permissions.guard';
  * importing the whole module.
  */
 @Module({
-  imports: [PrismaModule, AuthModule, NotificationsModule],
+  imports: [PrismaModule, AuthModule, NotificationsModule, StorageModule],
   providers: [
     AdminService,
     AdminAuthService,
