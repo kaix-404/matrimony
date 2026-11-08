@@ -3,9 +3,11 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
+  NOTIFICATION_EVENTS,
   computeUnlockWindow,
   money,
   roundMoney,
@@ -45,6 +47,7 @@ import {
   UserStatus,
 } from '../prisma/prisma-client';
 import { ClockService } from '../common/clock/clock.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from './audit.service';
 import { hashPassword } from '../common/crypto/password';
 
@@ -270,10 +273,13 @@ function toPricingView(row: PricingRow): AdminPricingView {
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly audit: AuditService,
     private readonly clock: ClockService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -339,12 +345,7 @@ export class AdminService {
    * email match is case-insensitive because email addresses are, and the mobile
    * match is not because digits are not.
    */
-  async listUsers(
-    limit = 20,
-    cursor?: string,
-    status?: AdminUserStatus,
-    q?: string,
-  ) {
+  async listUsers(limit = 20, cursor?: string, status?: AdminUserStatus, q?: string) {
     const take = Math.min(limit, 100);
     const items = await this.prisma.user.findMany({
       take: take + 1,
@@ -366,7 +367,7 @@ export class AdminService {
     });
     const hasMore = items.length > take;
     const users = hasMore ? items.slice(0, take) : items;
-    const nextCursor = hasMore ? users[users.length - 1]?.id ?? null : null;
+    const nextCursor = hasMore ? (users[users.length - 1]?.id ?? null) : null;
     return { users, nextCursor, hasMore };
   }
 
@@ -395,7 +396,7 @@ export class AdminService {
     const hasMore = items.length > take;
     const rows = hasMore ? items.slice(0, take) : items;
     const verifications = rows.map(toVerificationView);
-    const nextCursor = hasMore ? verifications[verifications.length - 1]?.id ?? null : null;
+    const nextCursor = hasMore ? (verifications[verifications.length - 1]?.id ?? null) : null;
     return { verifications, nextCursor, hasMore };
   }
 
@@ -438,7 +439,7 @@ export class AdminService {
     const hasMore = items.length > take;
     const rows = hasMore ? items.slice(0, take) : items;
     const admins = rows.map(toAdminView);
-    const nextCursor = hasMore ? admins[admins.length - 1]?.id ?? null : null;
+    const nextCursor = hasMore ? (admins[admins.length - 1]?.id ?? null) : null;
     return { admins, nextCursor, hasMore };
   }
 
@@ -507,12 +508,18 @@ export class AdminService {
   ): Promise<AdminUserView> {
     this.assertNotSelf(adminId, actingAdminId);
 
-    const role = await this.prisma.adminRole.findUnique({ where: { slug: roleSlug }, select: { id: true } });
+    const role = await this.prisma.adminRole.findUnique({
+      where: { slug: roleSlug },
+      select: { id: true },
+    });
     if (!role) {
       throw new BadRequestException(`Unknown role: ${roleSlug}`);
     }
 
-    const admin = await this.prisma.adminUser.findUnique({ where: { id: adminId }, select: { id: true } });
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminId },
+      select: { id: true },
+    });
     if (!admin) {
       throw new NotFoundException('Administrator not found');
     }
@@ -554,7 +561,10 @@ export class AdminService {
   ): Promise<AdminUserView> {
     this.assertNotSelf(adminId, actingAdminId);
 
-    const role = await this.prisma.adminRole.findUnique({ where: { slug: roleSlug }, select: { id: true } });
+    const role = await this.prisma.adminRole.findUnique({
+      where: { slug: roleSlug },
+      select: { id: true },
+    });
     if (!role) {
       throw new BadRequestException(`Unknown role: ${roleSlug}`);
     }
@@ -803,7 +813,7 @@ export class AdminService {
     const hasMore = items.length > take;
     const rows = hasMore ? items.slice(0, take) : items;
     const requests = rows.map(toDataRequestView);
-    const nextCursor = hasMore ? requests[requests.length - 1]?.id ?? null : null;
+    const nextCursor = hasMore ? (requests[requests.length - 1]?.id ?? null) : null;
     return { requests, nextCursor, hasMore };
   }
 
@@ -893,7 +903,7 @@ export class AdminService {
     const hasMore = items.length > take;
     const rows = hasMore ? items.slice(0, take) : items;
     const reports = rows.map(toReportView);
-    const nextCursor = hasMore ? reports[reports.length - 1]?.id ?? null : null;
+    const nextCursor = hasMore ? (reports[reports.length - 1]?.id ?? null) : null;
     return { reports, nextCursor, hasMore };
   }
 
@@ -923,7 +933,7 @@ export class AdminService {
   ): Promise<AdminReportView> {
     const report = await this.prisma.report.findUnique({
       where: { id },
-      select: { id: true, status: true, reportedUserId: true },
+      select: { id: true, status: true, reportedUserId: true, reporterId: true },
     });
     if (!report) {
       throw new NotFoundException('Report not found');
@@ -964,7 +974,55 @@ export class AdminService {
       reason: input.notes ?? null,
     });
 
+    await this.notifyReviewOutcome(report, input.status, suspended);
+
     return toReportView(updated);
+  }
+
+  /**
+   * Section 42: the two people a review decision concerns are told about it.
+   *
+   * The reporter hears that action was taken and nothing more — not which action,
+   * not who was reported, and not any review note. That is section 30 material;
+   * a reporter who is told the sanction would learn things about another member
+   * that no report entitles them to. A dismissal says nothing at all, because
+   * `REPORT_ACTION_TAKEN` would then be a lie.
+   *
+   * The suspended member is told their own outcome, which is theirs to know, and
+   * is not told who complained.
+   *
+   * Best-effort: the decision is already committed and audited, and a notification
+   * failing must not turn a completed review into an error the console retries.
+   */
+  private async notifyReviewOutcome(
+    report: { reporterId: string | null; reportedUserId: string | null },
+    status: string,
+    suspended: boolean,
+  ): Promise<void> {
+    try {
+      if (status === 'ACTIONED' && report.reporterId) {
+        await this.notifications.create({
+          userId: report.reporterId,
+          event: NOTIFICATION_EVENTS.REPORT_ACTION_TAKEN,
+          channel: 'PUSH',
+          title: 'We acted on your report',
+          body: 'Our moderation team reviewed the profile you reported and took action.',
+        });
+      }
+
+      if (suspended && report.reportedUserId) {
+        await this.notifications.create({
+          userId: report.reportedUserId,
+          event: NOTIFICATION_EVENTS.ACCOUNT_SUSPENDED,
+          channel: 'PUSH',
+          title: 'Your account is suspended',
+          body: 'Your account has been suspended after a review. Contact support if you believe this is a mistake.',
+        });
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Could not record the review notifications: ${message}`);
+    }
   }
 
   /**
@@ -1007,7 +1065,10 @@ export class AdminService {
   }
 
   private async getAdminView(adminId: string): Promise<AdminUserView> {
-    const admin = await this.prisma.adminUser.findUnique({ where: { id: adminId }, select: ADMIN_SELECT });
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminId },
+      select: ADMIN_SELECT,
+    });
     if (!admin) {
       throw new NotFoundException('Administrator not found');
     }

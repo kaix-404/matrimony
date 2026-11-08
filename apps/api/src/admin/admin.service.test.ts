@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { NOTIFICATION_EVENTS } from '@matrimony/shared';
 import { AdminService } from './admin.service';
 import { FrozenClock } from '../common/clock/clock.service';
 import { verifyPassword } from '../common/crypto/password';
@@ -237,16 +238,14 @@ function setup() {
 
   const prisma = {
     user: {
-      findMany: async (
-        {
-          where,
-        }: {
-          where?: {
-            status?: string;
-            OR?: Array<{ mobile?: { contains: string }; email?: { contains: string } }>;
-          };
-        } = {},
-      ) => {
+      findMany: async ({
+        where,
+      }: {
+        where?: {
+          status?: string;
+          OR?: Array<{ mobile?: { contains: string }; email?: { contains: string } }>;
+        };
+      } = {}) => {
         let rows = users;
         if (where?.status) {
           rows = rows.filter((row) => row.status === where.status);
@@ -270,11 +269,13 @@ function setup() {
       },
       findUnique: async ({ where }: { where: { id: string } }) =>
         users.find((u) => u.id === where.id) ?? null,
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-        const user = users.find((u) => u.id === where.id)!;
-        Object.assign(user, data);
-        return user;
-      }),
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const user = users.find((u) => u.id === where.id)!;
+          Object.assign(user, data);
+          return user;
+        },
+      ),
       updateMany: jest.fn(
         async ({
           where,
@@ -298,11 +299,13 @@ function setup() {
     pricingConfig: {
       findFirst: async ({ where }: { where: { category: string; effectiveTo: null } }) =>
         pricing.find((p) => p.category === where.category && p.effectiveTo === null) ?? null,
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: { effectiveTo: Date } }) => {
-        const row = pricing.find((p) => p.id === where.id)!;
-        row.effectiveTo = data.effectiveTo;
-        return row;
-      }),
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: { effectiveTo: Date } }) => {
+          const row = pricing.find((p) => p.id === where.id)!;
+          row.effectiveTo = data.effectiveTo;
+          return row;
+        },
+      ),
       aggregate: async ({ where }: { where: { category: string } }) => ({
         _max: {
           version: pricing
@@ -310,15 +313,17 @@ function setup() {
             .reduce((max, p) => Math.max(max, p.version), 0),
         },
       }),
-      create: jest.fn(async ({ data }: { data: Omit<(typeof pricing)[number], 'id' | 'createdAt'> }) => {
-        const row = {
-          id: `price_${pricing.length + 1}`,
-          ...data,
-          createdAt: new Date('2026-10-14T12:00:00.000Z'),
-        };
-        pricing.push(row);
-        return row;
-      }),
+      create: jest.fn(
+        async ({ data }: { data: Omit<(typeof pricing)[number], 'id' | 'createdAt'> }) => {
+          const row = {
+            id: `price_${pricing.length + 1}`,
+            ...data,
+            createdAt: new Date('2026-10-14T12:00:00.000Z'),
+          };
+          pricing.push(row);
+          return row;
+        },
+      ),
       findMany: async () =>
         [...pricing].sort(
           (a, b) =>
@@ -342,11 +347,13 @@ function setup() {
         where?.status ? dataRequests.filter((r) => r.status === where.status) : dataRequests,
       findUnique: async ({ where }: { where: { id: string } }) =>
         dataRequests.find((r) => r.id === where.id) ?? null,
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-        const row = dataRequests.find((r) => r.id === where.id)!;
-        Object.assign(row, data);
-        return row;
-      }),
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const row = dataRequests.find((r) => r.id === where.id)!;
+          Object.assign(row, data);
+          return row;
+        },
+      ),
     },
     identityVerification: {
       findMany: jest.fn(
@@ -363,11 +370,13 @@ function setup() {
         where?.status ? reports.filter((r) => r.status === where.status) : reports,
       findUnique: async ({ where }: { where: { id: string } }) =>
         reports.find((r) => r.id === where.id) ?? null,
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-        const row = reports.find((r) => r.id === where.id)!;
-        Object.assign(row, data);
-        return row;
-      }),
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const row = reports.find((r) => r.id === where.id)!;
+          Object.assign(row, data);
+          return row;
+        },
+      ),
     },
     $transaction: async <T>(fn: (tx: typeof prisma) => Promise<T>): Promise<T> => fn(prisma),
     adminRole: {
@@ -382,18 +391,24 @@ function setup() {
       findMany: async () => admins,
       findUnique: async ({ where }: { where: { id: string } }) =>
         admins.find((a) => a.id === where.id) ?? null,
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-        const admin = admins.find((a) => a.id === where.id)!;
-        Object.assign(admin, data);
-        return admin;
-      }),
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const admin = admins.find((a) => a.id === where.id)!;
+          Object.assign(admin, data);
+          return admin;
+        },
+      ),
       create: jest.fn(async ({ data }: { data: CreateAdminData }) => {
         const slugFor = (id: string) => roles.find((r) => r.id === id)!.slug;
         const roleSlugs: string[] = [];
         for (const entry of data.roles.create) {
           const slug = slugFor(entry.role.connect.id);
           roleSlugs.push(slug);
-          assignments.push({ adminId: data.id, roleId: entry.role.connect.id, grantedByAdminId: entry.grantedByAdminId });
+          assignments.push({
+            adminId: data.id,
+            roleId: entry.role.connect.id,
+            grantedByAdminId: entry.grantedByAdminId,
+          });
         }
         return {
           id: data.id,
@@ -407,7 +422,11 @@ function setup() {
       }),
     },
     adminRoleAssignment: {
-      findUnique: async ({ where }: { where: { adminId_roleId: { adminId: string; roleId: string } } }) =>
+      findUnique: async ({
+        where,
+      }: {
+        where: { adminId_roleId: { adminId: string; roleId: string } };
+      }) =>
         assignments.find(
           (a) =>
             a.adminId === where.adminId_roleId.adminId && a.roleId === where.adminId_roleId.roleId,
@@ -419,7 +438,10 @@ function setup() {
       deleteMany: async ({ where }: { where: { adminId: string; roleId: string } }) => {
         let count = 0;
         for (let i = assignments.length - 1; i >= 0; i -= 1) {
-          if (assignments[i]!.adminId === where.adminId && assignments[i]!.roleId === where.roleId) {
+          if (
+            assignments[i]!.adminId === where.adminId &&
+            assignments[i]!.roleId === where.roleId
+          ) {
             assignments.splice(i, 1);
             count += 1;
           }
@@ -433,12 +455,21 @@ function setup() {
 
   const audit = { record: jest.fn(async () => undefined) };
   const clock = new FrozenClock(new Date('2026-10-14T12:00:00.000Z'));
-  const service = new AdminService(prisma as never, audit as never, clock);
+  // Recorded rather than queried: what these tests care about is which member
+  // learns of a decision, not how the notification row is stored.
+  const notifications = { created: [] as Array<Record<string, unknown>> };
+  const service = new AdminService(prisma as never, audit as never, clock, {
+    create: async (input: Record<string, unknown>) => {
+      notifications.created.push(input);
+      return { id: `notif_${notifications.created.length}` };
+    },
+  } as never);
 
   return {
     service,
     prisma,
     audit,
+    notifications,
     admins,
     assignments,
     users,
@@ -576,7 +607,12 @@ describe('AdminService.createAdmin', () => {
     const { service, prisma, audit, assignments } = setup();
 
     const created = await service.createAdmin(
-      { email: 'new@example.com', name: 'New', password: 'a-strong-password', roles: ['FINANCE_ADMIN'] },
+      {
+        email: 'new@example.com',
+        name: 'New',
+        password: 'a-strong-password',
+        roles: ['FINANCE_ADMIN'],
+      },
       'admin_actor',
     );
 
@@ -595,7 +631,12 @@ describe('AdminService.createAdmin', () => {
 
     await expect(
       service.createAdmin(
-        { email: 'new@example.com', name: 'New', password: 'a-strong-password', roles: ['SUPER_ADMIN', 'ADMIN'] },
+        {
+          email: 'new@example.com',
+          name: 'New',
+          password: 'a-strong-password',
+          roles: ['SUPER_ADMIN', 'ADMIN'],
+        },
         'admin_actor',
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -609,7 +650,12 @@ describe('AdminService.createAdmin', () => {
 
     await expect(
       service.createAdmin(
-        { email: 'actor@example.com', name: 'New', password: 'a-strong-password', roles: ['FINANCE_ADMIN'] },
+        {
+          email: 'actor@example.com',
+          name: 'New',
+          password: 'a-strong-password',
+          roles: ['FINANCE_ADMIN'],
+        },
         'admin_actor',
       ),
     ).rejects.toBeInstanceOf(ConflictException);
@@ -620,9 +666,9 @@ describe('AdminService.assignRole', () => {
   it('refuses to change the acting administrator’s own roles', async () => {
     const { service, prisma, audit } = setup();
 
-    await expect(service.assignRole('admin_actor', 'FINANCE_ADMIN', 'admin_actor')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.assignRole('admin_actor', 'FINANCE_ADMIN', 'admin_actor'),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.adminRoleAssignment.create).not.toHaveBeenCalled();
     expect(audit.record).not.toHaveBeenCalled();
   });
@@ -632,7 +678,9 @@ describe('AdminService.assignRole', () => {
 
     await service.assignRole('admin_target', 'MODERATION_ADMIN', 'admin_actor');
 
-    expect(assignments.some((a) => a.adminId === 'admin_target' && a.roleId === 'role_mod')).toBe(true);
+    expect(assignments.some((a) => a.adminId === 'admin_target' && a.roleId === 'role_mod')).toBe(
+      true,
+    );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'admin:role:grant', resourceId: 'admin_target' }),
     );
@@ -656,18 +704,18 @@ describe('AdminService.assignRole', () => {
 
   it('reports a missing administrator', async () => {
     const { service } = setup();
-    await expect(service.assignRole('nobody', 'FINANCE_ADMIN', 'admin_actor')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.assignRole('nobody', 'FINANCE_ADMIN', 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
 describe('AdminService.revokeRole', () => {
   it('refuses to change the acting administrator’s own roles', async () => {
     const { service } = setup();
-    await expect(service.revokeRole('admin_actor', 'SUPER_ADMIN', 'admin_actor')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.revokeRole('admin_actor', 'SUPER_ADMIN', 'admin_actor'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('refuses to revoke the last Super Admin', async () => {
@@ -684,7 +732,9 @@ describe('AdminService.revokeRole', () => {
 
     await service.revokeRole('admin_target', 'FINANCE_ADMIN', 'admin_actor');
 
-    expect(assignments.some((a) => a.adminId === 'admin_target' && a.roleId === 'role_fin')).toBe(false);
+    expect(assignments.some((a) => a.adminId === 'admin_target' && a.roleId === 'role_fin')).toBe(
+      false,
+    );
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({ action: 'admin:role:revoke', resourceId: 'admin_target' }),
     );
@@ -692,9 +742,9 @@ describe('AdminService.revokeRole', () => {
 
   it('reports when the administrator does not hold the role', async () => {
     const { service } = setup();
-    await expect(service.revokeRole('admin_actor', 'FINANCE_ADMIN', 'admin_target')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.revokeRole('admin_actor', 'FINANCE_ADMIN', 'admin_target'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -722,7 +772,9 @@ describe('AdminService.resetMfa', () => {
 
   it('reports a missing administrator', async () => {
     const { service } = setup();
-    await expect(service.resetMfa('nobody', 'admin_actor')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.resetMfa('nobody', 'admin_actor')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 
   it('reports when MFA is not enabled for the target', async () => {
@@ -852,7 +904,10 @@ describe('AdminService.publishPricing', () => {
     const { service, prisma } = setup();
 
     await expect(
-      service.publishPricing({ category: 'NOPE', baseAmount: '1.00', gstPercent: 18 }, 'admin_actor'),
+      service.publishPricing(
+        { category: 'NOPE', baseAmount: '1.00', gstPercent: 18 },
+        'admin_actor',
+      ),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(prisma.pricingConfig.create).not.toHaveBeenCalled();
   });
@@ -862,7 +917,10 @@ describe('AdminService.grantUnlock', () => {
   it('records the grant, resolves the owner from the profile and audits it', async () => {
     const { service, prisma, audit } = setup();
 
-    const result = await service.grantUnlock({ profileId: 'profile_1', reason: 'Goodwill' }, 'admin_actor');
+    const result = await service.grantUnlock(
+      { profileId: 'profile_1', reason: 'Goodwill' },
+      'admin_actor',
+    );
 
     expect(prisma.adminGrantAudit.create).toHaveBeenCalledWith({
       data: {
@@ -880,7 +938,11 @@ describe('AdminService.grantUnlock', () => {
       reason: 'Goodwill',
     });
     expect(audit.record).toHaveBeenCalledWith(
-      expect.objectContaining({ action: 'unlock:grant', resourceId: 'profile_1', reason: 'Goodwill' }),
+      expect.objectContaining({
+        action: 'unlock:grant',
+        resourceId: 'profile_1',
+        reason: 'Goodwill',
+      }),
     );
   });
 
@@ -1026,7 +1088,11 @@ describe('AdminService.resolveDataRequest', () => {
     await service.resolveDataRequest('dr_1', { status: 'COMPLETED' }, 'admin_actor');
 
     await expect(
-      service.resolveDataRequest('dr_1', { status: 'REJECTED', resolutionNotes: 'no' }, 'admin_actor'),
+      service.resolveDataRequest(
+        'dr_1',
+        { status: 'REJECTED', resolutionNotes: 'no' },
+        'admin_actor',
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
@@ -1068,7 +1134,10 @@ describe('AdminService.listReports', () => {
 describe('AdminService.getReport', () => {
   it('returns one report', async () => {
     const { service } = setup();
-    await expect(service.getReport('rep_1')).resolves.toMatchObject({ id: 'rep_1', status: 'OPEN' });
+    await expect(service.getReport('rep_1')).resolves.toMatchObject({
+      id: 'rep_1',
+      status: 'OPEN',
+    });
   });
 
   it('reports a missing report', async () => {
@@ -1130,6 +1199,57 @@ describe('AdminService.reviewReport', () => {
     );
 
     expect(users.find((u) => u.id === 'user_2')!.status).toBe('ACTIVE');
+  });
+
+  it('tells the reporter action was taken, without saying what', async () => {
+    const { service, notifications } = setup();
+
+    await service.reviewReport(
+      'rep_1',
+      { status: 'ACTIONED', action: 'WARN', notes: 'First warning' },
+      'admin_actor',
+    );
+
+    expect(notifications.created).toHaveLength(1);
+    expect(notifications.created[0]).toMatchObject({
+      userId: 'user_1',
+      event: NOTIFICATION_EVENTS.REPORT_ACTION_TAKEN,
+    });
+    // Section 30: the sanction and the review notes are dashboard material.
+    expect(JSON.stringify(notifications.created[0])).not.toContain('First warning');
+    expect(JSON.stringify(notifications.created[0])).not.toContain('WARN');
+  });
+
+  it('tells a suspended member their own outcome, and nobody else', async () => {
+    const { service, notifications } = setup();
+
+    await service.reviewReport(
+      'rep_1',
+      { status: 'ACTIONED', action: 'SUSPEND', notes: 'Confirmed fake profile' },
+      'admin_actor',
+    );
+
+    expect(notifications.created).toHaveLength(2);
+    expect(notifications.created).toContainEqual(
+      expect.objectContaining({
+        userId: 'user_1',
+        event: NOTIFICATION_EVENTS.REPORT_ACTION_TAKEN,
+      }),
+    );
+    expect(notifications.created).toContainEqual(
+      expect.objectContaining({
+        userId: 'user_2',
+        event: NOTIFICATION_EVENTS.ACCOUNT_SUSPENDED,
+      }),
+    );
+  });
+
+  it('says nothing to anyone when the report is dismissed', async () => {
+    const { service, notifications } = setup();
+
+    await service.reviewReport('rep_1', { status: 'DISMISSED', action: 'DISMISS' }, 'admin_actor');
+
+    expect(notifications.created).toEqual([]);
   });
 
   it('leaves an already-deleted account deleted rather than resurrecting it', async () => {

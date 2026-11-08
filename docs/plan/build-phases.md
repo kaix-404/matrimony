@@ -149,6 +149,12 @@ Built:
 - The C3 reminder: a sweep claims unlocks whose window closes within
   `UNLOCK_EXPIRY_REMINDER_HOURS` (default 2) and records one
   `UNLOCK_EXPIRING_IN_2H` row per unlock, guarded on `reminderSentAt`.
+- `REPORT_ACTION_TAKEN` and `ACCOUNT_SUSPENDED`, written when an administrator
+  reviews a report. The reporter is told that action was taken and nothing else
+  — the sanction, the notes and the reported member are section 30 material the
+  reporter is not entitled to. A dismissal notifies nobody, because the event
+  would then be false. The suspended member is told their own outcome and never
+  who complained.
 - `IDENTITY_VERIFIED` and `IDENTITY_VERIFICATION_FAILED`, written when a
   DigiLocker webhook moves a check to a new outcome. Announcing is keyed on the
   status _before_ the update, so a replayed delivery says nothing twice, and the
@@ -165,9 +171,8 @@ Remaining:
 
 - The `EMAIL` channel has no vendor behind it, so a row written on it would sit
   `PENDING` forever. Nothing writes one today.
-- Emitting the rest of the event set: `PROFILE_APPROVED`, `PROFILE_REJECTED`,
-  `REPORT_ACTION_TAKEN`, `UNLOCK_EXPIRED` and `ACCOUNT_SUSPENDED` are declared
-  and never sent.
+- Emitting the rest of the event set: `PROFILE_APPROVED`, `PROFILE_REJECTED`
+  and `UNLOCK_EXPIRED` are declared and never sent.
 
 ## Phase 8 — Admin API and dashboard ✅
 
