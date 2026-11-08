@@ -31,6 +31,12 @@ const GENDER_OPTIONS: SelectOption[] = GENDERS.map((gender) => ({
  * asking for thirty fields before a user has seen the product is how sign-up
  * gets abandoned. The screen is reached only right after registration, so it
  * does not offer a back button.
+ *
+ * Saving also submits the profile for review. Those three fields are the whole
+ * of the completeness rule (`ProfileService.completeness`), so a new member is
+ * reviewable the moment this screen is done — and leaving them at `DRAFT` would
+ * mean the first thing the product shows a member is an app where nobody can
+ * find them and nothing says why.
  */
 export default function OnboardingScreen() {
   const { token, refreshUser } = useAuth();
@@ -59,6 +65,10 @@ export default function OnboardingScreen() {
         },
         token,
       );
+      // A failure here is not a failed signup: the profile is saved, so the
+      // member lands on a screen that shows the draft and the button to submit
+      // it rather than being asked to fill the form again.
+      await apiClient.submitProfileForReview(token).catch(() => undefined);
       await refreshUser();
       router.replace('/');
     } catch (e) {

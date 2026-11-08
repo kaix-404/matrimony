@@ -67,7 +67,10 @@ saved profile forward), `GET /admin/profiles` and
 queue oldest-first. A rejection must carry a reason, because the reason is the
 only thing the member can act on and it is surfaced on their own profile. Both
 outcomes notify the member, and an edit cannot lift a suspension: only reviewable
-statuses fall back to `DRAFT`.
+statuses fall back to `DRAFT`. The member app submits during onboarding, because
+the three fields that screen collects are the whole of the completeness rule, so
+waiting for a later tap would only show a new member an app where nobody can
+find them and nothing explains why.
 
 ## Phase 3 — Discovery ✅
 
