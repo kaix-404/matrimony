@@ -1,6 +1,11 @@
 {
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    // Expo's base config still asks for the legacy "node" (node10) resolver,
+    // which TypeScript 6 rejects outright. Metro resolves like a bundler, so
+    // "bundler" describes what actually happens at runtime.
+    "moduleResolution": "bundler",
+    "module": "esnext",
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,

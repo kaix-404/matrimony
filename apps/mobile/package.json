@@ -8,6 +8,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
+    "test": "jest --passWithNoTests",
     "build:android": "eas build --platform android --profile preview",
     "build:ios": "eas build --platform ios --profile preview"
   },
