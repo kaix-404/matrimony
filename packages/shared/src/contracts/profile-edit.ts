@@ -294,6 +294,13 @@ export const MyProfileSchema = z
     city: z.string().nullable(),
 
     status: z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED', 'DELETED']),
+    /**
+     * Why a moderator refused the profile, and only ever set while it is
+     * REJECTED. Section 26 makes delivering the reason part of the refusal: a
+     * profile that silently goes back to the member with no explanation is one
+     * they can only resubmit unchanged.
+     */
+    rejection_reason: z.string().nullable(),
     visibility: z.enum(['ACTIVE', 'PAUSED', 'HIDDEN']),
     photos: OwnPhotoSchema.array(),
   })

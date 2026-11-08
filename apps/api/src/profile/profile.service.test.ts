@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { ProfileService } from './profile.service';
 import { PhotoService } from './photo.service';
@@ -84,6 +89,7 @@ class FakePrisma {
         state: null,
         city: null,
         status: 'DRAFT',
+        rejectionReason: null,
         visibility: 'ACTIVE',
         user: { networthCategory: 'TWO_CR_TO_FIVE_CR' },
         ...data,
@@ -292,7 +298,28 @@ describe('ProfileService', () => {
       expect(Object.keys(prisma.lastUpdateData ?? {})).not.toContain('city');
     });
 
-    it('clears a field only when null is sent explicitly', async () => {
+    it('sends an approved profile back to draft, because the edit is unreviewed', async () => {
+    prisma.profileRow!['status'] = 'APPROVED';
+
+    const result = await service.update('u1', { company: 'Wipro' });
+
+    expect(result.status).toBe('DRAFT');
+  });
+
+  it('does not let an edit lift a suspension', async () => {
+    prisma.profileRow!['status'] = 'SUSPENDED';
+    prisma.profileRow!['suspensionReason'] = 'Impersonation';
+
+    const result = await service.update('u1', { company: 'Wipro' });
+
+    // Saving a form must not be a way out of a moderation decision.
+    expect(result.status).toBe('SUSPENDED');
+    expect(prisma.lastUpdateData).not.toHaveProperty('status');
+    // A suspended member may still correct their details; only the status stays.
+    expect(prisma.profileRow!['company']).toBe('Wipro');
+  });
+
+  it('clears a field only when null is sent explicitly', async () => {
       await service.update('u1', { company: null });
       expect(prisma.profileRow!['company']).toBeNull();
       expect(prisma.profileRow!['city']).toBe('Pune');
@@ -423,6 +450,53 @@ describe('ProfileService', () => {
       await expect(service.interests('u1')).rejects.toBeInstanceOf(NotFoundException);
     });
   });
+
+describe('ProfileService.submitForReview', () => {
+  beforeEach(async () => {
+    await service.create('u1', base);
+  });
+
+  it('moves a draft into the review queue', async () => {
+    const result = await service.submitForReview('u1');
+
+    expect(result.status).toBe('PENDING_REVIEW');
+    expect(prisma.profileRow!['status']).toBe('PENDING_REVIEW');
+  });
+
+  it('clears the reason a profile was refused last time', async () => {
+    prisma.profileRow!['status'] = 'REJECTED';
+    prisma.profileRow!['rejectionReason'] = 'Photo does not show your face';
+
+    const result = await service.submitForReview('u1');
+
+    expect(result.status).toBe('PENDING_REVIEW');
+    expect(result.rejection_reason).toBeNull();
+    expect(prisma.profileRow!['rejectionReason']).toBeNull();
+  });
+
+  it('does not submit a profile that is already waiting', async () => {
+    prisma.profileRow!['status'] = 'PENDING_REVIEW';
+
+    const result = await service.submitForReview('u1');
+
+    expect(result.status).toBe('PENDING_REVIEW');
+    // Pressing the button twice must not look like a second submission.
+    expect(prisma.lastUpdateData).toBeNull();
+  });
+
+  it('refuses to resubmit a suspended profile', async () => {
+    prisma.profileRow!['status'] = 'SUSPENDED';
+
+    await expect(service.submitForReview('u1')).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.profileRow!['status']).toBe('SUSPENDED');
+  });
+
+  it('rejects a caller with no profile', async () => {
+    prisma.profileRow = null;
+
+    await expect(service.submitForReview('u1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
 });
 
 describe('PhotoService', () => {

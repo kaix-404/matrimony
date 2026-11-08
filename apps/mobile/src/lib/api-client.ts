@@ -249,6 +249,17 @@ class ApiClient {
     return this.fetchJson('profile', { headers: authHeaders(token) });
   }
 
+  /**
+   * Section 26: put the profile forward for review.
+   *
+   * Sendless on purpose — what gets submitted is what has been saved, so there is
+   * no way to submit a version the server never stored. The response is the
+   * profile as the server now sees it, `PENDING_REVIEW` included.
+   */
+  async submitProfileForReview(token: string): Promise<MyProfile> {
+    return this.fetchJson('profile/submit', { method: 'POST', headers: authHeaders(token) });
+  }
+
   /** Which section 8 fields are still outstanding. */
   async getProfileCompleteness(token: string): Promise<ProfileCompleteness> {
     return this.fetchJson('profile/completeness', { headers: authHeaders(token) });

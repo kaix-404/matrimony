@@ -45,6 +45,7 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [notCreated, setNotCreated] = useState(false);
   const [savingVisibility, setSavingVisibility] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -96,6 +97,26 @@ export default function ProfileScreen() {
     [token, profile],
   );
 
+  /**
+   * Sends the profile for review (section 26).
+   *
+   * Everything the member writes stays private until a moderator approves it, and
+   * an edit sends an approved profile back to draft, so this is the button that
+   * puts them back in front of anyone at all.
+   */
+  const submitForReview = useCallback(async () => {
+    if (!token) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      setProfile(await apiClient.submitProfileForReview(token));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not submit your profile.');
+    } finally {
+      setSubmitting(false);
+    }
+  }, [token]);
+
   useEffect(() => {
     if (!ready) setLoading(false);
   }, [ready]);
@@ -146,7 +167,9 @@ export default function ProfileScreen() {
             color={colors.textMuted}
           />
           <Text style={styles.meta}>
-            {profile?.visibility === 'ACTIVE' ? 'Visible to your selected bands' : profile?.visibility}
+            {profile?.visibility === 'ACTIVE'
+              ? 'Visible to your selected bands'
+              : profile?.visibility}
           </Text>
         </View>
         <View style={styles.toggleRow}>
@@ -162,6 +185,42 @@ export default function ProfileScreen() {
             thumbColor={colors.white}
           />
         </View>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Review</Text>
+        {profile?.status === 'APPROVED' ? (
+          <View style={styles.doneRow}>
+            <Ionicons name="checkmark-circle" size={18} color={colors.primary} />
+            <Text style={styles.meta}>Approved — members can find you.</Text>
+          </View>
+        ) : null}
+        {profile?.status === 'PENDING_REVIEW' ? (
+          <View style={styles.doneRow}>
+            <Ionicons name="time-outline" size={18} color={colors.textMuted} />
+            <Text style={styles.meta}>Waiting for review. You are hidden until then.</Text>
+          </View>
+        ) : null}
+        {profile?.status === 'REJECTED' ? (
+          <>
+            <Text style={styles.meta}>
+              Our team needs a change before your profile can go live.
+            </Text>
+            {profile.rejection_reason ? (
+              <Text style={styles.reason}>{profile.rejection_reason}</Text>
+            ) : null}
+          </>
+        ) : null}
+        {profile?.status === 'DRAFT' ? (
+          <Text style={styles.meta}>
+            Nobody can see your profile yet. Submit it and our team will review it.
+          </Text>
+        ) : null}
+        {profile?.status === 'SUSPENDED' ? (
+          <Text style={styles.meta}>
+            This profile is suspended. Contact support if you think that is a mistake.
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.card}>
@@ -182,6 +241,14 @@ export default function ProfileScreen() {
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+
+      {profile !== null && (profile.status === 'DRAFT' || profile.status === 'REJECTED') ? (
+        <PrimaryButton
+          label={submitting ? 'Submitting…' : 'Submit for review'}
+          disabled={submitting}
+          onPress={() => void submitForReview()}
+        />
+      ) : null}
 
       <PrimaryButton label="Edit profile" onPress={() => router.push('/profile-edit')} />
       <PrimaryButton
@@ -272,6 +339,10 @@ const styles = StyleSheet.create({
   meta: {
     color: colors.textMuted,
     ...typography.caption,
+  },
+  reason: {
+    color: colors.textPrimary,
+    ...typography.body,
   },
   error: {
     color: colors.primary,

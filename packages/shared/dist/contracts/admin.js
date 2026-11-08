@@ -17,7 +17,7 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminRejectProfileSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const enums_js_1 = require("../enums.js");
@@ -520,4 +520,60 @@ exports.AdminReviewPhotoSchema = zod_1.z
     message: 'An approval carries no rejection reason',
     path: ['rejection_reason'],
 });
+// ---------------------------------------------------------------------------
+// Profile review queue (section 26)
+// ---------------------------------------------------------------------------
+exports.AdminListProfilesQuerySchema = zod_1.z.object({
+    status: zod_1.z
+        .enum(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED'])
+        .optional()
+        .default('PENDING_REVIEW'),
+    limit: zod_1.z.coerce.number().int().positive().max(100).optional().default(20),
+    cursor: zod_1.z.string().min(1).optional(),
+});
+/**
+ * A profile as the review queue shows it.
+ *
+ * This is the one admin view that carries profile content — the name, city and a
+ * photo URL — because approving a profile *is* a judgement about that content; the
+ * queue would be pointless otherwise. It still stops short of contact details:
+ * those belong to `user:read`, not to profile review.
+ */
+exports.AdminProfileViewSchema = zod_1.z
+    .object({
+    id: zod_1.z.string().min(1),
+    user_id: zod_1.z.string().min(1),
+    name: zod_1.z.string(),
+    city: zod_1.z.string().nullable(),
+    age: zod_1.z.number().int().nullable(),
+    status: zod_1.z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED', 'DELETED']),
+    photo_url: zod_1.z.string().nullable(),
+    submitted_at: zod_1.z.string().datetime(),
+    reviewed_at: zod_1.z.string().datetime().nullable(),
+    rejection_reason: zod_1.z.string().nullable(),
+})
+    .strict();
+exports.AdminProfileListResponseSchema = zod_1.z
+    .object({
+    profiles: zod_1.z.array(exports.AdminProfileViewSchema),
+    nextCursor: zod_1.z.string().nullable(),
+    hasMore: zod_1.z.boolean(),
+})
+    .strict();
+/**
+ * Refusing a profile.
+ *
+ * Two routes rather than one with a decision field, because the permission
+ * catalogue grants profile:approve and profile:reject separately: a single
+ * endpoint would have to require both and would hand every reviewer powers they
+ * were never granted.
+ *
+ * A reason is mandatory. The member has to know what to change, and this is the
+ * only place it is stored.
+ */
+exports.AdminRejectProfileSchema = zod_1.z
+    .object({
+    rejection_reason: zod_1.z.string().trim().min(1).max(500),
+})
+    .strict();
 //# sourceMappingURL=admin.js.map

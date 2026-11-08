@@ -257,6 +257,13 @@ exports.MyProfileSchema = zod_1.z
     state: zod_1.z.string().nullable(),
     city: zod_1.z.string().nullable(),
     status: zod_1.z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED', 'DELETED']),
+    /**
+     * Why a moderator refused the profile, and only ever set while it is
+     * REJECTED. Section 26 makes delivering the reason part of the refusal: a
+     * profile that silently goes back to the member with no explanation is one
+     * they can only resubmit unchanged.
+     */
+    rejection_reason: zod_1.z.string().nullable(),
     visibility: zod_1.z.enum(['ACTIVE', 'PAUSED', 'HIDDEN']),
     photos: exports.OwnPhotoSchema.array(),
 })

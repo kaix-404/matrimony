@@ -68,7 +68,7 @@ export declare const CreateProfileSchema: z.ZodObject<{
     city: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodString, string, string>>>;
 }, "strict", z.ZodTypeAny, {
     first_name: string;
-    gender: "FEMALE" | "MALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
     date_of_birth: string;
     last_name?: string | null | undefined;
     time_of_birth?: string | null | undefined;
@@ -76,6 +76,7 @@ export declare const CreateProfileSchema: z.ZodObject<{
     height_cm?: number | null | undefined;
     marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
     religion?: string | null | undefined;
+    community_id?: string | null | undefined;
     mother_tongue?: string | null | undefined;
     swagotra?: string | null | undefined;
     maternal_gothra?: string | null | undefined;
@@ -83,6 +84,8 @@ export declare const CreateProfileSchema: z.ZodObject<{
     nakshatra?: string | null | undefined;
     gan?: string | null | undefined;
     manglik_status?: string | null | undefined;
+    education_id?: string | null | undefined;
+    profession_id?: string | null | undefined;
     company?: string | null | undefined;
     annual_income?: string | null | undefined;
     work_location?: string | null | undefined;
@@ -98,12 +101,9 @@ export declare const CreateProfileSchema: z.ZodObject<{
     country?: string | null | undefined;
     state?: string | null | undefined;
     city?: string | null | undefined;
-    education_id?: string | null | undefined;
-    profession_id?: string | null | undefined;
-    community_id?: string | null | undefined;
 }, {
     first_name: string;
-    gender: "FEMALE" | "MALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
     date_of_birth: string;
     last_name?: string | null | undefined;
     time_of_birth?: string | null | undefined;
@@ -111,6 +111,7 @@ export declare const CreateProfileSchema: z.ZodObject<{
     height_cm?: number | null | undefined;
     marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
     religion?: string | null | undefined;
+    community_id?: string | null | undefined;
     mother_tongue?: string | null | undefined;
     swagotra?: string | null | undefined;
     maternal_gothra?: string | null | undefined;
@@ -118,6 +119,8 @@ export declare const CreateProfileSchema: z.ZodObject<{
     nakshatra?: string | null | undefined;
     gan?: string | null | undefined;
     manglik_status?: string | null | undefined;
+    education_id?: string | null | undefined;
+    profession_id?: string | null | undefined;
     company?: string | null | undefined;
     annual_income?: string | null | undefined;
     work_location?: string | null | undefined;
@@ -133,9 +136,6 @@ export declare const CreateProfileSchema: z.ZodObject<{
     country?: string | null | undefined;
     state?: string | null | undefined;
     city?: string | null | undefined;
-    education_id?: string | null | undefined;
-    profession_id?: string | null | undefined;
-    community_id?: string | null | undefined;
 }>;
 export type CreateProfileInput = z.infer<typeof CreateProfileSchema>;
 /**
@@ -184,13 +184,14 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     first_name?: string | undefined;
     last_name?: string | null | undefined;
-    gender?: "FEMALE" | "MALE" | "OTHER" | "PREFER_NOT_TO_SAY" | undefined;
+    gender?: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY" | undefined;
     date_of_birth?: string | undefined;
     time_of_birth?: string | null | undefined;
     place_of_birth?: string | null | undefined;
     height_cm?: number | null | undefined;
     marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
     religion?: string | null | undefined;
+    community_id?: string | null | undefined;
     mother_tongue?: string | null | undefined;
     swagotra?: string | null | undefined;
     maternal_gothra?: string | null | undefined;
@@ -198,6 +199,8 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     nakshatra?: string | null | undefined;
     gan?: string | null | undefined;
     manglik_status?: string | null | undefined;
+    education_id?: string | null | undefined;
+    profession_id?: string | null | undefined;
     company?: string | null | undefined;
     annual_income?: string | null | undefined;
     work_location?: string | null | undefined;
@@ -213,19 +216,17 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     country?: string | null | undefined;
     state?: string | null | undefined;
     city?: string | null | undefined;
-    education_id?: string | null | undefined;
-    profession_id?: string | null | undefined;
-    community_id?: string | null | undefined;
 }, {
     first_name?: string | undefined;
     last_name?: string | null | undefined;
-    gender?: "FEMALE" | "MALE" | "OTHER" | "PREFER_NOT_TO_SAY" | undefined;
+    gender?: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY" | undefined;
     date_of_birth?: string | undefined;
     time_of_birth?: string | null | undefined;
     place_of_birth?: string | null | undefined;
     height_cm?: number | null | undefined;
     marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
     religion?: string | null | undefined;
+    community_id?: string | null | undefined;
     mother_tongue?: string | null | undefined;
     swagotra?: string | null | undefined;
     maternal_gothra?: string | null | undefined;
@@ -233,6 +234,8 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     nakshatra?: string | null | undefined;
     gan?: string | null | undefined;
     manglik_status?: string | null | undefined;
+    education_id?: string | null | undefined;
+    profession_id?: string | null | undefined;
     company?: string | null | undefined;
     annual_income?: string | null | undefined;
     work_location?: string | null | undefined;
@@ -248,19 +251,17 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     country?: string | null | undefined;
     state?: string | null | undefined;
     city?: string | null | undefined;
-    education_id?: string | null | undefined;
-    profession_id?: string | null | undefined;
-    community_id?: string | null | undefined;
 }>, {
     first_name?: string | undefined;
     last_name?: string | null | undefined;
-    gender?: "FEMALE" | "MALE" | "OTHER" | "PREFER_NOT_TO_SAY" | undefined;
+    gender?: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY" | undefined;
     date_of_birth?: string | undefined;
     time_of_birth?: string | null | undefined;
     place_of_birth?: string | null | undefined;
     height_cm?: number | null | undefined;
     marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
     religion?: string | null | undefined;
+    community_id?: string | null | undefined;
     mother_tongue?: string | null | undefined;
     swagotra?: string | null | undefined;
     maternal_gothra?: string | null | undefined;
@@ -268,6 +269,8 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     nakshatra?: string | null | undefined;
     gan?: string | null | undefined;
     manglik_status?: string | null | undefined;
+    education_id?: string | null | undefined;
+    profession_id?: string | null | undefined;
     company?: string | null | undefined;
     annual_income?: string | null | undefined;
     work_location?: string | null | undefined;
@@ -283,19 +286,17 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     country?: string | null | undefined;
     state?: string | null | undefined;
     city?: string | null | undefined;
-    education_id?: string | null | undefined;
-    profession_id?: string | null | undefined;
-    community_id?: string | null | undefined;
 }, {
     first_name?: string | undefined;
     last_name?: string | null | undefined;
-    gender?: "FEMALE" | "MALE" | "OTHER" | "PREFER_NOT_TO_SAY" | undefined;
+    gender?: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY" | undefined;
     date_of_birth?: string | undefined;
     time_of_birth?: string | null | undefined;
     place_of_birth?: string | null | undefined;
     height_cm?: number | null | undefined;
     marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
     religion?: string | null | undefined;
+    community_id?: string | null | undefined;
     mother_tongue?: string | null | undefined;
     swagotra?: string | null | undefined;
     maternal_gothra?: string | null | undefined;
@@ -303,6 +304,8 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     nakshatra?: string | null | undefined;
     gan?: string | null | undefined;
     manglik_status?: string | null | undefined;
+    education_id?: string | null | undefined;
+    profession_id?: string | null | undefined;
     company?: string | null | undefined;
     annual_income?: string | null | undefined;
     work_location?: string | null | undefined;
@@ -318,9 +321,6 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     country?: string | null | undefined;
     state?: string | null | undefined;
     city?: string | null | undefined;
-    education_id?: string | null | undefined;
-    profession_id?: string | null | undefined;
-    community_id?: string | null | undefined;
 }>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>;
 /**
@@ -346,33 +346,33 @@ export declare const OwnPhotoSchema: z.ZodObject<{
     preview_url: z.ZodNullable<z.ZodString>;
     created_at: z.ZodString;
 }, "strict", z.ZodTypeAny, {
-    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+    photo_id: string;
     object_key: string;
     mime_type: string;
     byte_size: number;
-    created_at: string;
-    photo_id: string;
     width_px: number;
     height_px: number;
-    is_primary: boolean;
     photo_type: "SINGLE" | "FAMILY";
+    is_primary: boolean;
     sort_order: number;
     rejection_reason: string | null;
     preview_url: string | null;
+    created_at: string;
 }, {
-    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+    photo_id: string;
     object_key: string;
     mime_type: string;
     byte_size: number;
-    created_at: string;
-    photo_id: string;
     width_px: number;
     height_px: number;
-    is_primary: boolean;
     photo_type: "SINGLE" | "FAMILY";
+    is_primary: boolean;
     sort_order: number;
     rejection_reason: string | null;
     preview_url: string | null;
+    created_at: string;
 }>;
 export type OwnPhoto = z.infer<typeof OwnPhotoSchema>;
 /**
@@ -422,6 +422,13 @@ export declare const MyProfileSchema: z.ZodObject<{
     state: z.ZodNullable<z.ZodString>;
     city: z.ZodNullable<z.ZodString>;
     status: z.ZodEnum<["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED", "SUSPENDED", "DELETED"]>;
+    /**
+     * Why a moderator refused the profile, and only ever set while it is
+     * REJECTED. Section 26 makes delivering the reason part of the refusal: a
+     * profile that silently goes back to the member with no explanation is one
+     * they can only resubmit unchanged.
+     */
+    rejection_reason: z.ZodNullable<z.ZodString>;
     visibility: z.ZodEnum<["ACTIVE", "PAUSED", "HIDDEN"]>;
     photos: z.ZodArray<z.ZodObject<{
         photo_id: z.ZodString;
@@ -438,45 +445,45 @@ export declare const MyProfileSchema: z.ZodObject<{
         preview_url: z.ZodNullable<z.ZodString>;
         created_at: z.ZodString;
     }, "strict", z.ZodTypeAny, {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+        photo_id: string;
         object_key: string;
         mime_type: string;
         byte_size: number;
-        created_at: string;
-        photo_id: string;
         width_px: number;
         height_px: number;
-        is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
+        is_primary: boolean;
         sort_order: number;
         rejection_reason: string | null;
         preview_url: string | null;
+        created_at: string;
     }, {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+        photo_id: string;
         object_key: string;
         mime_type: string;
         byte_size: number;
-        created_at: string;
-        photo_id: string;
         width_px: number;
         height_px: number;
-        is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
+        is_primary: boolean;
         sort_order: number;
         rejection_reason: string | null;
         preview_url: string | null;
+        created_at: string;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     first_name: string;
     last_name: string | null;
-    gender: "FEMALE" | "MALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
     date_of_birth: string;
     time_of_birth: string | null;
     place_of_birth: string | null;
     height_cm: number | null;
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
-    community: string | null;
     mother_tongue: string | null;
     swagotra: string | null;
     maternal_gothra: string | null;
@@ -484,8 +491,6 @@ export declare const MyProfileSchema: z.ZodObject<{
     nakshatra: string | null;
     gan: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
     company: string | null;
     annual_income: string | null;
     work_location: string | null;
@@ -501,36 +506,39 @@ export declare const MyProfileSchema: z.ZodObject<{
     country: string | null;
     state: string | null;
     city: string | null;
-    status: "REJECTED" | "SUSPENDED" | "DELETED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-    networth_category: string;
+    rejection_reason: string | null;
     profile_id: string;
+    networth_category: string;
+    community: string | null;
+    education: string | null;
+    profession: string | null;
+    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
     photos: {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+        photo_id: string;
         object_key: string;
         mime_type: string;
         byte_size: number;
-        created_at: string;
-        photo_id: string;
         width_px: number;
         height_px: number;
-        is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
+        is_primary: boolean;
         sort_order: number;
         rejection_reason: string | null;
         preview_url: string | null;
+        created_at: string;
     }[];
-    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
 }, {
     first_name: string;
     last_name: string | null;
-    gender: "FEMALE" | "MALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
     date_of_birth: string;
     time_of_birth: string | null;
     place_of_birth: string | null;
     height_cm: number | null;
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
-    community: string | null;
     mother_tongue: string | null;
     swagotra: string | null;
     maternal_gothra: string | null;
@@ -538,8 +546,6 @@ export declare const MyProfileSchema: z.ZodObject<{
     nakshatra: string | null;
     gan: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
     company: string | null;
     annual_income: string | null;
     work_location: string | null;
@@ -555,25 +561,28 @@ export declare const MyProfileSchema: z.ZodObject<{
     country: string | null;
     state: string | null;
     city: string | null;
-    status: "REJECTED" | "SUSPENDED" | "DELETED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-    networth_category: string;
+    rejection_reason: string | null;
     profile_id: string;
+    networth_category: string;
+    community: string | null;
+    education: string | null;
+    profession: string | null;
+    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
     photos: {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+        photo_id: string;
         object_key: string;
         mime_type: string;
         byte_size: number;
-        created_at: string;
-        photo_id: string;
         width_px: number;
         height_px: number;
-        is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
+        is_primary: boolean;
         sort_order: number;
         rejection_reason: string | null;
         preview_url: string | null;
+        created_at: string;
     }[];
-    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
 }>;
 export type MyProfile = z.infer<typeof MyProfileSchema>;
 /**

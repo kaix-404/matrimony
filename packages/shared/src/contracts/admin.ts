@@ -814,3 +814,68 @@ export const AdminReviewPhotoSchema = z
     path: ['rejection_reason'],
   });
 export type AdminReviewPhotoInput = z.infer<typeof AdminReviewPhotoSchema>;
+
+// ---------------------------------------------------------------------------
+// Profile review queue (section 26)
+// ---------------------------------------------------------------------------
+
+export const AdminListProfilesQuerySchema = z.object({
+  status: z
+    .enum(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED'])
+    .optional()
+    .default('PENDING_REVIEW'),
+  limit: z.coerce.number().int().positive().max(100).optional().default(20),
+  cursor: z.string().min(1).optional(),
+});
+export type AdminListProfilesQuery = z.infer<typeof AdminListProfilesQuerySchema>;
+
+/**
+ * A profile as the review queue shows it.
+ *
+ * This is the one admin view that carries profile content — the name, city and a
+ * photo URL — because approving a profile *is* a judgement about that content; the
+ * queue would be pointless otherwise. It still stops short of contact details:
+ * those belong to `user:read`, not to profile review.
+ */
+export const AdminProfileViewSchema = z
+  .object({
+    id: z.string().min(1),
+    user_id: z.string().min(1),
+    name: z.string(),
+    city: z.string().nullable(),
+    age: z.number().int().nullable(),
+    status: z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED', 'DELETED']),
+    photo_url: z.string().nullable(),
+    submitted_at: z.string().datetime(),
+    reviewed_at: z.string().datetime().nullable(),
+    rejection_reason: z.string().nullable(),
+  })
+  .strict();
+export type AdminProfileView = z.infer<typeof AdminProfileViewSchema>;
+
+export const AdminProfileListResponseSchema = z
+  .object({
+    profiles: z.array(AdminProfileViewSchema),
+    nextCursor: z.string().nullable(),
+    hasMore: z.boolean(),
+  })
+  .strict();
+export type AdminProfileListResponse = z.infer<typeof AdminProfileListResponseSchema>;
+
+/**
+ * Refusing a profile.
+ *
+ * Two routes rather than one with a decision field, because the permission
+ * catalogue grants profile:approve and profile:reject separately: a single
+ * endpoint would have to require both and would hand every reviewer powers they
+ * were never granted.
+ *
+ * A reason is mandatory. The member has to know what to change, and this is the
+ * only place it is stored.
+ */
+export const AdminRejectProfileSchema = z
+  .object({
+    rejection_reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+export type AdminRejectProfileInput = z.infer<typeof AdminRejectProfileSchema>;

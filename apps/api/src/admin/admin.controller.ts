@@ -17,10 +17,12 @@ import {
   AdminListAdminsQuerySchema,
   AdminListDataRequestsQuerySchema,
   AdminListPhotosQuerySchema,
+  AdminListProfilesQuerySchema,
   AdminListReportsQuerySchema,
   AdminListUsersQuerySchema,
   AdminListVerificationsQuerySchema,
   AdminPublishPricingSchema,
+  AdminRejectProfileSchema,
   AdminResolveDataRequestSchema,
   AdminReviewPhotoSchema,
   AdminReviewReportSchema,
@@ -41,6 +43,10 @@ import {
   type AdminPhotoListResponse,
   type AdminPhotoView,
   type AdminPricingView,
+  type AdminProfileListResponse,
+  type AdminProfileView,
+  type AdminListProfilesQuery,
+  type AdminRejectProfileInput,
   type AdminPrincipal,
   type AdminPublishPricingInput,
   type AdminReportView,
@@ -258,6 +264,44 @@ export class AdminController {
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminPhotoView> {
     return this.adminService.reviewPhoto(id, body, principal.id);
+  }
+
+  /**
+   * Section 26: profiles waiting for review, earliest submission first.
+   *
+   * Behind `profile:read`, not `user:read`: the latter is also held by Finance
+   * Admin, who has no reason to see member profiles. The decisions themselves
+   * have `profile:approve` and `profile:reject` below.
+   */
+  @Get('profiles')
+  @RequirePermission('profile:read')
+  async listProfiles(
+    @Query(new ZodValidationPipe(AdminListProfilesQuerySchema)) query: AdminListProfilesQuery,
+  ): Promise<AdminProfileListResponse> {
+    return this.adminService.listProfiles(query.limit, query.cursor, query.status);
+  }
+
+  /** Section 26: make a reviewed profile discoverable. */
+  @Post('profiles/:id/approve')
+  @RequirePermission('profile:approve')
+  @HttpCode(200)
+  async approveProfile(
+    @Param('id') id: string,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminProfileView> {
+    return this.adminService.approveProfile(id, principal.id);
+  }
+
+  /** Section 26: refuse a profile, with the reason the member will see. */
+  @Post('profiles/:id/reject')
+  @RequirePermission('profile:reject')
+  @HttpCode(200)
+  async rejectProfile(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminRejectProfileSchema)) body: AdminRejectProfileInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminProfileView> {
+    return this.adminService.rejectProfile(id, body, principal.id);
   }
 
   /** Section 30: the moderation queue, optionally filtered by status. */

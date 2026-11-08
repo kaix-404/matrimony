@@ -980,4 +980,149 @@ export declare const AdminReviewPhotoSchema: z.ZodEffects<z.ZodEffects<z.ZodObje
     rejection_reason?: string | undefined;
 }>;
 export type AdminReviewPhotoInput = z.infer<typeof AdminReviewPhotoSchema>;
+export declare const AdminListProfilesQuerySchema: z.ZodObject<{
+    status: z.ZodDefault<z.ZodOptional<z.ZodEnum<["PENDING_REVIEW", "APPROVED", "REJECTED", "SUSPENDED"]>>>;
+    limit: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
+    cursor: z.ZodOptional<z.ZodString>;
+}, "strip", z.ZodTypeAny, {
+    status: "SUSPENDED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    limit: number;
+    cursor?: string | undefined;
+}, {
+    status?: "SUSPENDED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | undefined;
+    limit?: number | undefined;
+    cursor?: string | undefined;
+}>;
+export type AdminListProfilesQuery = z.infer<typeof AdminListProfilesQuerySchema>;
+/**
+ * A profile as the review queue shows it.
+ *
+ * This is the one admin view that carries profile content — the name, city and a
+ * photo URL — because approving a profile *is* a judgement about that content; the
+ * queue would be pointless otherwise. It still stops short of contact details:
+ * those belong to `user:read`, not to profile review.
+ */
+export declare const AdminProfileViewSchema: z.ZodObject<{
+    id: z.ZodString;
+    user_id: z.ZodString;
+    name: z.ZodString;
+    city: z.ZodNullable<z.ZodString>;
+    age: z.ZodNullable<z.ZodNumber>;
+    status: z.ZodEnum<["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED", "SUSPENDED", "DELETED"]>;
+    photo_url: z.ZodNullable<z.ZodString>;
+    submitted_at: z.ZodString;
+    reviewed_at: z.ZodNullable<z.ZodString>;
+    rejection_reason: z.ZodNullable<z.ZodString>;
+}, "strict", z.ZodTypeAny, {
+    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    id: string;
+    name: string;
+    reviewed_at: string | null;
+    rejection_reason: string | null;
+    user_id: string;
+    city: string | null;
+    age: number | null;
+    photo_url: string | null;
+    submitted_at: string;
+}, {
+    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    id: string;
+    name: string;
+    reviewed_at: string | null;
+    rejection_reason: string | null;
+    user_id: string;
+    city: string | null;
+    age: number | null;
+    photo_url: string | null;
+    submitted_at: string;
+}>;
+export type AdminProfileView = z.infer<typeof AdminProfileViewSchema>;
+export declare const AdminProfileListResponseSchema: z.ZodObject<{
+    profiles: z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        user_id: z.ZodString;
+        name: z.ZodString;
+        city: z.ZodNullable<z.ZodString>;
+        age: z.ZodNullable<z.ZodNumber>;
+        status: z.ZodEnum<["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED", "SUSPENDED", "DELETED"]>;
+        photo_url: z.ZodNullable<z.ZodString>;
+        submitted_at: z.ZodString;
+        reviewed_at: z.ZodNullable<z.ZodString>;
+        rejection_reason: z.ZodNullable<z.ZodString>;
+    }, "strict", z.ZodTypeAny, {
+        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        id: string;
+        name: string;
+        reviewed_at: string | null;
+        rejection_reason: string | null;
+        user_id: string;
+        city: string | null;
+        age: number | null;
+        photo_url: string | null;
+        submitted_at: string;
+    }, {
+        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        id: string;
+        name: string;
+        reviewed_at: string | null;
+        rejection_reason: string | null;
+        user_id: string;
+        city: string | null;
+        age: number | null;
+        photo_url: string | null;
+        submitted_at: string;
+    }>, "many">;
+    nextCursor: z.ZodNullable<z.ZodString>;
+    hasMore: z.ZodBoolean;
+}, "strict", z.ZodTypeAny, {
+    nextCursor: string | null;
+    hasMore: boolean;
+    profiles: {
+        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        id: string;
+        name: string;
+        reviewed_at: string | null;
+        rejection_reason: string | null;
+        user_id: string;
+        city: string | null;
+        age: number | null;
+        photo_url: string | null;
+        submitted_at: string;
+    }[];
+}, {
+    nextCursor: string | null;
+    hasMore: boolean;
+    profiles: {
+        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        id: string;
+        name: string;
+        reviewed_at: string | null;
+        rejection_reason: string | null;
+        user_id: string;
+        city: string | null;
+        age: number | null;
+        photo_url: string | null;
+        submitted_at: string;
+    }[];
+}>;
+export type AdminProfileListResponse = z.infer<typeof AdminProfileListResponseSchema>;
+/**
+ * Refusing a profile.
+ *
+ * Two routes rather than one with a decision field, because the permission
+ * catalogue grants profile:approve and profile:reject separately: a single
+ * endpoint would have to require both and would hand every reviewer powers they
+ * were never granted.
+ *
+ * A reason is mandatory. The member has to know what to change, and this is the
+ * only place it is stored.
+ */
+export declare const AdminRejectProfileSchema: z.ZodObject<{
+    rejection_reason: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    rejection_reason: string;
+}, {
+    rejection_reason: string;
+}>;
+export type AdminRejectProfileInput = z.infer<typeof AdminRejectProfileSchema>;
 //# sourceMappingURL=admin.d.ts.map

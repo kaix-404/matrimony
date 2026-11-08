@@ -1,6 +1,7 @@
 import type {
   AdminDataRequestView,
   AdminPhotoView,
+  AdminProfileView,
   AdminReportView,
   AdminUserView,
   AdminVerificationView,
@@ -53,4 +54,8 @@ export interface AdminDataRequestList extends PageMeta {
 
 export interface AdminPhotoList extends PageMeta {
   photos: AdminPhotoView[];
+}
+
+export interface AdminProfileList extends PageMeta {
+  profiles: AdminProfileView[];
 }

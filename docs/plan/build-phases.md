@@ -57,6 +57,18 @@ reason. It is ordered oldest-first, unlike every other queue here: a report is
 answered by whoever is working, but an unapproved photo is a member who cannot be
 seen, so the longest wait goes next.
 
+The same two-thirds failure existed one level up, and worse: profiles are created
+`DRAFT`, every edit puts them back to `DRAFT`, discovery and the unlocked profile
+both require `APPROVED`, and nothing ever set it — so the whole feed was empty
+for everybody. The missing half is `POST /profile/submit` (the member puts their
+saved profile forward), `GET /admin/profiles` and
+`POST /admin/profiles/:id/{approve,reject}` behind the seeded `profile:read`,
+`profile:approve` and `profile:reject` grants, and a console page that lists the
+queue oldest-first. A rejection must carry a reason, because the reason is the
+only thing the member can act on and it is surfaced on their own profile. Both
+outcomes notify the member, and an edit cannot lift a suspension: only reviewable
+statuses fall back to `DRAFT`.
+
 ## Phase 3 — Discovery ✅
 
 The read path. Candidates are selected by the **two-way** visibility rule rather
@@ -176,13 +188,15 @@ Built:
   capture whose target vanished (GAP-1) notifies nobody. Notification failure is
   logged rather than thrown, because the money is already settled and a webhook
   retried over a missing courtesy is worse than the missing courtesy.
+- `PROFILE_APPROVED` and `PROFILE_REJECTED`, written when a moderator decides a
+  profile and never when the same decision is repeated. The rejection carries the
+  reason, because that text is the member's only instruction for what to change.
 
 Remaining:
 
 - The `EMAIL` channel has no vendor behind it, so a row written on it would sit
   `PENDING` forever. Nothing writes one today.
-- Emitting the rest of the event set: `PROFILE_APPROVED`, `PROFILE_REJECTED`
-  and `UNLOCK_EXPIRED` are declared and never sent.
+- `UNLOCK_EXPIRED` is declared and never sent: nothing sweeps unlock windows.
 
 ## Phase 8 — Admin API and dashboard ✅
 

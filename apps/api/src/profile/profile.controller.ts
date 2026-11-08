@@ -96,6 +96,18 @@ export class ProfileController {
     return this.profiles.update(claims.sub, body);
   }
 
+  /**
+   * Section 26: put the profile forward for review, the only way out of DRAFT.
+   *
+   * No body: what is being submitted is whatever the profile currently says, and
+   * accepting a payload here would let a client submit a version it never saved.
+   */
+  @Post('submit')
+  @HttpCode(200)
+  async submit(@AuthUser() claims: AccessTokenClaims): Promise<MyProfile> {
+    return this.profiles.submitForReview(claims.sub);
+  }
+
   /** Pause or resume the caller's own visibility (section 12). */
   @Patch('visibility')
   async visibility(

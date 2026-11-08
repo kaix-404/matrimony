@@ -151,6 +151,28 @@ function setup() {
     },
   ];
 
+  // Section 26 review queue. `profileRow` is the one the review tests act on;
+  // it starts DRAFT-then-submitted, because a member has to submit before an
+  // admin can have anything to review.
+  const profiles = [
+    {
+      id: 'profile_row_1',
+      userId: 'user_2',
+      firstName: 'Meera',
+      lastName: 'Iyer',
+      city: 'Chennai',
+      dateOfBirth: new Date('1992-03-04T00:00:00.000Z'),
+      status: 'PENDING_REVIEW' as string,
+      updatedAt: new Date('2026-10-10T09:00:00.000Z'),
+      approvedAt: null as Date | null,
+      approvedByAdminId: null as string | null,
+      rejectedAt: null as Date | null,
+      rejectionReason: null as string | null,
+      deletedAt: null as Date | null,
+      photos: [{ objectKey: 'photos/user_2/1.jpg' }],
+    },
+  ];
+
   const reports = [
     {
       id: 'rep_1',
@@ -347,8 +369,19 @@ function setup() {
         ),
     },
     profile: {
-      findUnique: async ({ where }: { where: { id: string } }) =>
-        where.id === 'profile_1' ? { id: 'profile_1', userId: 'user_1' } : null,
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        if (where.id === 'profile_1') return { id: 'profile_1', userId: 'user_1' };
+        return profiles.find((p) => p.id === where.id) ?? null;
+      },
+      findMany: async ({ where }: { where?: { status?: string } } = {}) =>
+        where?.status ? profiles.filter((p) => p.status === where.status) : profiles,
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const row = profiles.find((p) => p.id === where.id)!;
+          Object.assign(row, data);
+          return row;
+        },
+      ),
     },
     adminGrantAudit: {
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({
@@ -504,10 +537,12 @@ function setup() {
 
   return {
     photos,
+    profiles,
     service,
     prisma,
     audit,
     notifications,
+    storage,
     admins,
     assignments,
     users,
@@ -1439,5 +1474,156 @@ describe('AdminService.reviewPhoto', () => {
     await expect(
       service.reviewPhoto('nobody', { decision: 'APPROVE' }, 'admin_actor'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminService.listProfiles', () => {
+  it('lists the pending queue with a signed photo and the submission time', async () => {
+    const { service } = setup();
+
+    const queue = await service.listProfiles();
+
+    expect(queue.profiles).toEqual([
+      {
+        id: 'profile_row_1',
+        user_id: 'user_2',
+        name: 'Meera Iyer',
+        city: 'Chennai',
+        age: 34,
+        status: 'PENDING_REVIEW',
+        photo_url: 'https://cdn.test/photos/user_2/1.jpg?sig=abc',
+        submitted_at: '2026-10-10T09:00:00.000Z',
+        reviewed_at: null,
+        rejection_reason: null,
+      },
+    ]);
+    expect(queue.hasMore).toBe(false);
+  });
+
+  it('serves only profiles in the requested status', async () => {
+    const { service, profiles } = setup();
+    profiles.push({ ...profiles[0]!, id: 'profile_row_2', status: 'APPROVED' });
+
+    const queue = await service.listProfiles();
+
+    expect(queue.profiles.map((p) => p.id)).toEqual(['profile_row_1']);
+  });
+
+  it('does not fail the queue when a photo URL cannot be signed', async () => {
+    const { service, storage } = setup();
+    storage.presignDownload = async () => {
+      throw new Error('bucket unreachable');
+    };
+
+    const queue = await service.listProfiles();
+
+    expect(queue.profiles[0]?.photo_url).toBeNull();
+  });
+});
+
+describe('AdminService.approveProfile', () => {
+  it('makes the profile discoverable and records who approved it', async () => {
+    const { service, profiles, audit } = setup();
+
+    const view = await service.approveProfile('profile_row_1', 'admin_actor');
+
+    expect(view.status).toBe('APPROVED');
+    expect(profiles[0]?.approvedAt).toEqual(new Date('2026-10-14T12:00:00.000Z'));
+    expect(profiles[0]?.approvedByAdminId).toBe('admin_actor');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'profile:approve',
+        resourceType: 'Profile',
+        resourceId: 'profile_row_1',
+        previousValue: { status: 'PENDING_REVIEW' },
+      }),
+    );
+  });
+
+  it('tells the member their profile is live', async () => {
+    const { service, notifications } = setup();
+
+    await service.approveProfile('profile_row_1', 'admin_actor');
+
+    expect(notifications.created).toEqual([
+      expect.objectContaining({
+        userId: 'user_2',
+        event: 'PROFILE_APPROVED',
+        channel: 'PUSH',
+      }),
+    ]);
+  });
+
+  it('approves twice without a second notification or audit line', async () => {
+    const { service, notifications, audit } = setup();
+    await service.approveProfile('profile_row_1', 'admin_actor');
+
+    await service.approveProfile('profile_row_1', 'admin_actor');
+
+    expect(notifications.created).toHaveLength(1);
+    expect(audit.record).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses a suspended profile', async () => {
+    const { service, profiles } = setup();
+    profiles[0]!.status = 'SUSPENDED';
+
+    await expect(service.approveProfile('profile_row_1', 'admin_actor')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+  });
+
+  it('reports a missing profile', async () => {
+    const { service } = setup();
+    await expect(service.approveProfile('nobody', 'admin_actor')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});
+
+describe('AdminService.rejectProfile', () => {
+  it('stores the reason the member will see', async () => {
+    const { service, profiles, notifications } = setup();
+
+    const view = await service.rejectProfile(
+      'profile_row_1',
+      { rejection_reason: 'Photo does not show your face' },
+      'admin_actor',
+    );
+
+    expect(view.status).toBe('REJECTED');
+    expect(view.rejection_reason).toBe('Photo does not show your face');
+    expect(profiles[0]?.rejectedAt).toEqual(new Date('2026-10-14T12:00:00.000Z'));
+    expect(notifications.created).toEqual([
+      expect.objectContaining({
+        userId: 'user_2',
+        event: 'PROFILE_REJECTED',
+        payload: { rejection_reason: 'Photo does not show your face' },
+      }),
+    ]);
+  });
+
+  it('takes a profile back out of discovery', async () => {
+    const { service, profiles } = setup();
+    profiles[0]!.status = 'APPROVED';
+
+    await service.rejectProfile('profile_row_1', { rejection_reason: 'Impersonation' }, 'admin_actor');
+
+    expect(profiles[0]?.status).toBe('REJECTED');
+    expect(profiles[0]?.approvedAt).toBeNull();
+  });
+
+  it('records the decision and its reason in the audit trail', async () => {
+    const { service, audit } = setup();
+
+    await service.rejectProfile('profile_row_1', { rejection_reason: 'Incomplete' }, 'admin_actor');
+
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'profile:reject',
+        reason: 'Incomplete',
+        previousValue: { status: 'PENDING_REVIEW' },
+      }),
+    );
   });
 });

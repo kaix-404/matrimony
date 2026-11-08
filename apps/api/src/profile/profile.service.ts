@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -127,6 +128,49 @@ export class ProfileService {
   }
 
   /**
+   * Section 26: the member puts their finished profile forward for review.
+   *
+   * Nothing moves a profile out of DRAFT on its own — editing one puts it back
+   * to DRAFT, deliberately, because a moderator who approved an earlier version
+   * has not approved this one. So this is the only way a profile can ever become
+   * discoverable, and without it every profile stays DRAFT forever.
+   *
+   * Two refusals, for different reasons. Submitting while already under review is
+   * not an error the member caused by pressing twice, so it returns the profile
+   * unchanged rather than a 409. Submitting a profile a moderator has suspended is
+   * refused outright: a suspension is not a draft the member can resubmit their
+   * way out of.
+   *
+   * Resubmitting after a rejection is allowed and clears the reason — the member
+   * is expected to have changed what was wrong.
+   */
+  async submitForReview(userId: string): Promise<MyProfile> {
+    await this.assertEditable(userId);
+    const profile = await this.requireProfile(userId);
+
+    if (profile.status === ProfileStatus.SUSPENDED) {
+      throw new ForbiddenException('A suspended profile cannot be submitted for review');
+    }
+    if (
+      profile.status === ProfileStatus.APPROVED ||
+      profile.status === ProfileStatus.PENDING_REVIEW
+    ) {
+      return this.myProfile(userId);
+    }
+
+    await this.prisma.profile.update({
+      where: { userId },
+      data: {
+        status: ProfileStatus.PENDING_REVIEW,
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+    });
+
+    return this.myProfile(userId);
+  }
+
+  /**
    * Applies a partial update.
    *
    * `data` is assembled from the keys the caller sent, so an absent key is never
@@ -134,7 +178,7 @@ export class ProfileService {
    * partial save would erase everything the user did not resend.
    */
   async update(userId: string, input: UpdateProfileInput): Promise<MyProfile> {
-    await this.requireProfile(userId);
+    const current = await this.requireProfile(userId);
     await this.assertEditable(userId);
 
     const resolved = await this.resolveMasterLists(input);
@@ -199,12 +243,18 @@ export class ProfileService {
     }
 
     // Editing a profile that is already under review or approved invalidates the
-    // review, so it goes back to DRAFT. A moderator who approved a photo set has
-    // not necessarily approved a later edit, and section 26 makes approval
-    // about the profile as it stands.
-    data['status'] = ProfileStatus.DRAFT;
-    data['rejectedAt'] = null;
-    data['rejectionReason'] = null;
+    // review, so it goes back to DRAFT. A moderator who approved a profile has
+    // not approved a later edit, and section 26 makes approval about the profile
+    // as it stands.
+    //
+    // A suspension is not a review, though, and an edit must not lift it. Doing
+    // so would leave a suspended member one save away from DRAFT — where submit
+    // accepts them again — which is a suspension that a form field can undo.
+    if (current.status !== ProfileStatus.SUSPENDED) {
+      data['status'] = ProfileStatus.DRAFT;
+      data['rejectedAt'] = null;
+      data['rejectionReason'] = null;
+    }
 
     await this.prisma.profile.update({ where: { userId }, data });
 
@@ -324,7 +374,9 @@ export class ProfileService {
     if (missing.length > 0) {
       throw new BadRequestException({
         message: 'Validation failed',
-        errors: [{ field: 'interests', messages: [`unknown or inactive interest: ${missing.join(', ')}`] }],
+        errors: [
+          { field: 'interests', messages: [`unknown or inactive interest: ${missing.join(', ')}`] },
+        ],
       });
     }
   }
@@ -475,6 +527,7 @@ export class ProfileService {
         state: true,
         city: true,
         status: true,
+        rejectionReason: true,
         visibility: true,
         user: { select: { networthCategory: true } },
       },
@@ -529,6 +582,7 @@ export class ProfileService {
       state: row.state,
       city: row.city,
       status: row.status,
+      rejection_reason: row.rejectionReason,
       visibility: row.visibility,
       photos,
     };

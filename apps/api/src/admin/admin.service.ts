@@ -25,6 +25,9 @@ import type {
   AdminPhotoListResponse,
   AdminPhotoView,
   AdminPricingView,
+  AdminProfileListResponse,
+  AdminProfileView,
+  AdminRejectProfileInput,
   AdminPublishPricingInput,
   AdminReportView,
   AdminResolveDataRequestInput,
@@ -157,6 +160,78 @@ function toVerificationView(row: VerificationRow): AdminVerificationView {
     verifiedAt: row.verifiedAt ? row.verifiedAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+const PROFILE_REVIEW_SELECT = {
+  id: true,
+  userId: true,
+  firstName: true,
+  lastName: true,
+  city: true,
+  dateOfBirth: true,
+  status: true,
+  updatedAt: true,
+  approvedAt: true,
+  rejectedAt: true,
+  rejectionReason: true,
+  photos: {
+    orderBy: [{ isPrimary: 'desc' as const }, { sortOrder: 'asc' as const }],
+    take: 1,
+    select: { objectKey: true },
+  },
+};
+
+interface ProfileReviewRow {
+  id: string;
+  userId: string;
+  firstName: string;
+  lastName: string | null;
+  city: string | null;
+  dateOfBirth: Date;
+  status: string;
+  updatedAt: Date;
+  approvedAt: Date | null;
+  rejectedAt: Date | null;
+  rejectionReason: string | null;
+  photos: Array<{ objectKey: string }>;
+}
+
+/** Whole years between a date of birth and now. */
+function ageFrom(dateOfBirth: Date, now: Date): number {
+  let age = now.getUTCFullYear() - dateOfBirth.getUTCFullYear();
+  const monthDelta = now.getUTCMonth() - dateOfBirth.getUTCMonth();
+  if (monthDelta < 0 || (monthDelta === 0 && now.getUTCDate() < dateOfBirth.getUTCDate())) {
+    age -= 1;
+  }
+  return age;
+}
+
+/**
+ * A profile as the review queue shows it.
+ *
+ * `submitted_at` is the row's `updatedAt`, which is the moment it was submitted:
+ * the submit call is what put it in PENDING_REVIEW, and an edit after that would
+ * have returned it to DRAFT. There is no separate column, and adding one to say
+ * the same thing would be a migration for no extra information.
+ */
+function toProfileReviewView(
+  row: ProfileReviewRow,
+  photoUrl: string | null,
+  now: Date,
+): AdminProfileView {
+  const reviewedAt = row.status === 'APPROVED' ? row.approvedAt : row.rejectedAt;
+  return {
+    id: row.id,
+    user_id: row.userId,
+    name: [row.firstName, row.lastName].filter(Boolean).join(' '),
+    city: row.city,
+    age: ageFrom(row.dateOfBirth, now),
+    status: row.status as AdminProfileView['status'],
+    photo_url: photoUrl,
+    submitted_at: row.updatedAt.toISOString(),
+    reviewed_at: reviewedAt ? reviewedAt.toISOString() : null,
+    rejection_reason: row.rejectionReason,
   };
 }
 
@@ -1040,6 +1115,201 @@ export class AdminService {
     });
 
     return toPhotoView(updated, await this.storage.presignDownload(updated.objectKey));
+  }
+
+  // -- profile review (section 26) -----------------------------------------
+
+  /**
+   * The section 26 queue.
+   *
+   * Pending profiles are served oldest first, like the photo queue and for the
+   * same reason: a first-in-first-out queue is the only order in which waiting
+   * time cannot quietly grow for the person who submitted first. Every other
+   * status is history, and history reads newest first.
+   */
+  async listProfiles(
+    limit = 20,
+    cursor?: string,
+    status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' = 'PENDING_REVIEW',
+  ): Promise<AdminProfileListResponse> {
+    const take = Math.min(limit, 100);
+    const oldestFirst = status === 'PENDING_REVIEW';
+    const items = await this.prisma.profile.findMany({
+      take: take + 1,
+      cursor: cursor ? { id: cursor } : undefined,
+      skip: cursor ? 1 : 0,
+      where: { status: status as never, deletedAt: null },
+      orderBy: oldestFirst
+        ? [{ updatedAt: 'asc' as const }, { id: 'asc' as const }]
+        : [{ updatedAt: 'desc' as const }, { id: 'desc' as const }],
+      select: PROFILE_REVIEW_SELECT,
+    });
+
+    const hasMore = items.length > take;
+    const rows = hasMore ? items.slice(0, take) : items;
+    const now = this.clock.now();
+    const profiles = await Promise.all(
+      rows.map(async (row) =>
+        toProfileReviewView(row, await this.photoUrl(row.photos[0]?.objectKey), now),
+      ),
+    );
+    return {
+      profiles,
+      nextCursor: hasMore ? (profiles[profiles.length - 1]?.id ?? null) : null,
+      hasMore,
+    };
+  }
+
+  /**
+   * Approves a profile, making it discoverable for the first time.
+   *
+   * Re-approving an approved profile is a no-op rather than an error: a reviewer
+   * working two browser tabs should not see a failure for a decision that is
+   * already in force. A suspended profile is refused — lifting a suspension is a
+   * different action with different consequences, not a review outcome.
+   */
+  async approveProfile(id: string, actingAdminId: string): Promise<AdminProfileView> {
+    const row = await this.requireReviewable(id);
+    if (row.status === 'APPROVED') {
+      return toProfileReviewView(
+        row,
+        await this.photoUrl(row.photos[0]?.objectKey),
+        this.clock.now(),
+      );
+    }
+
+    // Read before the write: the audit line records the status this decision
+    // replaced, not what the row says once it has been updated.
+    const previousStatus = row.status;
+
+    const updated = await this.prisma.profile.update({
+      where: { id },
+      data: {
+        status: 'APPROVED' as never,
+        approvedAt: this.clock.now(),
+        approvedByAdminId: actingAdminId,
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+      select: PROFILE_REVIEW_SELECT,
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'profile:approve',
+      resourceType: 'Profile',
+      resourceId: id,
+      previousValue: { status: previousStatus },
+      newValue: { status: 'APPROVED' },
+      reason: null,
+    });
+
+    await this.notifyProfile(id, 'PROFILE_APPROVED', null);
+
+    return toProfileReviewView(
+      updated,
+      await this.photoUrl(updated.photos[0]?.objectKey),
+      this.clock.now(),
+    );
+  }
+
+  /**
+   * Refuses a profile and stores why.
+   *
+   * The reason reaches the member's own profile view, so a rejection is
+   * actionable instead of leaving them guessing. Rejecting an already-rejected
+   * profile replaces the reason (a moderator correcting themselves) rather than
+   * failing.
+   */
+  async rejectProfile(
+    id: string,
+    input: AdminRejectProfileInput,
+    actingAdminId: string,
+  ): Promise<AdminProfileView> {
+    const row = await this.requireReviewable(id);
+    const previousStatus = row.status;
+
+    const updated = await this.prisma.profile.update({
+      where: { id },
+      data: {
+        status: 'REJECTED' as never,
+        rejectedAt: this.clock.now(),
+        rejectionReason: input.rejection_reason,
+        approvedAt: null,
+        approvedByAdminId: null,
+      },
+      select: PROFILE_REVIEW_SELECT,
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'profile:reject',
+      resourceType: 'Profile',
+      resourceId: id,
+      previousValue: { status: previousStatus },
+      newValue: { status: 'REJECTED', rejectionReason: input.rejection_reason },
+      reason: input.rejection_reason,
+    });
+
+    await this.notifyProfile(id, 'PROFILE_REJECTED', input.rejection_reason);
+
+    return toProfileReviewView(
+      updated,
+      await this.photoUrl(updated.photos[0]?.objectKey),
+      this.clock.now(),
+    );
+  }
+
+  private async requireReviewable(id: string): Promise<ProfileReviewRow> {
+    const row = await this.prisma.profile.findUnique({
+      where: { id },
+      select: PROFILE_REVIEW_SELECT,
+    });
+    if (!row || row.status === 'DELETED') {
+      throw new NotFoundException('Profile not found');
+    }
+    if (row.status === 'SUSPENDED') {
+      throw new ConflictException(
+        'A suspended profile cannot be reviewed; lift the suspension first',
+      );
+    }
+    return row;
+  }
+
+  /** Presigned photo URL, or nothing: a missing photo must not fail the queue. */
+  private async photoUrl(objectKey: string | undefined): Promise<string | null> {
+    if (!objectKey) return null;
+    return this.storage.presignDownload(objectKey).catch(() => null);
+  }
+
+  /** Tells the member the outcome of their review. */
+  private async notifyProfile(
+    profileId: string,
+    type: 'PROFILE_APPROVED' | 'PROFILE_REJECTED',
+    reason: string | null,
+  ): Promise<void> {
+    try {
+      const profile = await this.prisma.profile.findUnique({
+        where: { id: profileId },
+        select: { userId: true },
+      });
+      if (!profile) return;
+      await this.notifications.create({
+        userId: profile.userId,
+        event: NOTIFICATION_EVENTS[type],
+        channel: 'PUSH',
+        title: type === 'PROFILE_APPROVED' ? 'Your profile is live' : 'Your profile needs changes',
+        body:
+          type === 'PROFILE_APPROVED'
+            ? 'Members can now find you in search.'
+            : 'Open the app to see what to change, then submit it again.',
+        payload: reason ? { rejection_reason: reason } : undefined,
+      });
+    } catch (error) {
+      // Same rule as every other courtesy notification: the decision is already
+      // recorded and must not be rolled back because a notice could not be sent.
+      this.logger.error(`Failed to notify profile ${profileId}: ${String(error)}`);
+    }
   }
 
   async listReports(limit = 20, cursor?: string, status?: ReportStatus) {
