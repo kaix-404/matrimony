@@ -22,7 +22,8 @@ import { PaymentsService } from './payments.service';
 import { PaymentGateway, type CreateGatewayOrderInput, type GatewayOrder } from './payment.gateway';
 import { FrozenClock } from '../common/clock/clock.service';
 import { VisibilityPreferenceService } from '../discovery/visibility-preference.service';
-import { PaymentOrderSchema, UNLOCK_WINDOW_HOURS } from '@matrimony/shared';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NOTIFICATION_EVENTS, PaymentOrderSchema, UNLOCK_WINDOW_HOURS } from '@matrimony/shared';
 
 const WEBHOOK_SECRET = 'whsec_unit_test_secret';
 
@@ -352,8 +353,25 @@ async function makeService() {
     isDiscoverableBy: async () => true,
   } as unknown as VisibilityPreferenceService;
 
-  const service = new PaymentsService(prisma as never, clock, gateway, preferences);
-  return { service, prisma, gateway, clock, preferences };
+  // A recorder rather than the real service: what matters here is that the row
+  // is written with the right event, recipient and payload, and a fake keeps the
+  // assertion about the notification independent of the notifications module.
+  const notifications = {
+    created: [] as Array<Parameters<NotificationsService['create']>[0]>,
+    create(input: Parameters<NotificationsService['create']>[0]) {
+      notifications.created.push(input);
+      return Promise.resolve({ id: `notif_${notifications.created.length}`, ...input });
+    },
+  };
+
+  const service = new PaymentsService(
+    prisma as never,
+    clock,
+    gateway,
+    preferences,
+    notifications as unknown as NotificationsService,
+  );
+  return { service, prisma, gateway, clock, preferences, notifications };
 }
 
 /** A captured-payment webhook body, signed and ready to deliver. */
@@ -732,6 +750,29 @@ describe('PaymentsService — webhook', () => {
     );
   });
 
+  it('tells the buyer their unlock is active, once per payment', async () => {
+    const { service, prisma, gateway, notifications } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+
+    const { body, signature } = capture(gateway, 'order_1', 11682);
+    await service.handleWebhook(body, signature);
+    // A redelivery of the same capture claims nothing, so it must not notify a
+    // second time about a payment the member has already been told about.
+    await service.handleWebhook(body, signature);
+
+    expect(notifications.created).toHaveLength(1);
+    expect(notifications.created[0]).toMatchObject({
+      userId: BUYER,
+      event: NOTIFICATION_EVENTS.PAYMENT_SUCCESSFUL,
+      channel: 'PUSH',
+      payload: {
+        profile_id: 'profile_target',
+        unlock_expires_at: '2026-10-05T12:00:00.000Z',
+      },
+    });
+  });
+
   it('refuses a capture whose amount does not match the server snapshot', async () => {
     const { service, prisma, gateway } = await makeService();
     seed(prisma);
@@ -860,6 +901,29 @@ describe('PaymentsService — webhook', () => {
     expect(user?.setupFeePaidAt).toBeInstanceOf(Date);
     // The setup fee is a platform charge, never a contact disclosure.
     expect(prisma.unlocks).toHaveLength(0);
+  });
+
+  it('tells the member their profile went active on a setup fee capture', async () => {
+    const { service, prisma, gateway, notifications } = await makeService();
+    prisma.users.push({
+      id: 'user_setup',
+      status: 'AWAITING_SETUP_FEE',
+      setupFeePaidAt: null,
+      networthCategory: 'BELOW_2CR',
+    });
+    seed(prisma);
+    await service.createSetupFeeOrder('user_setup');
+
+    const { body, signature } = capture(gateway, 'order_1', 1770);
+    await service.handleWebhook(body, signature);
+
+    expect(notifications.created).toEqual([
+      expect.objectContaining({
+        userId: 'user_setup',
+        event: NOTIFICATION_EVENTS.SETUP_FEE_PAID,
+        channel: 'PUSH',
+      }),
+    ]);
   });
 
   it('does not reactivate an account that was suspended mid-payment', async () => {

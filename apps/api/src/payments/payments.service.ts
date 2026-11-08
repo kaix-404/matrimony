@@ -40,6 +40,7 @@ import {
   ACCOUNT_SETUP_FEE,
   CURRENCY,
   GST_PERCENT,
+  NOTIFICATION_EVENTS,
   UNLOCK_WINDOW_HOURS,
   computeUnlockWindow,
   isUnlockActive,
@@ -53,9 +54,19 @@ import {
   type PricingQuote,
   type UnlockPrice,
 } from '@matrimony/shared';
+import { NotificationsService } from '../notifications/notifications.service';
 import { GATEWAY_EVENTS, PaymentGateway, rupeesToMinor } from './payment.gateway';
 
 type Tx = Prisma.TransactionClient;
+
+/**
+ * What a settled payment handed over, for the section-42 notification.
+ *
+ * Only set when the transaction actually granted something: a payment captured
+ * against a profile that vanished grants nothing (GAP-1), and congratulating the
+ * buyer on it would be worse than silence.
+ */
+type Granted = { kind: 'SETUP_FEE' } | { kind: 'UNLOCK'; profileId: string; unlockExpiresAt: Date };
 
 /**
  * Failure codes recorded on the Payment. Stable strings: section 18
@@ -103,6 +114,7 @@ export class PaymentsService {
     private readonly clock: ClockService,
     private readonly gateway: PaymentGateway,
     private readonly preferences: VisibilityPreferenceService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -731,6 +743,11 @@ export class PaymentsService {
 
     const now = this.clock.now();
 
+    // What this delivery actually granted, if anything. Recorded inside the
+    // transaction so that a repeat event — which claims nothing and returns
+    // early — cannot notify the member twice about one payment.
+    let granted: Granted | null = null;
+
     await this.prisma.$transaction(async (tx) => {
       // The transition is guarded rather than the insert. Two distinct event
       // keys can resolve to one payment (a capture and an order-paid for the
@@ -755,13 +772,71 @@ export class PaymentsService {
       }
 
       if (payment.purpose === 'SETUP_FEE') {
-        await this.activateAccount(tx, payment, now);
+        if (await this.activateAccount(tx, payment, now)) {
+          granted = { kind: 'SETUP_FEE' };
+        }
       } else {
-        await this.createUnlock(tx, payment, now);
+        const unlockExpiresAt = await this.createUnlock(tx, payment, now);
+        if (unlockExpiresAt) {
+          granted = {
+            kind: 'UNLOCK',
+            profileId: payment.targetProfileId ?? '',
+            unlockExpiresAt,
+          };
+        }
       }
     });
 
+    if (granted) {
+      await this.notifyGranted(payment, granted);
+    }
+
     return { paymentId: payment.id };
+  }
+
+  /**
+   * Section 42: tell the member that what they paid for arrived.
+   *
+   * Sent as a `PUSH` row rather than an in-app one for the same reason the expiry
+   * reminder is: `PUSH` is both delivered by the dispatch sweeper and listed in
+   * the in-app feed, so one row covers a member with a device and a member
+   * reading the app on the web.
+   *
+   * Best-effort by design. The money is already settled and the unlock or the
+   * activation is already committed; a notification that cannot be written is a
+   * missing courtesy, and throwing here would make the gateway retry a webhook
+   * whose work is finished.
+   */
+  private async notifyGranted(payment: OrderRow, granted: Granted): Promise<void> {
+    try {
+      if (granted.kind === 'SETUP_FEE') {
+        await this.notifications.create({
+          userId: payment.userId,
+          event: NOTIFICATION_EVENTS.SETUP_FEE_PAID,
+          channel: 'PUSH',
+          title: 'Your profile is active',
+          body: 'We have received your setup fee. Your profile can now appear in discovery.',
+          payload: { payment_id: payment.id },
+        });
+        return;
+      }
+
+      await this.notifications.create({
+        userId: payment.userId,
+        event: NOTIFICATION_EVENTS.PAYMENT_SUCCESSFUL,
+        channel: 'PUSH',
+        title: 'Payment successful',
+        body: 'Your unlock is active. Open the profile to see the contact details.',
+        payload: {
+          payment_id: payment.id,
+          profile_id: granted.profileId,
+          unlock_expires_at: granted.unlockExpiresAt.toISOString(),
+        },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Could not record a notification for payment ${payment.id}: ${message}`);
+    }
   }
 
   /**
@@ -796,7 +871,7 @@ export class PaymentsService {
    * money stays recorded on the Payment either way; the refund decision belongs
    * to section 18 reconciliation, not to a webhook.
    */
-  private async activateAccount(tx: Tx, payment: OrderRow, now: Date): Promise<void> {
+  private async activateAccount(tx: Tx, payment: OrderRow, now: Date): Promise<boolean> {
     const activated = await tx.user.updateMany({
       where: { id: payment.userId, status: 'AWAITING_SETUP_FEE' },
       data: {
@@ -811,6 +886,7 @@ export class PaymentsService {
         `Setup fee paid for user ${payment.userId}, who is no longer AWAITING_SETUP_FEE; account state left alone.`,
       );
     }
+    return activated.count > 0;
   }
 
   /**
@@ -823,7 +899,7 @@ export class PaymentsService {
    * row is a promise of contact access that cannot be kept. The reason is
    * recorded on the Payment for whoever handles the refund.
    */
-  private async createUnlock(tx: Tx, payment: OrderRow, now: Date): Promise<void> {
+  private async createUnlock(tx: Tx, payment: OrderRow, now: Date): Promise<Date | null> {
     const target = payment.targetProfileId
       ? await tx.profile.findUnique({
           where: { id: payment.targetProfileId },
@@ -848,7 +924,7 @@ export class PaymentsService {
       this.logger.error(
         `Payment ${payment.id} captured but its target profile is unavailable (GAP-1).`,
       );
-      return;
+      return null;
     }
 
     const { unlockedAt, unlockExpiresAt } = computeUnlockWindow(now);
@@ -862,6 +938,8 @@ export class PaymentsService {
         status: 'ACTIVE',
       },
     });
+
+    return unlockExpiresAt;
   }
 }
 

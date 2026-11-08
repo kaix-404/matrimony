@@ -3,6 +3,7 @@ import { ConfigModule } from '../config/config.module';
 import { ClockModule } from '../common/clock/clock.module';
 import { AuthModule } from '../auth/auth.module';
 import { DiscoveryModule } from '../discovery/discovery.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PaymentGateway, RazorpayPaymentGateway } from './payment.gateway';
 import { PaymentsService } from './payments.service';
 import { PaymentsController } from './payments.controller';
@@ -27,7 +28,7 @@ import type { Env } from '../config/env';
  * time.
  */
 @Module({
-  imports: [ConfigModule, ClockModule, AuthModule, DiscoveryModule],
+  imports: [ConfigModule, ClockModule, AuthModule, DiscoveryModule, NotificationsModule],
   controllers: [PaymentsController],
   providers: [
     PaymentsService,

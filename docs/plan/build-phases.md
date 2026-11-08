@@ -78,9 +78,8 @@ closest) is still open and is the one input needed before payments are built.
 Razorpay order creation with amount snapshotted from `pricing_config`, webhook
 handling with idempotency on `WebhookEvent`, and `ContactUnlock` creation only
 from a `SUCCESS` payment. Includes the ₹15 setup-fee path and the 24-hour
-expiry. The 2-hour reminder is not delivered here: it belongs to the
-notification scheduler, so it lands with Phase 7, where the lead time already
-exists as C3 (`UNLOCK_EXPIRY_REMINDER_HOURS`).
+expiry. The 2-hour reminder is not delivered here: it belongs to the notification
+scheduler, and it landed with Phase 7 (`UNLOCK_EXPIRY_REMINDER_HOURS`).
 
 ## Phase 5 — Trust and safety
 
@@ -139,6 +138,31 @@ until this passes (D9).
 
 Section 42 event set across push (FCM HTTP v1), SMS (DLT-gated), email, and
 in-app, with the 2-hour unlock-expiry reminder.
+
+Built:
+
+- Push delivery over FCM HTTP v1 with a claiming sweeper: a `PENDING` row is
+  flipped to `SENDING` before the provider is called, so two workers cannot send
+  it twice, and a row left `SENDING` by a crashed worker is requeued once stale.
+- `GET /notifications`, the in-app list. Not filtered by channel, so a pushed
+  message is also readable in the app.
+- The C3 reminder: a sweep claims unlocks whose window closes within
+  `UNLOCK_EXPIRY_REMINDER_HOURS` (default 2) and records one
+  `UNLOCK_EXPIRING_IN_2H` row per unlock, guarded on `reminderSentAt`.
+- `PAYMENT_SUCCESSFUL` and `SETUP_FEE_PAID`, both written after the payment
+  webhook's transaction commits and only when that delivery actually granted
+  something: a repeat event grants nothing, so it cannot notify twice, and a
+  capture whose target vanished (GAP-1) notifies nobody. Notification failure is
+  logged rather than thrown, because the money is already settled and a webhook
+  retried over a missing courtesy is worse than the missing courtesy.
+
+Remaining:
+
+- The `EMAIL` channel has no vendor behind it, so a row written on it would sit
+  `PENDING` forever. Nothing writes one today.
+- Emitting the rest of the event set: `PROFILE_APPROVED`, `PROFILE_REJECTED`,
+  `IDENTITY_VERIFIED`, `IDENTITY_VERIFICATION_FAILED`, `REPORT_ACTION_TAKEN`,
+  `UNLOCK_EXPIRED` and `ACCOUNT_SUSPENDED` are declared and never sent.
 
 ## Phase 8 — Admin API and dashboard ✅
 
