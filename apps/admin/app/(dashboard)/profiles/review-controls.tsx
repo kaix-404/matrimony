@@ -12,9 +12,11 @@ import { approveProfileAction, rejectProfileAction } from './actions';
  * both the open box and the typed reason: clearing them would lose the
  * explanation and leave the next press rejecting with nothing to send.
  *
- * Once a profile is approved the reject path stays available — a moderator who
- * approved by mistake needs a way to take it back out of search — but the
- * approve button is not offered again, because it has nothing left to do.
+ * Only a profile awaiting review gets the buttons. A decision is made once: the
+ * API refuses to review anything that is not `PENDING_REVIEW`, so offering the
+ * controls on an approved or rejected row would only produce a 409. An approval
+ * made in error is undone by suspending the account, which is a different
+ * decision and lives on the member's page.
  */
 export function ProfileReviewControls({
   profileId,
@@ -28,19 +30,21 @@ export function ProfileReviewControls({
   const approve = useAdminAction(approveProfileAction);
   const reject = useAdminAction(rejectProfileAction);
 
+  if (status !== 'PENDING_REVIEW') {
+    return null;
+  }
+
   return (
     <div style={{ display: 'grid', gap: 8 }}>
       <div className="actions">
-        {status === 'APPROVED' ? null : (
-          <button
-            type="button"
-            className="btn"
-            disabled={approve.pending || reject.pending}
-            onClick={() => approve.run({ id: profileId })}
-          >
-            {approve.pending ? 'Approving…' : 'Approve'}
-          </button>
-        )}
+        <button
+          type="button"
+          className="btn"
+          disabled={approve.pending || reject.pending}
+          onClick={() => approve.run({ id: profileId })}
+        >
+          {approve.pending ? 'Approving…' : 'Approve'}
+        </button>
         {rejecting ? null : (
           <button
             type="button"
