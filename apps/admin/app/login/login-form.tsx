@@ -30,14 +30,14 @@ async function readJson(response: Response): Promise<LoginResponse> {
   }
 }
 
-export function LoginForm() {
+export function LoginForm({ initialError = null }: { initialError?: string | null }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>('password');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [challengeToken, setChallengeToken] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
 
   async function submitPassword(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -100,7 +100,7 @@ export function LoginForm() {
 
   if (step === 'mfa') {
     return (
-      <form onSubmit={submitCode}>
+      <form method="post" action="/api/session/mfa" onSubmit={submitCode}>
         <p className="notice">Enter the six-digit code from your authenticator app.</p>
         <label htmlFor="code">Authentication code</label>
         <input
@@ -137,7 +137,7 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={submitPassword}>
+    <form method="post" action="/api/session/login" onSubmit={submitPassword}>
       <label htmlFor="email">Email</label>
       <input
         id="email"

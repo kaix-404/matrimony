@@ -13,6 +13,17 @@ import { writeSessionCookies } from '@/lib/cookies';
  * is absent the display cookie simply falls back to a generic label.
  */
 export async function POST(request: Request): Promise<NextResponse> {
+  const type = request.headers.get('content-type') ?? '';
+  if (type.includes('application/x-www-form-urlencoded') || type.includes('multipart/form-data')) {
+    // A submitted form carries no challenge token: that lives in component state
+    // for a few minutes, so a browser that never hydrated cannot be at this step.
+    // Saying so beats accepting a code nothing will verify.
+    return new NextResponse(null, {
+      status: 303,
+      headers: { location: '/login?problem=mfa' },
+    });
+  }
+
   const raw: unknown = await request.json().catch(() => null);
   const parsed = AdminMfaVerifySchema.safeParse(raw);
   if (!parsed.success) {
