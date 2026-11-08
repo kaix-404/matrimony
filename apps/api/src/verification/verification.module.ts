@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { VerificationService } from './verification.service';
 import { VerificationController } from './verification.controller';
 import { CashfreeVerificationGateway, VerificationGateway } from './verification.gateway';
@@ -18,7 +19,7 @@ import type { Env } from '../config/env';
  * a test can substitute a gateway without the network.
  */
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, NotificationsModule],
   controllers: [VerificationController],
   providers: [
     VerificationService,

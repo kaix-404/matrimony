@@ -8,12 +8,14 @@ import {
 import { PrismaClient, ConsentType, ConsentStatus } from '../prisma/prisma-client';
 import {
   DIGILOCKER_EVENTS,
+  NOTIFICATION_EVENTS,
   type IdentityVerificationProvider,
   type IdentityVerificationStatus,
   type InitiateVerificationRequest,
   type VerificationStatusResponse,
   type VerificationWebhook,
 } from '@matrimony/shared';
+import { NotificationsService } from '../notifications/notifications.service';
 import { VerificationGateway } from './verification.gateway';
 
 /**
@@ -47,6 +49,7 @@ export class VerificationService {
   constructor(
     private readonly prisma: PrismaClient,
     private readonly gateway: VerificationGateway,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /**
@@ -226,6 +229,9 @@ export class VerificationService {
 
     const now = new Date();
     const details = data.user_details ?? {};
+    // Read before the write: the row goes on to be updated, and the decision to
+    // announce an outcome is about what changed, not about what it now says.
+    const previousStatus = identity.status;
 
     await this.prisma.$transaction(async (tx) => {
       await tx.identityVerification.update({
@@ -265,9 +271,51 @@ export class VerificationService {
             'Identity verification passed; awaiting the one-time account setup fee.',
         },
       });
-    });
+    }); // Only a real transition is announced. A duplicate delivery of the same
+    // outcome updates nothing new about the member's situation, and section 42
+    // is about telling them something happened, not about replaying it.
+    if (previousStatus !== next) {
+      await this.notifyOutcome(identity.userId, next);
+    }
 
-    this.logger.log(`DigiLocker ${body.event_type} applied to verification ${identity.id}: ${next}`);
+    this.logger.log(
+      `DigiLocker ${body.event_type} applied to verification ${identity.id}: ${next}`,
+    );
+  }
+
+  /**
+   * Section 42: the member is told the outcome of their identity check.
+   *
+   * Until now verification was silent — the app polled `GET /verification/status`
+   * and nothing else ever mentioned it, so a member who failed had to reopen the
+   * screen to find out. The wording for a failure deliberately does not repeat
+   * the provider's reason: it is a vendor string about a document, and the
+   * member's next step is the same whatever it says.
+   *
+   * Best-effort, like every notification written after a committed transition:
+   * the verification result is already stored, and an error here must not make
+   * Cashfree replay a webhook whose work is done.
+   */
+  private async notifyOutcome(userId: string, outcome: 'VERIFIED' | 'FAILED' | 'EXPIRED') {
+    const verified = outcome === 'VERIFIED';
+    try {
+      await this.notifications.create({
+        userId,
+        event: verified
+          ? NOTIFICATION_EVENTS.IDENTITY_VERIFIED
+          : NOTIFICATION_EVENTS.IDENTITY_VERIFICATION_FAILED,
+        channel: 'PUSH',
+        title: verified ? 'Your identity is verified' : 'We could not verify your identity',
+        body: verified
+          ? 'Verification is complete. Pay the one-time setup fee to finish setting up your account.'
+          : 'Open the app to try the identity check again.',
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `Could not record a verification notification for user ${userId}: ${message}`,
+      );
+    }
   }
 
   private toResponse(identity: {

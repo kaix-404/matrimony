@@ -149,6 +149,11 @@ Built:
 - The C3 reminder: a sweep claims unlocks whose window closes within
   `UNLOCK_EXPIRY_REMINDER_HOURS` (default 2) and records one
   `UNLOCK_EXPIRING_IN_2H` row per unlock, guarded on `reminderSentAt`.
+- `IDENTITY_VERIFIED` and `IDENTITY_VERIFICATION_FAILED`, written when a
+  DigiLocker webhook moves a check to a new outcome. Announcing is keyed on the
+  status _before_ the update, so a replayed delivery says nothing twice, and the
+  failure notice does not repeat the vendor's reason string — it is a message
+  about a document, and the member's next step is the same whatever it says.
 - `PAYMENT_SUCCESSFUL` and `SETUP_FEE_PAID`, both written after the payment
   webhook's transaction commits and only when that delivery actually granted
   something: a repeat event grants nothing, so it cannot notify twice, and a
@@ -161,8 +166,8 @@ Remaining:
 - The `EMAIL` channel has no vendor behind it, so a row written on it would sit
   `PENDING` forever. Nothing writes one today.
 - Emitting the rest of the event set: `PROFILE_APPROVED`, `PROFILE_REJECTED`,
-  `IDENTITY_VERIFIED`, `IDENTITY_VERIFICATION_FAILED`, `REPORT_ACTION_TAKEN`,
-  `UNLOCK_EXPIRED` and `ACCOUNT_SUSPENDED` are declared and never sent.
+  `REPORT_ACTION_TAKEN`, `UNLOCK_EXPIRED` and `ACCOUNT_SUSPENDED` are declared
+  and never sent.
 
 ## Phase 8 — Admin API and dashboard ✅
 

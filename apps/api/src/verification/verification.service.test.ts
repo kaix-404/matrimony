@@ -1,6 +1,8 @@
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import { NOTIFICATION_EVENTS } from '@matrimony/shared';
 import { VerificationService, parseBirthYear } from './verification.service';
 import type { VerificationGateway } from './verification.gateway';
+import type { NotificationsService } from '../notifications/notifications.service';
 
 /**
  * D9 turns on one transition: a passed ID check is the only thing that may move
@@ -125,8 +127,20 @@ function harness() {
     $transaction: async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(prisma),
   };
 
+  // A recorder rather than the real service: what matters is that the row is
+  // written with the right event and recipient, and a fake keeps that assertion
+  // independent of the notifications module's own queries.
+  const notifications = {
+    created: [] as Array<Parameters<NotificationsService['create']>[0]>,
+    create(input: Parameters<NotificationsService['create']>[0]) {
+      notifications.created.push(input);
+      return Promise.resolve({ id: `notif_${notifications.created.length}`, ...input });
+    },
+  };
+
   return {
     users,
+    notifications,
     identities,
     consents,
     seedIdentity(overrides: Partial<FakeIdentity> = {}): FakeIdentity {
@@ -159,7 +173,11 @@ function harness() {
       return row;
     },
     service(gateway: VerificationGateway): VerificationService {
-      return new VerificationService(prisma as never, gateway);
+      return new VerificationService(
+        prisma as never,
+        gateway,
+        notifications as unknown as NotificationsService,
+      );
     },
   };
 }
@@ -198,6 +216,46 @@ describe('VerificationService.handleWebhook', () => {
     expect(identity.status).toBe('VERIFIED');
     expect(identity.nameOnId).toBe('John Doe');
     expect(identity.yearOfBirth).toBe(1995);
+  });
+
+  it('announces a passed check once, and not again on a replayed delivery', async () => {
+    const h = harness();
+    const identity = h.seedIdentity();
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+
+    const body = {
+      event_type: 'DIGILOCKER_VERIFICATION_SUCCESS',
+      data: { verification_id: identity.id, status: 'AUTHENTICATED' },
+    };
+    const service = h.service(gateway());
+    await service.handleWebhook(body);
+    await service.handleWebhook(body);
+
+    expect(h.notifications.created).toEqual([
+      expect.objectContaining({
+        userId: 'u1',
+        event: NOTIFICATION_EVENTS.IDENTITY_VERIFIED,
+        channel: 'PUSH',
+      }),
+    ]);
+  });
+
+  it('announces a failed check without repeating the vendor reason', async () => {
+    const h = harness();
+    const identity = h.seedIdentity();
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+
+    await h.service(gateway()).handleWebhook({
+      event_type: 'DIGILOCKER_VERIFICATION_CONSENT_DENIED',
+      data: { verification_id: identity.id, status: 'CONSENT_DENIED' },
+    });
+
+    expect(h.notifications.created).toHaveLength(1);
+    expect(h.notifications.created[0]).toMatchObject({
+      event: NOTIFICATION_EVENTS.IDENTITY_VERIFICATION_FAILED,
+      channel: 'PUSH',
+    });
+    expect(h.notifications.created[0]?.body).not.toContain('CONSENT_DENIED');
   });
 
   it('finds the attempt by reference id when the vendor omits verification_id', async () => {
@@ -367,9 +425,9 @@ describe('VerificationService.initiateVerification', () => {
     h.seedUser('u1', 'PENDING_VERIFICATION');
     const service = h.service(gateway({ configured: false }));
 
-    await expect(service.initiateVerification('u1', { provider: 'DIGILOCKER' })).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    await expect(
+      service.initiateVerification('u1', { provider: 'DIGILOCKER' }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
     // Nothing was recorded: an attempt that cannot happen must not capture
     // Aadhaar consent or claim a pending check.
     expect(h.consents).toHaveLength(0);
@@ -387,9 +445,9 @@ describe('VerificationService.initiateVerification', () => {
       }),
     );
 
-    await expect(service.initiateVerification('u1', { provider: 'DIGILOCKER' })).rejects.toBeInstanceOf(
-      ServiceUnavailableException,
-    );
+    await expect(
+      service.initiateVerification('u1', { provider: 'DIGILOCKER' }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('refuses an Aadhaar method we have no licence to use', async () => {
