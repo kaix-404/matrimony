@@ -91,6 +91,14 @@ export default function VerificationScreen() {
 
   const status = state?.status ?? 'NOT_STARTED';
   const verified = status === 'VERIFIED';
+  // A PENDING row only moves when the vendor's webhook arrives. Once the
+  // attempt's session has lapsed no webhook can complete it, so "waiting"
+  // would strand the member on a check that will never finish.
+  const linkExpired =
+    status === 'PENDING' &&
+    state?.providerReferenceExpiresAt !== null &&
+    state?.providerReferenceExpiresAt !== undefined &&
+    new Date(state.providerReferenceExpiresAt).getTime() <= Date.now();
 
   return (
     <Screen
@@ -106,7 +114,13 @@ export default function VerificationScreen() {
         ) : (
           <>
             <PrimaryButton
-              label={status === 'PENDING' ? 'Reopen DigiLocker' : 'Verify with DigiLocker'}
+              label={
+                linkExpired
+                  ? 'Get a new link'
+                  : status === 'PENDING'
+                    ? 'Reopen DigiLocker'
+                    : 'Verify with DigiLocker'
+              }
               onPress={() => void start()}
               loading={starting}
             />
@@ -139,7 +153,12 @@ export default function VerificationScreen() {
             You will be taken to DigiLocker to sign in and share your Aadhaar details.
           </Text>
 
-          {status === 'PENDING' ? (
+          {linkExpired ? (
+            <Text style={styles.error}>
+              That DigiLocker link expired before the check was completed. Request a new one to
+              finish verifying.
+            </Text>
+          ) : status === 'PENDING' ? (
             <Text style={styles.note}>
               Waiting for DigiLocker. Finish the steps in the browser, then tap “Check status”.
             </Text>
