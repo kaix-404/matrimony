@@ -16,6 +16,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { explainMigrateFailure, isTransientMigrateFailure } from './migrate-guard';
+import { databaseHost, migrationDatabaseUrls } from './migration-url';
 
 /** `apps/api`: the directory holding prisma.config.ts, so Prisma resolves the same config the CLI does. */
 const API_DIR = resolve(__dirname, '..', '..');
@@ -71,10 +72,33 @@ function main(): void {
   const cli = resolvePrismaCli();
   process.stdout.write('[deploy] applying pending database migrations\n');
 
+  // The direct endpoint first, the pooled URL as a fallback; see migration-url.ts
+  // for why a pooled connection cannot hold the migration advisory lock.
+  const urls = migrationDatabaseUrls(process.env);
+  if (urls.length === 0) {
+    // No URL in the environment (a local run, where prisma.config.ts loads the
+    // root .env itself). Leave the child alone rather than second-guessing it.
+    process.stdout.write('[deploy] DATABASE_URL is not exported; using the URL Prisma resolves\n');
+  } else {
+    process.stdout.write(`[deploy] migration endpoint: ${databaseHost(urls[0]!)}\n`);
+  }
+
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    // Stay on the preferred endpoint while it might still work, and fall back to
+    // the next candidate only once the earlier ones have been tried.
+    const index = Math.min(attempt - 1, urls.length - 1);
+    const candidate = urls.length === 0 ? undefined : urls[index]!;
+    const previous = urls.length === 0 || index === 0 ? undefined : urls[index - 1]!;
+    if (candidate !== undefined && previous !== undefined && candidate !== previous) {
+      process.stdout.write(`[deploy] falling back to ${databaseHost(candidate)}\n`);
+    }
+
     const result = spawnSync(process.execPath, [cli, 'migrate', 'deploy'], {
       cwd: API_DIR,
       encoding: 'utf8',
+      // prisma.config.ts reads DATABASE_URL, so overriding it here is what makes
+      // the migration use a different endpoint from the application.
+      env: candidate === undefined ? process.env : { ...process.env, DATABASE_URL: candidate },
     });
 
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
