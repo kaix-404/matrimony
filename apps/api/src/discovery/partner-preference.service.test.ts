@@ -1,0 +1,63 @@
+import { EMPTY_PREFERENCE, partnerPreferenceWhere } from './partner-preference.service';
+import type { PartnerPreferenceValues } from '@matrimony/shared';
+
+/** A fixed clock: the age bounds are derived from the year, so the test owns it. */
+const NOW = new Date('2026-11-09T00:00:00Z');
+
+function preference(overrides: Partial<PartnerPreferenceValues> = {}): PartnerPreferenceValues {
+  return { ...EMPTY_PREFERENCE, ...overrides };
+}
+
+/**
+ * What a saved preference turns into as a discovery predicate.
+ *
+ * Three properties matter. An unsaved preference must add nothing at all — a
+ * default that narrowed the feed would be a filter the member never set. A saved
+ * one must express every field it carries, or saving would look like it worked
+ * and change nothing. And the age window must be a date range, because that is
+ * the only form the database can answer from an index on birth date.
+ */
+describe('partnerPreferenceWhere', () => {
+  it('adds no predicate when nothing has been saved', () => {
+    expect(partnerPreferenceWhere(null, NOW)).toEqual({});
+    expect(partnerPreferenceWhere(EMPTY_PREFERENCE, NOW)).toEqual({});
+  });
+
+  it('turns an age window into inclusive birth-date bounds', () => {
+    const where = partnerPreferenceWhere(preference({ age_min: 30, age_max: 40 }), NOW);
+
+    // 40 years old in 2026 means born in 1986 or later...
+    expect(where.dateOfBirth).toEqual({
+      gte: new Date(Date.UTC(1986, 0, 1)),
+      lte: new Date(Date.UTC(1996, 11, 31)),
+    });
+  });
+
+  it('bounds height only by the ends that were set', () => {
+    expect(partnerPreferenceWhere(preference({ height_min_cm: 155 }), NOW).heightCm).toEqual({
+      gte: 155,
+    });
+    expect(
+      partnerPreferenceWhere(preference({ height_min_cm: 155, height_max_cm: 180 }), NOW).heightCm,
+    ).toEqual({ gte: 155, lte: 180 });
+  });
+
+  it('matches text fields without regard to case', () => {
+    const where = partnerPreferenceWhere(preference({ religion: 'Hindu', city: 'Pune' }), NOW);
+
+    expect(where.religion).toEqual({ equals: 'Hindu', mode: 'insensitive' });
+    expect(where.city).toEqual({ equals: 'Pune', mode: 'insensitive' });
+  });
+
+  it('uppercases a country code to match how profiles store one', () => {
+    expect(partnerPreferenceWhere(preference({ country: 'in' }), NOW).country).toEqual({
+      equals: 'IN',
+      mode: 'insensitive',
+    });
+  });
+
+  it('treats ANY as no gender filter', () => {
+    expect(partnerPreferenceWhere(preference({ gender: 'ANY' }), NOW).gender).toBeUndefined();
+    expect(partnerPreferenceWhere(preference({ gender: 'FEMALE' }), NOW).gender).toBe('FEMALE');
+  });
+});

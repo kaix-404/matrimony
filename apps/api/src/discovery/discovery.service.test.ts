@@ -3,6 +3,7 @@ import { PrismaClient } from '../prisma/prisma-client';
 import { StorageService } from '../storage/s3.service';
 import { DiscoveryService } from './discovery.service';
 import { VisibilityPreferenceService } from './visibility-preference.service';
+import { PartnerPreferenceService } from './partner-preference.service';
 import type { DiscoveryQuery } from '@matrimony/shared';
 import Decimal from 'decimal.js';
 
@@ -30,6 +31,16 @@ type SeedProfile = {
   visibility: 'ACTIVE' | 'PAUSED';
   deleted: boolean;
   createdAt: Date;
+  /** The attributes a saved partner preference can filter on. */
+  gender?: string;
+  dateOfBirth?: Date;
+  heightCm?: number | null;
+  maritalStatus?: string | null;
+  religion?: string | null;
+  motherTongue?: string | null;
+  country?: string | null;
+  state?: string | null;
+  city?: string | null;
   photos: {
     id: string;
     objectKey: string;
@@ -123,6 +134,19 @@ class FakePrisma {
           networthCategory: this.users.find((u) => u.id === p.userId)!.band satisfies string,
         },
       }));
+    },
+  };
+
+  /** The viewer's saved partner preference, or null when never saved. */
+  partnerPreferenceRow: Record<string, unknown> | null = null;
+
+  partnerPreference = {
+    findUnique: async ({ where }: { where: { userId: string } }) => {
+      if (where.userId !== 'viewer') {
+        throw new Error(`double only has a preference row for the viewer, asked for ${where.userId}`);
+      }
+      if (this.partnerPreferenceRow === null) return null;
+      return { ...this.partnerPreferenceRow, updatedAt: new Date('2026-01-01T00:00:00Z') };
     },
   };
 
@@ -244,6 +268,38 @@ function matchesProfile(
   const userWhere = where['user'] as { is: Record<string, unknown> } | undefined;
   if (!userWhere) throw new Error('double requires a user relation predicate');
 
+  // Partner-preference predicates, evaluated per candidate. An absent value on
+  // the candidate fails the predicate: a member who asked for Hindu profiles has
+  // not asked to be shown profiles whose religion is unknown.
+  const eq = (actual: unknown, expected: unknown): boolean =>
+    typeof expected === 'object' && expected !== null && 'equals' in expected
+      ? String(actual ?? '').toLowerCase() === String((expected as { equals: unknown }).equals ?? '').toLowerCase()
+      : actual === expected;
+
+  for (const key of ['gender', 'maritalStatus', 'religion', 'motherTongue', 'country', 'state', 'city']) {
+    if (where[key] === undefined) continue;
+    if (p[key as keyof SeedProfile] === undefined || p[key as keyof SeedProfile] === null) {
+      return false;
+    }
+    if (!eq(p[key as keyof SeedProfile], where[key])) return false;
+  }
+
+  if (where['heightCm'] !== undefined) {
+    const range = where['heightCm'] as { gte?: number; lte?: number };
+    const height = p.heightCm ?? null;
+    if (height === null) return false;
+    if (range.gte !== undefined && height < range.gte) return false;
+    if (range.lte !== undefined && height > range.lte) return false;
+  }
+
+  if (where['dateOfBirth'] !== undefined) {
+    const range = where['dateOfBirth'] as { gte?: Date; lte?: Date };
+    const dob = p.dateOfBirth;
+    if (dob === undefined) return false;
+    if (range.gte !== undefined && dob.getTime() < range.gte.getTime()) return false;
+    if (range.lte !== undefined && dob.getTime() > range.lte.getTime()) return false;
+  }
+
   const owner = store.users.find((u) => u.id === p.userId)!;
   if (owner.id !== userWhere.is['id'] && (userWhere.is['id'] as { not: string }).not === owner.id) {
     return false;
@@ -287,6 +343,7 @@ describe('DiscoveryService', () => {
           },
         },
         { provide: VisibilityPreferenceService, useValue: preferences },
+        PartnerPreferenceService,
       ],
     }).compile();
 
@@ -305,6 +362,7 @@ describe('DiscoveryService', () => {
       status?: SeedUser['status'];
       identityVerified?: boolean;
       setupFeePaid?: boolean;
+      profile?: Partial<SeedProfile>;
     } = {},
   ) {
     prisma.users.push({
@@ -328,6 +386,7 @@ describe('DiscoveryService', () => {
       deleted: false,
       createdAt: new Date(opts.createdAt ?? '2026-01-01T00:00:00Z'),
       photos: opts.photos ?? [],
+      ...opts.profile,
     });
   }
 
@@ -651,11 +710,93 @@ describe('DiscoveryService', () => {
             useValue: { presignDownload: jest.fn().mockRejectedValue(new Error('expired key')) },
           },
           { provide: VisibilityPreferenceService, useValue: preferences },
+          PartnerPreferenceService,
         ],
       }).compile();
 
       const result = await moduleRef.get(DiscoveryService).search('viewer', query());
       expect(result.items[0]!.photos).toEqual([]);
+    });
+  });
+
+  /**
+   * Partner preferences narrow the feed.
+   *
+   * They are a filter, not a permission: every candidate here already passes the
+   * eligibility and two-way visibility gates, and the only thing that removes
+   * them is the viewer's own saved preference.
+   */
+  describe('partner preferences', () => {
+    beforeEach(() => {
+      preferences.effectiveDiscoveryCategories.mockResolvedValue(['LOW']);
+      prisma.pricing = [{ category: 'LOW', baseAmount: dec(99), gstRate: dec(0.18) }];
+    });
+
+    const both = () => {
+      seedEligible('hindu', 'LOW', {
+        visibilityConfigured: true,
+        visibleTo: ['LOW'],
+        profile: { religion: 'Hindu', gender: 'FEMALE', dateOfBirth: new Date('1995-06-01T00:00:00Z') },
+      });
+      seedEligible('other', 'LOW', {
+        visibilityConfigured: true,
+        visibleTo: ['LOW'],
+        profile: {
+          religion: 'Muslim',
+          gender: 'FEMALE',
+          dateOfBirth: new Date('1990-06-01T00:00:00Z'),
+        },
+      });
+    };
+
+    it('shows everyone when nothing has been saved', async () => {
+      both();
+      const result = await service.search('viewer', query());
+      expect(result.items.map((i) => i.profile_id).sort()).toEqual([pid('hindu'), pid('other')].sort());
+    });
+
+    it('filters on religion, ignoring case', async () => {
+      both();
+      prisma.partnerPreferenceRow = {
+        gender: 'ANY',
+        ageMin: null,
+        ageMax: null,
+        heightMinCm: null,
+        heightMaxCm: null,
+        maritalStatus: null,
+        religion: 'hindu',
+        motherTongue: null,
+        country: null,
+        state: null,
+        city: null,
+      };
+
+      const result = await service.search('viewer', query());
+      expect(result.items.map((i) => i.profile_id)).toEqual([pid('hindu')]);
+    });
+
+    it('excludes candidates whose field is unset', async () => {
+      seedEligible('unknown', 'LOW', {
+        visibilityConfigured: true,
+        visibleTo: ['LOW'],
+        profile: { religion: null, gender: 'FEMALE', dateOfBirth: new Date('1992-01-01T00:00:00Z') },
+      });
+      prisma.partnerPreferenceRow = {
+        gender: 'ANY',
+        ageMin: null,
+        ageMax: null,
+        heightMinCm: null,
+        heightMaxCm: null,
+        maritalStatus: null,
+        religion: 'Hindu',
+        motherTongue: null,
+        country: null,
+        state: null,
+        city: null,
+      };
+
+      const result = await service.search('viewer', query());
+      expect(result.items).toEqual([]);
     });
   });
 

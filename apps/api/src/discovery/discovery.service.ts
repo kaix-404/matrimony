@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient, type PhotoType } from '../prisma/prisma-client';
 import { StorageService } from '../storage/s3.service';
 import { VisibilityPreferenceService } from './visibility-preference.service';
+import { PartnerPreferenceService, partnerPreferenceWhere } from './partner-preference.service';
 import {
   quotePayment,
   type DiscoveryCard,
@@ -55,6 +56,7 @@ export class DiscoveryService {
     private readonly prisma: PrismaClient,
     private readonly storage: StorageService,
     private readonly preferences: VisibilityPreferenceService,
+    private readonly partnerPreferences: PartnerPreferenceService,
   ) {}
 
   async search(viewerId: string, query: DiscoveryQuery): Promise<DiscoveryResponse> {
@@ -69,9 +71,15 @@ export class DiscoveryService {
     }
 
     const cursor = decodeCursor(query.cursor);
+    // The member's own partner preferences narrow what they see. They are a
+    // filter over the feed, not a permission: a candidate outside them may still
+    // be opened directly, and the preference is never applied in the other
+    // direction (it does not make anyone less discoverable).
+    const partnerPreference = await this.partnerPreferences.get(viewerId);
     const rows = await this.prisma.profile.findMany({
       where: {
         ...this.candidateWhere(viewerId, viewerBand, scope),
+        ...partnerPreferenceWhere(partnerPreference.preference),
         ...this.temporaryFilter(query),
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],

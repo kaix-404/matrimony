@@ -176,6 +176,11 @@ export default function SettingsScreen() {
 
       <PrimaryButton
         variant="outline"
+        label="Partner preferences"
+        onPress={() => router.push('/partner-preferences')}
+      />
+      <PrimaryButton
+        variant="outline"
         label="Blocked profiles"
         onPress={() => router.push('/blocks')}
       />

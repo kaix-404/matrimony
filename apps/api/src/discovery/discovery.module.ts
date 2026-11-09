@@ -3,6 +3,8 @@ import { AuthModule } from '../auth/auth.module';
 import { StorageModule } from '../storage/storage.module';
 import { VisibilityPreferenceService } from './visibility-preference.service';
 import { VisibilityPreferenceController } from './visibility-preference.controller';
+import { PartnerPreferenceService } from './partner-preference.service';
+import { PartnerPreferenceController } from './partner-preference.controller';
 import { DiscoveryService } from './discovery.service';
 import { DiscoveryController } from './discovery.controller';
 
@@ -20,8 +22,8 @@ import { DiscoveryController } from './discovery.controller';
  */
 @Module({
   imports: [AuthModule, StorageModule],
-  controllers: [VisibilityPreferenceController, DiscoveryController],
-  providers: [VisibilityPreferenceService, DiscoveryService],
-  exports: [VisibilityPreferenceService, DiscoveryService],
+  controllers: [VisibilityPreferenceController, PartnerPreferenceController, DiscoveryController],
+  providers: [VisibilityPreferenceService, PartnerPreferenceService, DiscoveryService],
+  exports: [VisibilityPreferenceService, PartnerPreferenceService, DiscoveryService],
 })
 export class DiscoveryModule {}

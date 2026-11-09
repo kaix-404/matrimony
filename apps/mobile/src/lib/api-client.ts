@@ -22,6 +22,8 @@ import type {
   NetWorthVisibilityPreference,
   NetWorthVisibilityPreferenceState,
   OtpRequested,
+  PartnerPreferenceState,
+  UpdatePartnerPreferenceInput,
   PaymentOrderResponse,
   PaymentStatusResponse,
   ProfileCompleteness,
@@ -47,6 +49,7 @@ import {
   ListNotificationsQuerySchema,
   NetWorthVisibilityPreferenceSchema,
   RecommendationsQuerySchema,
+  UpdatePartnerPreferenceSchema,
   RefreshSchema,
   RegisterDeviceTokenSchema,
   RequestOtpSchema,
@@ -418,6 +421,33 @@ class ApiClient {
     const body = NetWorthVisibilityPreferenceSchema.parse(input);
     return this.fetchJson('me/visibility', {
       method: 'PATCH',
+      body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  // -- partner preferences ---------------------------------------------------
+
+  /** The caller's saved partner preference, plus whether they ever saved one. */
+  async getPartnerPreference(token: string): Promise<PartnerPreferenceState> {
+    return this.fetchJson('me/partner-preference', { headers: authHeaders(token) });
+  }
+
+  /**
+   * Replaces the whole preference.
+   *
+   * The form submits every field, and a cleared field has to stay cleared, so
+   * this is a PUT rather than a merge. Parsed locally too: the range checks (a
+   * minimum above its maximum) are the same ones the API applies, and catching
+   * them here names the field instead of failing the request.
+   */
+  async savePartnerPreference(
+    input: UpdatePartnerPreferenceInput,
+    token: string,
+  ): Promise<PartnerPreferenceState> {
+    const body = UpdatePartnerPreferenceSchema.parse(input);
+    return this.fetchJson('me/partner-preference', {
+      method: 'PUT',
       body: JSON.stringify(body),
       headers: authHeaders(token),
     });
