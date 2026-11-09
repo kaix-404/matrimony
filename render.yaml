@@ -11,6 +11,10 @@ services:
     repoPath: .
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    # Secrets are declared with `sync: false`, Render's way of saying "this key
+    # exists, but its value lives in the dashboard". The blueprint spec has no
+    # `valueType` field: a bare `key:` with no value reads as a blueprint-managed
+    # value, so a sync can overwrite what was entered in the dashboard.
     envVars:
       - key: NODE_ENV
         value: production
@@ -21,25 +25,25 @@ services:
       - key: TZ
         value: UTC
       - key: DATABASE_URL
-        valueType: secret
+        sync: false
       - key: REDIS_URL
-        valueType: secret
+        sync: false
       - key: JWT_ACCESS_SECRET
-        valueType: secret
+        sync: false
       - key: JWT_REFRESH_SECRET
-        valueType: secret
+        sync: false
       - key: OTP_HASH_SECRET
-        valueType: secret
+        sync: false
       - key: MFA_ENCRYPTION_KEY
-        valueType: secret
+        sync: false
       - key: S3_ENDPOINT
-        valueType: secret
+        sync: false
       - key: S3_BUCKET
-        valueType: secret
+        sync: false
       - key: S3_ACCESS_KEY
-        valueType: secret
+        sync: false
       - key: S3_SECRET_KEY
-        valueType: secret
+        sync: false
       - key: S3_FORCE_PATH_STYLE
         value: "true"
       - key: S3_SIGNED_URL_TTL
@@ -50,36 +54,36 @@ services:
         value: "https://matrimony-admin-o9o2.onrender.com"
       # Payment & notification secrets — add when ready
       # - key: RAZORPAY_KEY_ID
-      #   valueType: secret
+      #   sync: false
       # - key: RAZORPAY_KEY_SECRET
-      #   valueType: secret
+      #   sync: false
       # - key: RAZORPAY_WEBHOOK_SECRET
-      #   valueType: secret
+      #   sync: false
       # Identity verification (D9). Without these the API boots and answers 503
       # to every attempt to start a DigiLocker session, which is why production
       # shows "Verify your identity" and cannot complete it. See
       # docs/ops/identity-verification.md for the whole switch-on.
       - key: CASHFREE_CLIENT_ID
-        valueType: secret
+        sync: false
       - key: CASHFREE_CLIENT_SECRET
-        valueType: secret
+        sync: false
       # `sandbox` until Cashfree approves production Secure ID. Sandbox and
       # production credentials are not interchangeable, and a sandbox secret on
       # the production host fails with a validation error that reads like a bug.
       - key: CASHFREE_ENVIRONMENT
         value: sandbox
       # - key: FCM_SERVICE_ACCOUNT_JSON
-      #   valueType: secret
+      #   sync: false
       # - key: SMS_PROVIDER_API_KEY
-      #   valueType: secret
+      #   sync: false
       # - key: SMS_SENDER_ID
-      #   valueType: secret
+      #   sync: false
       # - key: SMS_TEMPLATE_ID
-      #   valueType: secret
+      #   sync: false
       # - key: SMS_DLT_ENTITY_ID
-      #   valueType: secret
+      #   sync: false
       # - key: SMS_DLT_TEMPLATE_ID
-      #   valueType: secret
+      #   sync: false
       # The OTP template's placeholder, and the dialling code. Neither is a
       # secret, and the first is the one SMS setting that can be wrong while
       # everything still looks right: MSG91 answers `success` and bills the send
@@ -91,9 +95,9 @@ services:
       - key: SMS_COUNTRY_CODE
         value: "91"
       # - key: EMAIL_PROVIDER_API_KEY
-      #   valueType: secret
+      #   sync: false
       # - key: EMAIL_FROM_ADDRESS
-      #   valueType: secret
+      #   sync: false
     healthCheckPath: /api/v1/health/ready
     healthCheckPort: 4000
     autoDeploy: true
