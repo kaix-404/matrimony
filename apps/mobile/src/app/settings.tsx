@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
-import type { DeviceTokenResponse, NetWorthCategoryOption } from '@matrimony/shared';
-import { CheckboxList, type CheckboxOption } from '../components/CheckboxList';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Switch, Text, View } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import type { MyProfile } from '@matrimony/shared';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { apiClient } from '../lib/api-client';
@@ -10,111 +9,71 @@ import { useAuth } from '../lib/auth-context';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
-function formatDate(value: string): string {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
-}
-
 /**
- * Settings and privacy.
+ * Settings, organised around the two things a member comes here to do: leave, or
+ * be less visible.
  *
- * The two net-worth lists decide who this user can find and who can find them
- * (section 36). They are edited together here and saved as sets: the API treats
- * an empty list as a deliberate "nobody", so the checkboxes are the literal
- * representation of that choice rather than a filter over it.
+ * The client narrowed this screen to account and privacy actions, so the net-worth
+ * visibility lists moved to Discovery & visibility, and the product extras —
+ * partner preferences, pricing, help — sit in their own group at the bottom
+ * rather than being deleted. Pausing lives here as a switch because it is the
+ * reversible version of deleting an account, and putting it next to the
+ * irreversible one is how a member finds it before they delete anything.
  *
- * Devices are shown read-only. The push token is a device secret the API never
- * returns, so it cannot be named in a delete call from this list; a device is
- * removed when it signs out.
+ * Changing the mobile number and adding an email are not here yet. The number is
+ * the login identity, so it needs its own verified-swap flow rather than a text
+ * field, and email needs a provider this deployment does not have configured;
+ * shipping a button that cannot complete would be worse than its absence.
  */
 export default function SettingsScreen() {
   const { ready } = useRequireAuth();
   const { token, signOut } = useAuth();
 
-  const [categories, setCategories] = useState<NetWorthCategoryOption[]>([]);
-  const [discover, setDiscover] = useState<string[]>([]);
-  const [visibleTo, setVisibleTo] = useState<string[]>([]);
-  const [pristine, setPristine] = useState<{ discover: string[]; visibleTo: string[] }>({
-    discover: [],
-    visibleTo: [],
-  });
-  const [devices, setDevices] = useState<DeviceTokenResponse[]>([]);
+  const [profile, setProfile] = useState<MyProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
 
   const load = useCallback(async () => {
     if (!token) return;
     setLoading(true);
     setError(null);
     try {
-      const [bands, preference, deviceList] = await Promise.all([
-        apiClient.getNetWorthCategories(),
-        apiClient.getVisibilityPreference(token),
-        apiClient.listDevices(token),
-      ]);
-      const discoverable = bands.filter((band) => band.is_discoverable);
-      // A user who has never saved a preference effectively sees and is seen by
-      // their own band; rendering that as the starting selection means saving is
-      // idempotent for someone who changes nothing.
-      const initialDiscover = preference.discovery_configured
-        ? preference.discover
-        : [preference.own_category];
-      const initialVisibleTo = preference.visibility_configured
-        ? preference.visible_to
-        : [preference.own_category];
-      setCategories(discoverable);
-      setDiscover(initialDiscover);
-      setVisibleTo(initialVisibleTo);
-      setPristine({ discover: initialDiscover, visibleTo: initialVisibleTo });
-      setDevices(deviceList.devices);
+      setProfile(await apiClient.getMyProfile(token));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load your settings.');
+      setError(e instanceof Error ? e.message : 'Could not load your profile.');
     } finally {
       setLoading(false);
     }
   }, [token]);
 
-  useEffect(() => {
-    if (ready) void load();
-  }, [ready, load]);
+  // Re-read on focus: the toggle is also on the profile screen, so returning from
+  // there must not leave this switch showing the state it had before.
+  useFocusEffect(
+    useCallback(() => {
+      if (ready) void load();
+    }, [ready, load]),
+  );
 
-  const options: CheckboxOption[] = categories.map((band) => ({
-    value: band.key,
-    label: band.label,
-  }));
+  const paused = profile?.visibility === 'PAUSED';
 
-  function toggle(list: string[], setList: (next: string[]) => void, value: string) {
-    setSaved(false);
-    setList(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]);
-  }
-
-  const changed = !sameSet(discover, pristine.discover) || !sameSet(visibleTo, pristine.visibleTo);
-
-  async function save() {
+  async function setPaused(next: boolean) {
     if (!token) return;
     setSaving(true);
     setError(null);
     try {
-      const state = await apiClient.saveVisibilityPreference(
-        { discover, visible_to: visibleTo },
-        token,
-      );
-      setDiscover(state.discover);
-      setVisibleTo(state.visible_to);
-      setPristine({ discover: state.discover, visibleTo: state.visible_to });
-      setSaved(true);
+      const updated = await apiClient.setProfileVisibility(next ? 'PAUSED' : 'ACTIVE', token);
+      setProfile(updated);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save your preferences.');
+      setError(e instanceof Error ? e.message : 'Could not change your visibility.');
     } finally {
       setSaving(false);
     }
   }
 
-  if (!ready || loading) {
+  if (!ready) {
     return (
-      <Screen title="Settings" back>
+      <Screen title="Settings & privacy" back>
         <View style={styles.state}>
           <ActivityIndicator color={colors.primary} />
         </View>
@@ -123,87 +82,73 @@ export default function SettingsScreen() {
   }
 
   return (
-    <Screen
-      title="Settings & privacy"
-      subtitle="Who you can find, and who can find you."
-      back
-      footer={
+    <Screen title="Settings & privacy" subtitle="Your account, and who can see it." back>
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Privacy</Text>
+        <View style={styles.row}>
+          <View style={styles.rowText}>
+            <Text style={styles.rowTitle}>Pause my profile</Text>
+            <Text style={styles.rowHint}>
+              Hidden from everyone until you turn this back on. Nothing is deleted, and unlocks you
+              bought stay valid for their window.
+            </Text>
+          </View>
+          {loading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <Switch
+              value={!paused}
+              onValueChange={(visible) => void setPaused(!visible)}
+              disabled={saving || profile === null}
+              trackColor={{ false: colors.hairline, true: colors.primary }}
+              thumbColor={colors.white}
+            />
+          )}
+        </View>
         <PrimaryButton
-          label={saved && !changed ? 'Saved' : 'Save preferences'}
-          onPress={save}
-          disabled={!changed}
-          loading={saving}
+          variant="outline"
+          label="Discovery & visibility"
+          onPress={() => router.push('/discovery-settings')}
         />
-      }
-    >
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Bands I can discover</Text>
-        <Text style={styles.sectionHint}>Profiles from these bands appear in your feed.</Text>
-        <CheckboxList
-          options={options}
-          selected={discover}
-          onToggle={(value) => toggle(discover, setDiscover, value)}
+        <PrimaryButton
+          variant="outline"
+          label="Blocked profiles"
+          onPress={() => router.push('/blocks')}
         />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Bands that can discover me</Text>
-        <Text style={styles.sectionHint}>Only these bands see your profile in their feed.</Text>
-        <CheckboxList
-          options={options}
-          selected={visibleTo}
-          onToggle={(value) => toggle(visibleTo, setVisibleTo, value)}
+        <PrimaryButton
+          variant="outline"
+          label="Request a copy of your data"
+          onPress={() => router.push('/data-request')}
         />
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Devices</Text>
-        {devices.length === 0 ? (
-          <Text style={styles.sectionHint}>No devices registered for notifications.</Text>
-        ) : (
-          devices.map((device) => (
-            <View key={device.id} style={styles.deviceRow}>
-              <Text style={styles.deviceName}>{device.platform}</Text>
-              <Text style={styles.deviceMeta}>
-                Last active {formatDate(String(device.last_seen_at))}
-              </Text>
-            </View>
-          ))
-        )}
+        <Text style={styles.sectionTitle}>Account</Text>
+        <PrimaryButton
+          variant="outline"
+          label="Identity verification"
+          onPress={() => router.push('/verification')}
+        />
+        <PrimaryButton
+          variant="outline"
+          label="Delete account"
+          onPress={() => router.push('/delete-account')}
+        />
       </View>
 
-      <PrimaryButton
-        variant="outline"
-        label="Partner preferences"
-        onPress={() => router.push('/partner-preferences')}
-      />
-      <PrimaryButton
-        variant="outline"
-        label="Pricing"
-        onPress={() => router.push('/pricing')}
-      />
-      <PrimaryButton
-        variant="outline"
-        label="Blocked profiles"
-        onPress={() => router.push('/blocks')}
-      />
-      <PrimaryButton
-        variant="outline"
-        label="Request a copy of your data"
-        onPress={() => router.push('/data-request')}
-      />
-      <PrimaryButton
-        variant="outline"
-        label="Identity verification"
-        onPress={() => router.push('/verification')}
-      />
-      <PrimaryButton
-        variant="outline"
-        label="Delete account"
-        onPress={() => router.push('/delete-account')}
-      />
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>More</Text>
+        <PrimaryButton
+          variant="outline"
+          label="Partner preferences"
+          onPress={() => router.push('/partner-preferences')}
+        />
+        <PrimaryButton variant="outline" label="Pricing" onPress={() => router.push('/pricing')} />
+        <PrimaryButton variant="outline" label="Help" onPress={() => router.push('/help')} />
+      </View>
+
       <PrimaryButton
         variant="outline"
         label="Sign out"
@@ -213,12 +158,6 @@ export default function SettingsScreen() {
       />
     </Screen>
   );
-}
-
-function sameSet(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const set = new Set(a);
-  return b.every((item) => set.has(item));
 }
 
 const styles = StyleSheet.create({
@@ -233,22 +172,23 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     ...typography.h2,
   },
-  sectionHint: {
-    color: colors.textMuted,
-    ...typography.caption,
-  },
-  deviceRow: {
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radii.input,
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
     backgroundColor: colors.surface,
+    borderRadius: radii.input,
+    padding: spacing.lg,
+  },
+  rowText: {
+    flex: 1,
     gap: 2,
   },
-  deviceName: {
+  rowTitle: {
     color: colors.textPrimary,
     ...typography.title,
   },
-  deviceMeta: {
+  rowHint: {
     color: colors.textMuted,
     ...typography.caption,
   },
