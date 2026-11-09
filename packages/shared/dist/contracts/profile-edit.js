@@ -100,6 +100,9 @@ exports.CreateProfileSchema = zod_1.z
     height_cm: zod_1.z.number().int().min(90).max(250).nullable().optional(),
     marital_status: zod_1.z.enum(enums_1.MARITAL_STATUSES).nullable().optional(),
     religion: optionalText(80),
+    /// A value from the religion-scoped sub-caste list, only meaningful beside
+    /// `religion` (see the Profile model).
+    sub_caste: optionalText(80),
     community_id: masterListId.nullable().optional(),
     mother_tongue: optionalText(60),
     swagotra: optionalText(60),
@@ -150,6 +153,7 @@ exports.UpdateProfileSchema = zod_1.z
     height_cm: zod_1.z.number().int().min(90).max(250).nullable().optional(),
     marital_status: zod_1.z.enum(enums_1.MARITAL_STATUSES).nullable().optional(),
     religion: optionalText(80),
+    sub_caste: optionalText(80),
     community_id: masterListId.nullable().optional(),
     mother_tongue: optionalText(60),
     swagotra: optionalText(60),
@@ -231,6 +235,7 @@ exports.MyProfileSchema = zod_1.z
     height_cm: zod_1.z.number().int().nullable(),
     marital_status: zod_1.z.enum(enums_1.MARITAL_STATUSES).nullable(),
     religion: zod_1.z.string().nullable(),
+    sub_caste: zod_1.z.string().nullable(),
     community: zod_1.z.string().nullable(),
     mother_tongue: zod_1.z.string().nullable(),
     swagotra: zod_1.z.string().nullable(),

@@ -46,6 +46,7 @@ function profile(overrides: ProfileRow = {}): ProfileRow {
     placeOfBirth: 'Pune',
     heightCm: 165,
     religion: 'Hindu',
+    subCaste: null,
     motherTongue: 'Marathi',
     swagotra: 'Kashyap',
     maternalGothra: 'Bharadwaj',

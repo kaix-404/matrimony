@@ -459,6 +459,7 @@ export class UnlockService {
       height_cm: p.heightCm,
 
       religion: p.religion,
+      sub_caste: p.subCaste,
       community: p.communityValue?.value ?? null,
       mother_tongue: p.motherTongue,
       swagotra: p.swagotra,

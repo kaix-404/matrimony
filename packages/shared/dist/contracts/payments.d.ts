@@ -75,19 +75,19 @@ export declare const PaymentOrderSchema: z.ZodObject<{
         profile_id: z.ZodString;
         first_name: z.ZodString;
     }, "strict", z.ZodTypeAny, {
-        first_name: string;
         profile_id: string;
+        first_name: string;
     }, {
-        first_name: string;
         profile_id: string;
+        first_name: string;
     }>>;
     /** Section 15: the disclosure window, so the app can show a countdown. */
     unlock_window_hours: z.ZodOptional<z.ZodNumber>;
     created_at: z.ZodString;
 }, "strict", z.ZodTypeAny, {
-    purpose: "UNLOCK" | "SETUP_FEE";
     created_at: string;
     payment_id: string;
+    purpose: "UNLOCK" | "SETUP_FEE";
     gateway: "RAZORPAY";
     gateway_order_id: string;
     key_id: string;
@@ -99,14 +99,14 @@ export declare const PaymentOrderSchema: z.ZodObject<{
         currency: "INR";
     };
     profile?: {
-        first_name: string;
         profile_id: string;
+        first_name: string;
     } | undefined;
     unlock_window_hours?: number | undefined;
 }, {
-    purpose: "UNLOCK" | "SETUP_FEE";
     created_at: string;
     payment_id: string;
+    purpose: "UNLOCK" | "SETUP_FEE";
     gateway: "RAZORPAY";
     gateway_order_id: string;
     key_id: string;
@@ -118,8 +118,8 @@ export declare const PaymentOrderSchema: z.ZodObject<{
         currency: "INR";
     };
     profile?: {
-        first_name: string;
         profile_id: string;
+        first_name: string;
     } | undefined;
     unlock_window_hours?: number | undefined;
 }>;
@@ -185,22 +185,22 @@ export declare const PaymentStatusSchema: z.ZodObject<{
         status: z.ZodEnum<["ACTIVE", "EXPIRED", "REVOKED"]>;
     }, "strict", z.ZodTypeAny, {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
-        unlocked_at: string;
         unlock_expires_at: string;
+        unlocked_at: string;
         remaining_ms: number;
     }, {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
-        unlocked_at: string;
         unlock_expires_at: string;
+        unlocked_at: string;
         remaining_ms: number;
     }>>;
     created_at: z.ZodString;
     paid_at: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    status: "PENDING" | "FAILED" | "CREATED" | "SUCCESS" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "PARTIALLY_REFUNDED";
-    purpose: "UNLOCK" | "SETUP_FEE";
+    status: "CREATED" | "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "PARTIALLY_REFUNDED";
     created_at: string;
     payment_id: string;
+    purpose: "UNLOCK" | "SETUP_FEE";
     amount: {
         base_amount: string;
         gst_rate: string;
@@ -211,15 +211,15 @@ export declare const PaymentStatusSchema: z.ZodObject<{
     paid_at: string | null;
     unlock?: {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
-        unlocked_at: string;
         unlock_expires_at: string;
+        unlocked_at: string;
         remaining_ms: number;
     } | undefined;
 }, {
-    status: "PENDING" | "FAILED" | "CREATED" | "SUCCESS" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "PARTIALLY_REFUNDED";
-    purpose: "UNLOCK" | "SETUP_FEE";
+    status: "CREATED" | "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "PARTIALLY_REFUNDED";
     created_at: string;
     payment_id: string;
+    purpose: "UNLOCK" | "SETUP_FEE";
     amount: {
         base_amount: string;
         gst_rate: string;
@@ -230,8 +230,8 @@ export declare const PaymentStatusSchema: z.ZodObject<{
     paid_at: string | null;
     unlock?: {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
-        unlocked_at: string;
         unlock_expires_at: string;
+        unlocked_at: string;
         remaining_ms: number;
     } | undefined;
 }>;
@@ -254,16 +254,16 @@ export declare const UnlockSummarySchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     status: "ACTIVE" | "EXPIRED" | "REVOKED";
     profile_id: string;
+    unlock_expires_at: string;
     display_name: string | null;
     unlocked_at: string;
-    unlock_expires_at: string;
     remaining_ms: number;
 }, {
     status: "ACTIVE" | "EXPIRED" | "REVOKED";
     profile_id: string;
+    unlock_expires_at: string;
     display_name: string | null;
     unlocked_at: string;
-    unlock_expires_at: string;
     remaining_ms: number;
 }>;
 export type UnlockSummary = z.infer<typeof UnlockSummarySchema>;
@@ -278,34 +278,34 @@ export declare const UnlockListResponseSchema: z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
         profile_id: string;
+        unlock_expires_at: string;
         display_name: string | null;
         unlocked_at: string;
-        unlock_expires_at: string;
         remaining_ms: number;
     }, {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
         profile_id: string;
+        unlock_expires_at: string;
         display_name: string | null;
         unlocked_at: string;
-        unlock_expires_at: string;
         remaining_ms: number;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     items: {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
         profile_id: string;
+        unlock_expires_at: string;
         display_name: string | null;
         unlocked_at: string;
-        unlock_expires_at: string;
         remaining_ms: number;
     }[];
 }, {
     items: {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
         profile_id: string;
+        unlock_expires_at: string;
         display_name: string | null;
         unlocked_at: string;
-        unlock_expires_at: string;
         remaining_ms: number;
     }[];
 }>;

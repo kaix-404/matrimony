@@ -20,12 +20,21 @@ import { z } from 'zod';
 export declare const MasterListValueSchema: z.ZodObject<{
     id: z.ZodString;
     value: z.ZodString;
+    /**
+     * Section of the list this value belongs to, or null for a flat list.
+     * Education groups by degree family, occupation by industry, and sub-caste
+     * by the religion it applies to — which is why the picker filters sub-castes
+     * by the member's own religion rather than offering all 835 of them.
+     */
+    group: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     value: string;
     id: string;
+    group: string | null;
 }, {
     value: string;
     id: string;
+    group: string | null;
 }>;
 export type MasterListValue = z.infer<typeof MasterListValueSchema>;
 export declare const MasterListSchema: z.ZodObject<{
@@ -35,28 +44,39 @@ export declare const MasterListSchema: z.ZodObject<{
     values: z.ZodArray<z.ZodObject<{
         id: z.ZodString;
         value: z.ZodString;
+        /**
+         * Section of the list this value belongs to, or null for a flat list.
+         * Education groups by degree family, occupation by industry, and sub-caste
+         * by the religion it applies to — which is why the picker filters sub-castes
+         * by the member's own religion rather than offering all 835 of them.
+         */
+        group: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
         value: string;
         id: string;
+        group: string | null;
     }, {
         value: string;
         id: string;
+        group: string | null;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     values: {
         value: string;
         id: string;
+        group: string | null;
     }[];
-    label: string;
     key: string;
+    label: string;
     is_sensitive: boolean;
 }, {
     values: {
         value: string;
         id: string;
+        group: string | null;
     }[];
-    label: string;
     key: string;
+    label: string;
     is_sensitive: boolean;
 }>;
 export type MasterList = z.infer<typeof MasterListSchema>;
@@ -68,28 +88,39 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
         values: z.ZodArray<z.ZodObject<{
             id: z.ZodString;
             value: z.ZodString;
+            /**
+             * Section of the list this value belongs to, or null for a flat list.
+             * Education groups by degree family, occupation by industry, and sub-caste
+             * by the religion it applies to — which is why the picker filters sub-castes
+             * by the member's own religion rather than offering all 835 of them.
+             */
+            group: z.ZodNullable<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
             value: string;
             id: string;
+            group: string | null;
         }, {
             value: string;
             id: string;
+            group: string | null;
         }>, "many">;
     }, "strict", z.ZodTypeAny, {
         values: {
             value: string;
             id: string;
+            group: string | null;
         }[];
-        label: string;
         key: string;
+        label: string;
         is_sensitive: boolean;
     }, {
         values: {
             value: string;
             id: string;
+            group: string | null;
         }[];
-        label: string;
         key: string;
+        label: string;
         is_sensitive: boolean;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
@@ -97,9 +128,10 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
         values: {
             value: string;
             id: string;
+            group: string | null;
         }[];
-        label: string;
         key: string;
+        label: string;
         is_sensitive: boolean;
     }[];
 }, {
@@ -107,15 +139,16 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
         values: {
             value: string;
             id: string;
+            group: string | null;
         }[];
-        label: string;
         key: string;
+        label: string;
         is_sensitive: boolean;
     }[];
 }>;
 export type MasterListsResponse = z.infer<typeof MasterListsResponseSchema>;
 /** Master-list keys, seeded and referenced by the profile schema. */
-export declare const MASTER_LIST_KEYS: readonly ["EDUCATION", "PROFESSION", "CASTE", "COMMUNITY"];
+export declare const MASTER_LIST_KEYS: readonly ["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE"];
 export type MasterListKey = (typeof MASTER_LIST_KEYS)[number];
 /**
  * Map a profile field to the list it draws from, so the server can validate ids

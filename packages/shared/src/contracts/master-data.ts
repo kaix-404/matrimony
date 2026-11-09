@@ -23,6 +23,13 @@ export const MasterListValueSchema = z
   .object({
     id: z.string().min(1),
     value: z.string().min(1),
+    /**
+     * Section of the list this value belongs to, or null for a flat list.
+     * Education groups by degree family, occupation by industry, and sub-caste
+     * by the religion it applies to — which is why the picker filters sub-castes
+     * by the member's own religion rather than offering all 835 of them.
+     */
+    group: z.string().nullable(),
   })
   .strict();
 
@@ -48,7 +55,15 @@ export const MasterListsResponseSchema = z
 export type MasterListsResponse = z.infer<typeof MasterListsResponseSchema>;
 
 /** Master-list keys, seeded and referenced by the profile schema. */
-export const MASTER_LIST_KEYS = ['EDUCATION', 'PROFESSION', 'CASTE', 'COMMUNITY'] as const;
+export const MASTER_LIST_KEYS = [
+  'RELIGION',
+  'MOTHER_TONGUE',
+  'EDUCATION',
+  'PROFESSION',
+  'CASTE',
+  'COMMUNITY',
+  'STATE',
+] as const;
 export type MasterListKey = (typeof MASTER_LIST_KEYS)[number];
 
 /**

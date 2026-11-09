@@ -60,6 +60,7 @@ const FULL_PROFILE = {
   place_of_birth: 'Kochi',
   height_cm: 165,
   religion: 'Hindu',
+  sub_caste: 'Nair',
   community: 'Nair',
   mother_tongue: 'Malayalam',
   swagotra: 'Kashyapa',

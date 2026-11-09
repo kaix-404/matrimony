@@ -18,6 +18,15 @@ import { AdminRoleSlug, PrismaClient } from '../src/prisma/prisma-client';
 import { hashPassword } from '../src/common/crypto/password';
 import { removeDemoProfiles, seedDemoProfiles } from './demo-profiles';
 import {
+  CASTE_VALUES,
+  EDUCATION_VALUES,
+  MOTHER_TONGUE_VALUES,
+  PROFESSION_VALUES,
+  RELIGION_VALUES,
+  STATE_VALUES,
+  type MasterListValueSeed,
+} from './master-data-values';
+import {
   ACCOUNT_SETUP_FEE,
   CRORE_INR,
   DEFAULT_INTERESTS,
@@ -188,23 +197,60 @@ async function seedPricing(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 const MASTER_LISTS = [
-  { key: 'EDUCATION', label: 'Education', isSensitive: false },
-  { key: 'PROFESSION', label: 'Profession', isSensitive: false },
-  { key: 'CASTE', label: 'Caste', isSensitive: true },
-  { key: 'COMMUNITY', label: 'Community', isSensitive: true },
+  { key: 'RELIGION', label: 'Religion', isSensitive: false, sortOrder: 1 },
+  { key: 'MOTHER_TONGUE', label: 'Mother tongue', isSensitive: false, sortOrder: 2 },
+  { key: 'EDUCATION', label: 'Education', isSensitive: false, sortOrder: 3 },
+  { key: 'PROFESSION', label: 'Profession', isSensitive: false, sortOrder: 4 },
+  // The client's "sub cast" list. Caste is more sensitive than education, so it
+  // keeps the flag the container already had (section 13 / D3).
+  { key: 'CASTE', label: 'Sub-caste', isSensitive: true, sortOrder: 5 },
+  { key: 'COMMUNITY', label: 'Community', isSensitive: true, sortOrder: 6 },
+  { key: 'STATE', label: 'State', isSensitive: false, sortOrder: 7 },
 ] as const;
 
 /**
- * Seeds the list containers only. The individual values are the client's call
- * and are maintained from the admin dashboard, so inventing a default value
- * list here would be fabricating data that the business has not agreed to.
+ * Values per list, from the files the client supplied in
+ * `docs/Data Points list/`. Kept in the repository rather than typed in by an
+ * admin so a fresh environment comes up with usable pickers instead of seven
+ * empty dropdowns.
+ *
+ * The list containers are seeded for every key above even when no values exist
+ * yet: `COMMUNITY` is still waiting on the client, and an empty list is honest
+ * about that (the app shows no options) whereas a missing list would look like a
+ * broken endpoint.
  */
-async function seedMasterListContainers(): Promise<void> {
+const MASTER_LIST_VALUES: Record<string, MasterListValueSeed[]> = {
+  RELIGION: RELIGION_VALUES,
+  MOTHER_TONGUE: MOTHER_TONGUE_VALUES,
+  EDUCATION: EDUCATION_VALUES,
+  PROFESSION: PROFESSION_VALUES,
+  CASTE: CASTE_VALUES,
+  STATE: STATE_VALUES,
+};
+
+async function seedMasterLists(): Promise<void> {
   for (const list of MASTER_LISTS) {
     await prisma.masterList.upsert({
       where: { key: list.key },
-      update: { label: list.label, isSensitive: list.isSensitive },
-      create: { key: list.key, label: list.label, isSensitive: list.isSensitive },
+      update: { label: list.label, isSensitive: list.isSensitive, sortOrder: list.sortOrder },
+      create: {
+        key: list.key,
+        label: list.label,
+        isSensitive: list.isSensitive,
+        sortOrder: list.sortOrder,
+      },
+    });
+  }
+
+  for (const [listKey, values] of Object.entries(MASTER_LIST_VALUES)) {
+    await prisma.masterListValue.createMany({
+      data: values.map((entry, index) => ({
+        listKey,
+        value: entry.value,
+        groupLabel: entry.group ?? '',
+        sortOrder: index + 1,
+      })),
+      skipDuplicates: true,
     });
   }
 }
@@ -215,9 +261,24 @@ async function seedMasterListContainers(): Promise<void> {
 
 const REPORT_REASONS = [
   { code: 'FAKE_PROFILE', label: 'Fake profile', requiresDescription: false, sortOrder: 1 },
-  { code: 'INCORRECT_INFORMATION', label: 'Incorrect information', requiresDescription: false, sortOrder: 2 },
-  { code: 'INAPPROPRIATE_CONTENT', label: 'Inappropriate photo or content', requiresDescription: false, sortOrder: 3 },
-  { code: 'INCORRECT_CONTACT', label: 'Incorrect contact information', requiresDescription: true, sortOrder: 4 },
+  {
+    code: 'INCORRECT_INFORMATION',
+    label: 'Incorrect information',
+    requiresDescription: false,
+    sortOrder: 2,
+  },
+  {
+    code: 'INAPPROPRIATE_CONTENT',
+    label: 'Inappropriate photo or content',
+    requiresDescription: false,
+    sortOrder: 3,
+  },
+  {
+    code: 'INCORRECT_CONTACT',
+    label: 'Incorrect contact information',
+    requiresDescription: true,
+    sortOrder: 4,
+  },
   { code: 'HARASSMENT', label: 'Harassment', requiresDescription: true, sortOrder: 5 },
   { code: 'OTHER', label: 'Other', requiresDescription: true, sortOrder: 6 },
 ] as const;
@@ -308,18 +369,34 @@ const ROLE_GRANTS = {
     'identity_verify:read',
     'identity_verify:review',
   ],
-  FINANCE_ADMIN: ['user:read', 'payment:read', 'payment:refund', 'unlock:read', 'pricing:read', 'data_request:handle'],
+  FINANCE_ADMIN: [
+    'user:read',
+    'payment:read',
+    'payment:refund',
+    'unlock:read',
+    'pricing:read',
+    'data_request:handle',
+  ],
 } as const;
 
 const ROLE_COPY = {
-  SUPER_ADMIN: { name: 'Super Admin', description: 'Unrestricted access, including role management.' },
+  SUPER_ADMIN: {
+    name: 'Super Admin',
+    description: 'Unrestricted access, including role management.',
+  },
   ADMIN: {
     name: 'Admin',
     description:
       'Day-to-day operations. May not change net-worth categories, edit pricing, grant unlocks or delete users (F2(a)).',
   },
-  MODERATION_ADMIN: { name: 'Moderation Admin', description: 'Profile, photo, report and identity review.' },
-  FINANCE_ADMIN: { name: 'Finance Admin', description: 'Payments, refunds, pricing visibility and data requests.' },
+  MODERATION_ADMIN: {
+    name: 'Moderation Admin',
+    description: 'Profile, photo, report and identity review.',
+  },
+  FINANCE_ADMIN: {
+    name: 'Finance Admin',
+    description: 'Payments, refunds, pricing visibility and data requests.',
+  },
 } as const;
 
 async function seedRolesAndPermissions(): Promise<void> {
@@ -327,7 +404,11 @@ async function seedRolesAndPermissions(): Promise<void> {
   for (const permission of PERMISSIONS) {
     const row = await prisma.permission.upsert({
       where: { key: permission.key },
-      update: { isSensitive: permission.isSensitive, resource: permission.resource, action: permission.action },
+      update: {
+        isSensitive: permission.isSensitive,
+        resource: permission.resource,
+        action: permission.action,
+      },
       create: permission,
     });
     permissionIdByKey.set(permission.key, row.id);
@@ -358,14 +439,19 @@ async function seedRolesAndPermissions(): Promise<void> {
   // that the sensitive permission is held by exactly one role, and that role
   // is Super Admin.
   for (const key of SUPER_ADMIN_ONLY) {
-    const permission = await prisma.permission.findUnique({ where: { key }, include: { roleGrants: true } });
+    const permission = await prisma.permission.findUnique({
+      where: { key },
+      include: { roleGrants: true },
+    });
     if (!permission) throw new Error(`Missing permission ${key}`);
     if (permission.roleGrants.length !== 1) {
       throw new Error(
         `F2(a): "${key}" must be granted to exactly one role, found ${permission.roleGrants.length}.`,
       );
     }
-    const holdingRole = await prisma.adminRole.findUnique({ where: { id: permission.roleGrants[0]!.roleId } });
+    const holdingRole = await prisma.adminRole.findUnique({
+      where: { id: permission.roleGrants[0]!.roleId },
+    });
     if (holdingRole?.slug !== 'SUPER_ADMIN') {
       throw new Error(`F2(a): "${key}" is granted to ${holdingRole?.slug}, expected SUPER_ADMIN.`);
     }
@@ -461,28 +547,32 @@ async function seedDemoFixtures(): Promise<string> {
 async function main(): Promise<void> {
   await seedNetWorthCategories();
   await seedPricing();
-  await seedMasterListContainers();
+  await seedMasterLists();
   await seedReportReasons();
   await seedInterests();
   await seedRolesAndPermissions();
   const bootstrapAdmin = await seedBootstrapAdmin();
   const demoFixtures = await seedDemoFixtures();
 
-  const [bands, activePrices, lists, reasons, interests, permissions, roles, admins] = await Promise.all([
-    prisma.netWorthCategoryRef.count(),
-    prisma.pricingConfig.count({ where: { effectiveTo: null } }),
-    prisma.masterList.count(),
-    prisma.reportReason.count(),
-    prisma.interest.count(),
-    prisma.permission.count(),
-    prisma.adminRole.count(),
-    prisma.adminUser.count(),
-  ]);
+  const [bands, activePrices, lists, listValues, reasons, interests, permissions, roles, admins] =
+    await Promise.all([
+      prisma.netWorthCategoryRef.count(),
+      prisma.pricingConfig.count({ where: { effectiveTo: null } }),
+      prisma.masterList.count(),
+      prisma.masterListValue.count(),
+      prisma.reportReason.count(),
+      prisma.interest.count(),
+      prisma.permission.count(),
+      prisma.adminRole.count(),
+      prisma.adminUser.count(),
+    ]);
 
   console.log('Seed complete.');
   console.log(`  net-worth bands     : ${bands} (4 discoverable + 1 review bucket)`);
   console.log(`  active price configs: ${activePrices} (review bucket excluded)`);
-  console.log(`  master lists        : ${lists} (values are client-supplied)`);
+  console.log(
+    `  master lists        : ${lists} (${listValues} seeded values from docs/Data Points list)`,
+  );
   console.log(`  report reasons      : ${reasons}`);
   console.log(`  interests           : ${interests}`);
   console.log(`  permissions         : ${permissions}`);
@@ -490,12 +580,16 @@ async function main(): Promise<void> {
   console.log(`  administrators      : ${admins}`);
   console.log(`  demo profiles       : ${demoFixtures}`);
   if (bootstrapAdmin.skipped) {
-    console.log('  bootstrap admin     : skipped (set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD to create one)');
+    console.log(
+      '  bootstrap admin     : skipped (set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD to create one)',
+    );
   } else {
-    console.log(`  bootstrap admin     : ${bootstrapAdmin.created ? 'created' : 'already present'}`);
+    console.log(
+      `  bootstrap admin     : ${bootstrapAdmin.created ? 'created' : 'already present'}`,
+    );
   }
   const setupQuote = quotePayment(ACCOUNT_SETUP_FEE, GST_PERCENT);
-console.log(
+  console.log(
     `  setup fee           : \u20b9${setupQuote.baseAmount} + ${GST_PERCENT}% GST ` +
       `= \u20b9${setupQuote.totalAmount} payable`,
   );

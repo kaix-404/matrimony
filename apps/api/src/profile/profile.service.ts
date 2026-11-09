@@ -86,6 +86,7 @@ export class ProfileService {
         maritalStatus: (input.marital_status ?? null) as MaritalStatus | null,
 
         religion: input.religion ?? null,
+        subCaste: input.sub_caste ?? null,
         communityId: resolved.communityId ?? null,
         motherTongue: input.mother_tongue ?? null,
         swagotra: input.swagotra ?? null,
@@ -202,6 +203,7 @@ export class ProfileService {
     }
 
     set('religion', input.religion);
+    set('subCaste', input.sub_caste);
     set('communityId', resolved.communityId);
     set('motherTongue', input.mother_tongue);
     set('swagotra', input.swagotra);
@@ -501,6 +503,7 @@ export class ProfileService {
         heightCm: true,
         maritalStatus: true,
         religion: true,
+        subCaste: true,
         communityValue: { select: { value: true } },
         motherTongue: true,
         swagotra: true,
@@ -556,6 +559,7 @@ export class ProfileService {
       height_cm: row.heightCm,
       marital_status: row.maritalStatus,
       religion: row.religion,
+      sub_caste: row.subCaste,
       community: row.communityValue?.value ?? null,
       mother_tongue: row.motherTongue,
       swagotra: row.swagotra,

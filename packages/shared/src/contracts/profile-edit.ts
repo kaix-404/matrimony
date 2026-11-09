@@ -110,6 +110,9 @@ export const CreateProfileSchema = z
     marital_status: z.enum(MARITAL_STATUSES).nullable().optional(),
 
     religion: optionalText(80),
+    /// A value from the religion-scoped sub-caste list, only meaningful beside
+    /// `religion` (see the Profile model).
+    sub_caste: optionalText(80),
     community_id: masterListId.nullable().optional(),
     mother_tongue: optionalText(60),
     swagotra: optionalText(60),
@@ -169,6 +172,7 @@ export const UpdateProfileSchema = z
     marital_status: z.enum(MARITAL_STATUSES).nullable().optional(),
 
     religion: optionalText(80),
+    sub_caste: optionalText(80),
     community_id: masterListId.nullable().optional(),
     mother_tongue: optionalText(60),
     swagotra: optionalText(60),
@@ -263,6 +267,7 @@ export const MyProfileSchema = z
     marital_status: z.enum(MARITAL_STATUSES).nullable(),
 
     religion: z.string().nullable(),
+    sub_caste: z.string().nullable(),
     community: z.string().nullable(),
     mother_tongue: z.string().nullable(),
     swagotra: z.string().nullable(),

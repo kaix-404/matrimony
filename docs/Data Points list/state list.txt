@@ -1,0 +1,39 @@
+state 
+
+
+Andaman & Nicobar
+Andhra Pradesh
+Arunachal Pradesh
+Assam
+Bihar
+Chandigarh
+Chhattisgarh
+Dadra & Nagar Haveli
+Daman & Diu
+Delhi / NCR
+Goa
+Gujarat
+Haryana
+Himachal Pradesh
+Jammu & Kashmir
+Jharkhand
+Karnataka
+Kerala
+Lakshwadeep
+Madhya Pradesh
+Maharashtra
+Manipur
+Meghalaya
+Mizoram
+Nagaland
+Orissa
+Pondicherry
+Punjab
+Rajasthan
+Sikkim
+Tamil Nadu
+Telangana
+Tripura
+Uttar Pradesh
+Uttarakhand
+West Bengal

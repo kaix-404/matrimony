@@ -490,6 +490,11 @@ model MasterListValue {
   list    MasterList @relation(fields: [listKey], references: [key], onDelete: Cascade)
 
   value     String
+  /// Optional section the value belongs to: "Bachelor's - Management" in the
+  /// education list, "IT & Software" in the occupation list, or the religion a
+  /// sub-caste belongs to. Empty for flat lists such as states. Two sections may
+  /// legitimately offer the same label ("Manager"), so uniqueness is per group.
+  groupLabel String @default("")
   /// A value retired by admin is kept for historical rows but not offered.
   isActive  Boolean @default(true)
   sortOrder Int     @default(0)
@@ -501,7 +506,7 @@ model MasterListValue {
   professionFor Profile[] @relation("ProfessionValue")
   communityFor  Profile[] @relation("CommunityValue")
 
-  @@unique([listKey, value])
+  @@unique([listKey, groupLabel, value])
   @@index([listKey, isActive, sortOrder])
 }
 
@@ -633,6 +638,11 @@ model Profile {
   // not. Community is still filterable in preferences — hidden in display is
   // not the same as absent from the data model.
   religion       String?
+  /// The client's "sub cast" list is religion-scoped (a Hindu and a Muslim
+  /// sub-caste list share not a single value), so the chosen value is stored as
+  /// text beside the religion it was picked under and validated against that
+  /// group when written.
+  subCaste       String?
   communityId    String?
   communityValue MasterListValue? @relation("CommunityValue", fields: [communityId], references: [id], onDelete: SetNull)
   motherTongue   String?

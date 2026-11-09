@@ -40,8 +40,8 @@ export class MasterDataService {
         isSensitive: true,
         values: {
           where: { isActive: true },
-          orderBy: { sortOrder: 'asc' },
-          select: { id: true, value: true },
+          orderBy: [{ sortOrder: 'asc' }],
+          select: { id: true, value: true, groupLabel: true },
         },
       },
     });
@@ -270,13 +270,20 @@ function toContract(row: {
   key: string;
   label: string;
   isSensitive: boolean;
-  values: { id: string; value: string }[];
+  values: { id: string; value: string; groupLabel: string }[];
 }): MasterList {
   return {
     key: row.key,
     label: row.label,
     is_sensitive: row.isSensitive,
-    values: row.values.map((v) => ({ id: v.id, value: v.value })),
+    values: row.values.map((v) => ({
+      id: v.id,
+      value: v.value,
+      // An empty group is "this list has no sections", which the client renders
+      // as one flat column; sending "" would make every country look like a
+      // section heading.
+      group: v.groupLabel === '' ? null : v.groupLabel,
+    })),
   };
 }
 

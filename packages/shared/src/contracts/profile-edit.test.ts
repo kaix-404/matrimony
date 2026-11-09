@@ -203,7 +203,7 @@ describe('master-data contracts', () => {
           key: 'EDUCATION',
           label: 'Education',
           is_sensitive: false,
-          values: [{ id: '', value: 'B.Tech' }],
+          values: [{ id: '', value: 'B.Tech', group: null }],
         },
       ],
     });
@@ -217,7 +217,7 @@ describe('master-data contracts', () => {
           key: 'COMMUNITY',
           label: 'Community',
           is_sensitive: true,
-          values: [{ id: 'c1', value: 'Aggarwal' }],
+          values: [{ id: 'c1', value: 'Aggarwal', group: null }],
         },
       ],
     });

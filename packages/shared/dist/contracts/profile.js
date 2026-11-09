@@ -161,6 +161,7 @@ exports.FullProfileSchema = zod_1.z
     place_of_birth: zod_1.z.string().nullable(),
     height_cm: zod_1.z.number().int().positive().nullable(),
     religion: zod_1.z.string().nullable(),
+    sub_caste: zod_1.z.string().nullable(),
     community: zod_1.z.string().nullable(),
     mother_tongue: zod_1.z.string().nullable(),
     swagotra: zod_1.z.string().nullable(),

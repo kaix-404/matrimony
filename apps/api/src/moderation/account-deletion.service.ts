@@ -187,6 +187,7 @@ export class AccountDeletionService {
               placeOfBirth: null,
               heightCm: null,
               religion: null,
+              subCaste: null,
               communityId: null,
               motherTongue: null,
               swagotra: null,

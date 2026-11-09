@@ -43,8 +43,6 @@ interface TextSpec {
 }
 
 const TEXT_FIELDS: TextSpec[] = [
-  { key: 'religion', api: 'religion', maxLength: 80 },
-  { key: 'motherTongue', api: 'mother_tongue', maxLength: 60 },
   { key: 'swagotra', api: 'swagotra', maxLength: 60 },
   { key: 'maternalGothra', api: 'maternal_gothra', maxLength: 60 },
   { key: 'rashi', api: 'rashi', maxLength: 40 },
@@ -60,9 +58,19 @@ const TEXT_FIELDS: TextSpec[] = [
   { key: 'smoking', api: 'smoking', maxLength: 60 },
   { key: 'drinking', api: 'drinking', maxLength: 60 },
   { key: 'city', api: 'city', maxLength: 80 },
-  { key: 'state', api: 'state', maxLength: 80 },
   { key: 'country', api: 'country', maxLength: 2, kind: 'country' },
 ];
+
+/**
+ * The sub-caste block the client labelled "other Sub Cast".
+ *
+ * It is not a religion, but it holds the general Indian caste list (Agarwal,
+ * Adi Dravidar, Vokkaliga, …) that the Hindu block does not repeat, so it is
+ * offered to every religion alongside that religion's own block. Without it a
+ * Hindu member would only see the 49 South Indian caste names in the "Hindu"
+ * block.
+ */
+const SHARED_SUB_CASTE_GROUP = 'Other Sub Cast';
 
 /**
  * Edits the caller's own profile with PATCH semantics.
@@ -114,6 +122,21 @@ export default function ProfileEditScreen() {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  /**
+   * Changing religion drops a sub-caste that does not belong to the new one.
+   * The sub-caste lists are religion-scoped, so keeping a value across a change
+   * would either hide it from the picker or store a caste under the wrong faith.
+   */
+  function changeReligion(next: string) {
+    setForm((prev) => ({
+      ...prev,
+      religion: next,
+      subCaste: subCasteOptions(caste, next).some((option) => option.value === prev.subCaste)
+        ? (prev.subCaste ?? '')
+        : '',
+    }));
+  }
+
   const dobValid = /^\d{4}-\d{2}-\d{2}$/.test(form.dateOfBirth ?? '');
   const nameValid = (form.firstName ?? '').trim().length > 0;
   const changes = buildPatch(form, initial);
@@ -154,6 +177,16 @@ export default function ProfileEditScreen() {
   const community = listFor(lists, 'COMMUNITY');
   const education = listFor(lists, 'EDUCATION');
   const profession = listFor(lists, 'PROFESSION');
+  const religionList = listFor(lists, 'RELIGION');
+  const motherTongueList = listFor(lists, 'MOTHER_TONGUE');
+  const caste = listFor(lists, 'CASTE');
+  const stateList = listFor(lists, 'STATE');
+
+  // Religion, sub-caste, mother tongue and state are stored as the label rather
+  // than as a master-list id (religion is compared as text by the discovery
+  // filters, and the sub-caste is scoped by it), so their options carry the
+  // label as the value.
+  const subCastes = subCasteOptions(caste, form.religion ?? '');
 
   return (
     <Screen
@@ -235,7 +268,28 @@ export default function ProfileEditScreen() {
           value={form.communityId || null}
           onChange={(v) => set('communityId', v ?? '')}
         />
-        {TEXT_FIELDS.slice(0, 6).map((spec) => (
+        <SelectField
+          label="Religion"
+          options={textOptions(religionList)}
+          value={form.religion || null}
+          onChange={(v) => changeReligion(v ?? '')}
+        />
+        <SelectField
+          label="Sub-caste"
+          options={subCastes}
+          value={form.subCaste || null}
+          onChange={(v) => set('subCaste', v ?? '')}
+          placeholder={form.religion ? 'Not set' : 'Choose a religion first'}
+        />
+        <SelectField
+          label="Mother tongue"
+          options={textOptions(motherTongueList)}
+          value={form.motherTongue || null}
+          onChange={(v) => set('motherTongue', v ?? '')}
+        />
+        {TEXT_FIELDS.filter((s) =>
+          ['swagotra', 'maternalGothra', 'rashi', 'nakshatra'].includes(s.key),
+        ).map((spec) => (
           <TextField
             key={spec.key}
             label={labelFor(spec.api)}
@@ -274,12 +328,7 @@ export default function ProfileEditScreen() {
 
       <Section title="Family">
         {TEXT_FIELDS.filter((s) =>
-          [
-            'fathersOccupation',
-            'mothersOccupation',
-            'siblings',
-            'familyLocation',
-          ].includes(s.key),
+          ['fathersOccupation', 'mothersOccupation', 'siblings', 'familyLocation'].includes(s.key),
         ).map((spec) => (
           <TextField
             key={spec.key}
@@ -320,7 +369,13 @@ export default function ProfileEditScreen() {
       </Section>
 
       <Section title="Location">
-        {TEXT_FIELDS.filter((s) => ['city', 'state', 'country'].includes(s.key)).map((spec) => (
+        <SelectField
+          label="State"
+          options={withCurrent(textOptions(stateList), form.state ?? '')}
+          value={form.state || null}
+          onChange={(v) => set('state', v ?? '')}
+        />
+        {TEXT_FIELDS.filter((s) => ['city', 'country'].includes(s.key)).map((spec) => (
           <TextField
             key={spec.key}
             label={labelFor(spec.api)}
@@ -352,6 +407,34 @@ function optionsFor(list: MasterList | undefined) {
   return (list?.values ?? []).map((value) => ({ value: value.id, label: value.value }));
 }
 
+/** Options for a list whose value *is* the label (religion, mother tongue, state). */
+function textOptions(list: MasterList | undefined) {
+  return [...new Set((list?.values ?? []).map((value) => value.value))].map((value) => ({
+    value,
+    label: value,
+  }));
+}
+
+/** The sub-castes offered for a religion, plus the shared general list. */
+function subCasteOptions(list: MasterList | undefined, religion: string) {
+  if (religion === '') return [];
+  return (list?.values ?? [])
+    .filter((value) => value.group === religion || value.group === SHARED_SUB_CASTE_GROUP)
+    .map((value) => ({ value: value.value, label: value.value }));
+}
+
+/**
+ * Keeps a stored value selectable when the admin has since retired it.
+ *
+ * Without this the field would render as "Not set" while the profile still
+ * holds the old value, and the next save would silently clear it.
+ */
+function withCurrent(options: { value: string; label: string }[], current: string) {
+  const value = current.trim();
+  if (value === '' || options.some((option) => option.value === value)) return options;
+  return [{ value, label: value }, ...options];
+}
+
 /** Matches a stored label back to a master-list value id, for pre-selection. */
 function idForLabel(list: MasterList | undefined, label: string | null): string {
   if (!label) return '';
@@ -368,6 +451,7 @@ function toForm(profile: MyProfile, lists: MasterList[]): Record<string, string>
     heightCm: profile.height_cm === null ? '' : String(profile.height_cm),
     maritalStatus: profile.marital_status ?? '',
     religion: profile.religion ?? '',
+    subCaste: profile.sub_caste ?? '',
     motherTongue: profile.mother_tongue ?? '',
     swagotra: profile.swagotra ?? '',
     maternalGothra: profile.maternal_gothra ?? '',
@@ -428,6 +512,7 @@ function buildPatch(
 
   text('lastName', 'last_name');
   text('religion', 'religion');
+  text('subCaste', 'sub_caste');
   text('motherTongue', 'mother_tongue');
   text('swagotra', 'swagotra');
   text('maternalGothra', 'maternal_gothra');

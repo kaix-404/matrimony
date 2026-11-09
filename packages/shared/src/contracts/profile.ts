@@ -178,6 +178,7 @@ export const FullProfileSchema = z
     height_cm: z.number().int().positive().nullable(),
 
     religion: z.string().nullable(),
+    sub_caste: z.string().nullable(),
     community: z.string().nullable(),
     mother_tongue: z.string().nullable(),
     swagotra: z.string().nullable(),

@@ -24,6 +24,13 @@ exports.MasterListValueSchema = zod_1.z
     .object({
     id: zod_1.z.string().min(1),
     value: zod_1.z.string().min(1),
+    /**
+     * Section of the list this value belongs to, or null for a flat list.
+     * Education groups by degree family, occupation by industry, and sub-caste
+     * by the religion it applies to — which is why the picker filters sub-castes
+     * by the member's own religion rather than offering all 835 of them.
+     */
+    group: zod_1.z.string().nullable(),
 })
     .strict();
 exports.MasterListSchema = zod_1.z
@@ -40,7 +47,15 @@ exports.MasterListsResponseSchema = zod_1.z
 })
     .strict();
 /** Master-list keys, seeded and referenced by the profile schema. */
-exports.MASTER_LIST_KEYS = ['EDUCATION', 'PROFESSION', 'CASTE', 'COMMUNITY'];
+exports.MASTER_LIST_KEYS = [
+    'RELIGION',
+    'MOTHER_TONGUE',
+    'EDUCATION',
+    'PROFESSION',
+    'CASTE',
+    'COMMUNITY',
+    'STATE',
+];
 /**
  * Map a profile field to the list it draws from, so the server can validate ids
  * without a per-field switch at every call site.

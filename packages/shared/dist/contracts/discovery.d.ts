@@ -25,17 +25,17 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     manglik_status: z.ZodNullable<z.ZodString>;
     updated_at: z.ZodString;
 }, "strict", z.ZodTypeAny, {
-    gender: "FEMALE" | "MALE" | "ANY";
-    marital_status: string | null;
     religion: string | null;
+    education: string | null;
+    profession: string | null;
+    annual_income: string | null;
     community: string | null;
     mother_tongue: string | null;
     rashi: string | null;
     nakshatra: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
-    annual_income: string | null;
+    gender: "MALE" | "FEMALE" | "ANY";
+    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -46,17 +46,17 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_city: string | null;
     updated_at: string;
 }, {
-    gender: "FEMALE" | "MALE" | "ANY";
-    marital_status: string | null;
     religion: string | null;
+    education: string | null;
+    profession: string | null;
+    annual_income: string | null;
     community: string | null;
     mother_tongue: string | null;
     rashi: string | null;
     nakshatra: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
-    annual_income: string | null;
+    gender: "MALE" | "FEMALE" | "ANY";
+    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -67,17 +67,17 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_city: string | null;
     updated_at: string;
 }>, {
-    gender: "FEMALE" | "MALE" | "ANY";
-    marital_status: string | null;
     religion: string | null;
+    education: string | null;
+    profession: string | null;
+    annual_income: string | null;
     community: string | null;
     mother_tongue: string | null;
     rashi: string | null;
     nakshatra: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
-    annual_income: string | null;
+    gender: "MALE" | "FEMALE" | "ANY";
+    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -88,17 +88,17 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_city: string | null;
     updated_at: string;
 }, {
-    gender: "FEMALE" | "MALE" | "ANY";
-    marital_status: string | null;
     religion: string | null;
+    education: string | null;
+    profession: string | null;
+    annual_income: string | null;
     community: string | null;
     mother_tongue: string | null;
     rashi: string | null;
     nakshatra: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
-    annual_income: string | null;
+    gender: "MALE" | "FEMALE" | "ANY";
+    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -109,17 +109,17 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_city: string | null;
     updated_at: string;
 }>, {
-    gender: "FEMALE" | "MALE" | "ANY";
-    marital_status: string | null;
     religion: string | null;
+    education: string | null;
+    profession: string | null;
+    annual_income: string | null;
     community: string | null;
     mother_tongue: string | null;
     rashi: string | null;
     nakshatra: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
-    annual_income: string | null;
+    gender: "MALE" | "FEMALE" | "ANY";
+    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -130,17 +130,17 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_city: string | null;
     updated_at: string;
 }, {
-    gender: "FEMALE" | "MALE" | "ANY";
-    marital_status: string | null;
     religion: string | null;
+    education: string | null;
+    profession: string | null;
+    annual_income: string | null;
     community: string | null;
     mother_tongue: string | null;
     rashi: string | null;
     nakshatra: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
-    annual_income: string | null;
+    gender: "MALE" | "FEMALE" | "ANY";
+    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -558,8 +558,8 @@ export declare const DiscoveryQuerySchema: z.ZodObject<{
     } | undefined;
 }, {
     sort?: "NEWEST_FIRST" | "CLOSEST_FIRST" | "NEWEST_THEN_CLOSEST" | undefined;
-    limit?: number | undefined;
     cursor?: string | undefined;
+    limit?: number | undefined;
     filters?: {
         education?: string | undefined;
         profession?: string | undefined;
@@ -607,6 +607,10 @@ export declare const ActiveUnlockSchema: z.ZodObject<{
     remaining_ms: z.ZodNumber;
     is_expired: z.ZodBoolean;
 }, "strict", z.ZodTypeAny, {
+    profile_id: string;
+    unlock_expires_at: string;
+    unlock_id: string;
+    display_name: string | null;
     photo: {
         photo_id: string;
         url: string;
@@ -615,14 +619,14 @@ export declare const ActiveUnlockSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
-    profile_id: string;
-    unlock_id: string;
-    display_name: string | null;
     unlocked_at: string;
-    unlock_expires_at: string;
     remaining_ms: number;
     is_expired: boolean;
 }, {
+    profile_id: string;
+    unlock_expires_at: string;
+    unlock_id: string;
+    display_name: string | null;
     photo: {
         photo_id: string;
         url: string;
@@ -631,11 +635,7 @@ export declare const ActiveUnlockSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
-    profile_id: string;
-    unlock_id: string;
-    display_name: string | null;
     unlocked_at: string;
-    unlock_expires_at: string;
     remaining_ms: number;
     is_expired: boolean;
 }>;
@@ -661,26 +661,26 @@ export declare const PaymentHistoryEntrySchema: z.ZodObject<{
     reference_id: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     status: string;
-    purpose: "UNLOCK" | "SETUP_FEE";
-    profile_id: string | null;
     base_amount: string;
     gst_amount: string;
     total_amount: string;
     currency: "INR";
+    profile_id: string | null;
     payment_id: string;
+    purpose: "UNLOCK" | "SETUP_FEE";
     transaction_at: string;
     unlock_start: string | null;
     unlock_expiry: string | null;
     reference_id: string | null;
 }, {
     status: string;
-    purpose: "UNLOCK" | "SETUP_FEE";
-    profile_id: string | null;
     base_amount: string;
     gst_amount: string;
     total_amount: string;
     currency: "INR";
+    profile_id: string | null;
     payment_id: string;
+    purpose: "UNLOCK" | "SETUP_FEE";
     transaction_at: string;
     unlock_start: string | null;
     unlock_expiry: string | null;
@@ -737,25 +737,25 @@ export declare const NetWorthCategoryOptionSchema: z.ZodObject<{
     is_discoverable: z.ZodBoolean;
     sort_order: z.ZodNumber;
 }, "strict", z.ZodTypeAny, {
-    label: string;
+    sort_order: number;
     key: string;
+    label: string;
     description: string;
     min_inr: string | null;
     max_inr: string | null;
     setup_fee_amount: string;
     setup_fee_total: string;
     is_discoverable: boolean;
-    sort_order: number;
 }, {
-    label: string;
+    sort_order: number;
     key: string;
+    label: string;
     description: string;
     min_inr: string | null;
     max_inr: string | null;
     setup_fee_amount: string;
     setup_fee_total: string;
     is_discoverable: boolean;
-    sort_order: number;
 }>;
 export type NetWorthCategoryOption = z.infer<typeof NetWorthCategoryOptionSchema>;
 /**

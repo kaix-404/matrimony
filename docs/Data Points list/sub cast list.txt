@@ -1,0 +1,874 @@
+sub cast
+
+1 Hindu
+
+Don't wish to specify
+24 Manai Telugu Chettiar
+96 Kuli Maratha
+Achirapakkam Chettiar
+Adi Andhra
+Agamudayar / Arcot / Thuluva Vellala
+Agaram Vellan Chettiar
+Agnikula Kshatriya
+Ahirwar
+Aramari / Gabit
+Arekatica
+Arya Vysya
+Ayira Vysya
+Ayyaraka
+Bairwa
+Balai
+Balija
+Balija Naidu
+Balija Reddy
+Beri Chettiar
+Besta
+Bhatraju
+Brahmin - Anaviln Desai
+Brahmin - Baidhiki / Vaidhiki
+Brahmin - Bardai
+Brahmin - Bhargav
+Brahmin - Dravida
+Brahmin - Khadayata
+Brahmin - Khedaval
+Brahmin - Koteshwara / Kota (Madhwa)
+Brahmin - Madhwa
+Brahmin - Mevada
+Brahmin - Niyogi
+Brahmin - Rajgor
+Brahmin - Rarhi / Radhi
+Brahmin - Sarua
+Brahmin - Shivalli (Madhva)
+Brahmin - Shri Gaud
+Brahmin - Shri Mali
+Brahmin - Shukla Yajurvedi
+Brahmin - Smartha
+Brahmin - Sri Vaishnava
+Brahmin - Tapodhan
+Brahmin - Vaidiki
+Brahmin - Vaikhanasa
+Brahmin - Valam
+Brahmin - Velanadu
+Brahmin - Zalora
+Caste no bar
+Chattada Sri Vaishnava
+
+2 Muslim - Shia
+
+Don't wish to specify
+Muslim - Ansari
+Muslim - Arain
+Muslim - Awan
+Muslim - Bohra
+Muslim - Dekkani
+Muslim - Dudekula
+Muslim - Hanafi
+Muslim - Jat
+Muslim - Khoja
+Muslim - Lebbai
+Muslim - Malik
+Muslim - Mapila
+Muslim - Maraicar
+Muslim - Memon
+Muslim - Mughal
+Muslim - Others
+Muslim - Pathan
+Muslim - Qureshi
+Muslim - Rajput
+Muslim - Rowther
+Muslim - Shafi
+Muslim - Sheikh
+Muslim - Siddiqui
+Muslim - Syed
+Muslim - Unspecified
+Others
+
+3 Muslim - Sunni
+
+Don't wish to specify
+Muslim - Ansari
+Muslim - Arain
+Muslim - Awan
+Muslim - Bohra
+Muslim - Dekkani
+Muslim - Dudekula
+Muslim - Hanafi
+Muslim - Jat
+Muslim - Khoja
+Muslim - Lebbai
+Muslim - Malik
+Muslim - Mapila
+Muslim - Maraicar
+Muslim - Memon
+Muslim - Mughal
+Muslim - Others
+Muslim - Pathan
+Muslim - Qureshi
+Muslim - Rajput
+Muslim - Rowther
+Muslim - Shafi
+Muslim - Sheikh
+Muslim - Siddiqui
+Muslim - Syed
+Muslim - Unspecified
+Others
+
+4 Muslim - Others
+
+Don't wish to specify
+Muslim - Ansari
+Muslim - Arain
+Muslim - Awan
+Muslim - Bohra
+Muslim - Dekkani
+Muslim - Dudekula
+Muslim - Hanafi
+Muslim - Jat
+Muslim - Khoja
+Muslim - Lebbai
+Muslim - Malik
+Muslim - Mapila
+Muslim - Maraicar
+Muslim - Memon
+Muslim - Mughal
+Muslim - Others
+Muslim - Pathan
+Muslim - Qureshi
+Muslim - Rajput
+Muslim - Rowther
+Muslim - Shafi
+Muslim - Sheikh
+Muslim - Siddiqui
+Muslim - Syed
+Muslim - Unspecified
+Others
+
+5 Christian
+
+Don't wish to specify
+Adventist
+Anglican / Episcopal
+Anglo-Indian
+Apostolic
+Assembly of God (AG)
+Baptis
+Born Again
+Brethren
+Calvinist
+Chaldean Syrian (Assyrian)
+Christian - Others
+Church of Christ
+Church of God
+Church of North India
+Church of South India
+Congregational
+Evangelist
+Jacobite
+Jehovah's Witnesses
+Knanaya
+Knanaya Catholic
+Knanaya Jacobite
+Latin Catholic
+Latter day saints
+Lutheran
+Malabar Independent Syrian Church
+Malankara Catholic
+Marthoma
+Melkite
+Mennonite
+Methodist
+Moravian
+Orthodox
+Pentecost
+Presbyterian
+Protestant
+Reformed Baptist
+Reformed Presbyterian
+Roman Catholic
+Seventh-day Adventist
+St. Thomas Evangelical
+Syrian Catholic
+Syrian Jacobite
+Syrian Orthodox
+Syro Malabar
+
+6 sikh
+
+Don't wish to specify
+Sikh - Ahluwalia
+Sikh - Arora
+Sikh - Bhatia
+Sikh - Ghumar
+Sikh - Intercaste
+Sikh - Jat
+Sikh - Kamboj
+Sikh - Khatri
+Sikh - Kshatriya
+Sikh - Lubana
+Sikh - Majabi
+Sikh - Others
+Sikh - Rajput
+Sikh - Ramdasia
+Sikh - Ramgharia
+Sikh - Saini
+Sikh - Unspecified
+Sikh - Ravidasia
+Sikh - Bhatra
+Sikh - Tonk Kshatriya
+Sikh - Nai
+Sikh - Rai
+Others
+
+7 Jain - Digambar
+
+Don't wish to specify
+Jain - Agarwal
+Jain - Bania
+Jain - Intercaste
+Jain - Jaiswal
+Jain - Khandelwal
+Jain - Kutchi
+Jain - Oswal
+Jain - Others
+Jain - Porwal
+Jain - Unspecified
+Jain - Vaishya
+Jain - KVO
+Jain - Asati
+Jain - Ayodhyavasi
+Jain - Bagherwal
+Jain - Barhiya
+Jain - Charanagare
+Jain - Chaturtha
+Jain - Dhakada
+Jain - Gahoi / Grihapati
+Jain - Golalare / Kharaua
+Jain - Golapurva
+Jain - Golsinghare
+Jain - Harada
+Jain - Humad / Humbad
+Jain - Kambhoja
+Jain - Kasar
+Jain - Kathanere
+Jain - Kharaua
+Jain - Lamechu
+Jain - Nema
+Jain - Padmavati Porwal
+Jain - Palliwal
+Jain - Panchama
+Jain - Parmar
+Jain - Parwar / Paravara
+Jain - Porwad / Porwal
+Jain - Saitwal
+Jain - Samanar / Nayinar
+Jain - Samiya
+Jain - Sarak
+Jain - Shrimal
+Jain - Upadhyaya
+Jain - Veerwal
+Others
+
+8 Jain - Shwetambar
+
+Don't wish to specify
+Jain - Agarwal
+Jain - Bania
+Jain - Intercaste
+Jain - Jaiswal
+Jain - Khandelwal
+Jain - Kutchi
+Jain - Oswal
+Jain - Others
+Jain - Porwal
+Jain - Unspecified
+Jain - Vaishya
+Jain - KVO
+Jain - Asati
+Jain - Ayodhyavasi
+Jain - Bagherwal
+Jain - Barhiya
+Jain - Charanagare
+Jain - Chaturtha
+Jain - Dhakada
+Jain - Gahoi / Grihapati
+Jain - Golalare / Kharaua
+Jain - Golapurva
+Jain - Golsinghare
+Jain - Harada
+Jain - Humad / Humbad
+Jain - Kambhoja
+Jain - Kasar
+Jain - Kathanere
+Jain - Kharaua
+Jain - Lamechu
+Jain - Nema
+Jain - Padmavati Porwal
+Jain - Palliwal
+Jain - Panchama
+Jain - Parmar
+Jain - Parwar / Paravara
+Jain - Porwad / Porwal
+Jain - Saitwal
+Jain - Samanar / Nayinar
+Jain - Samiya
+Jain - Sarak
+Jain - Shrimal
+Jain - Upadhyaya
+Jain - Veerwal
+Others
+
+9 Jain - Others
+
+Don't wish to specify
+Jain - Agarwal
+Jain - Bania
+Jain - Intercaste
+Jain - Jaiswal
+Jain - Khandelwal
+Jain - Kutchi
+Jain - Oswal
+Jain - Others
+Jain - Porwal
+Jain - Unspecified
+Jain - Vaishya
+Jain - KVO
+Jain - Asati
+Jain - Ayodhyavasi
+Jain - Bagherwal
+Jain - Barhiya
+Jain - Charanagare
+Jain - Chaturtha
+Jain - Dhakada
+Jain - Gahoi / Grihapati
+Jain - Golalare / Kharaua
+Jain - Golapurva
+Jain - Golsinghare
+Jain - Harada
+Jain - Humad / Humbad
+Jain - Kambhoja
+Jain - Kasar
+Jain - Kathanere
+Jain - Kharaua
+Jain - Lamechu
+Jain - Nema
+Jain - Padmavati Porwal
+Jain - Palliwal
+Jain - Panchama
+Jain - Parmar
+Jain - Parwar / Paravara
+Jain - Porwad / Porwal
+Jain - Saitwal
+Jain - Samanar / Nayinar
+Jain - Samiya
+Jain - Sarak
+Jain - Shrimal
+Jain - Upadhyaya
+Jain - Veerwal
+Others
+
+10 parsi
+
+Don't wish to specify
+Intercaste
+Irani
+Parsi
+Others
+
+11 Buddhist
+
+12 Jewish
+
+13 other Sub Cast
+
+Don't wish to specify
+Ad Dharmi
+Adi Andhra
+Adi Dravidar
+Adi Karnataka
+Agarwal
+Agnikula Kshatriya
+Agri
+Ahir Shimpi
+Ahom
+Ambalavasi
+Arekatica
+Arora
+Arunthathiyar
+Arya Vysya
+Ayyaraka
+Badaga
+Baidya
+Baishnab
+Baishya
+Balija
+Banik
+Baniya
+Banjara
+Barai
+Bari
+Barujibi
+Besta
+Bhandari
+Bhatia
+Bhatraju
+Bhavasar Kshatriya
+Bhovi
+Billava
+Bishnoi / Vishnoi
+Born Again
+Boyar
+Brahmbatt
+Brahmin - Anavil
+Brahmin - Audichya
+Brahmin - Barendra
+Brahmin - Bhatt
+Brahmin - Bhumihar
+Brahmin - Daivadnya
+Brahmin - Danua
+Brahmin - Deshastha
+Brahmin - Dhiman
+Brahmin - Dravida
+Brahmin - Garhwali
+Brahmin - Gaur
+Brahmin - Goswami / Gosavi
+Brahmin - Gujar Gaur
+Brahmin - Gurukkal
+Brahmin - Halua
+Brahmin - Havyaka
+Brahmin - Hoysala
+Brahmin - Iyengar
+Brahmin - Iyer
+Brahmin - Jangid
+Brahmin - Jhadua
+Brahmin - Kanyakubj
+Brahmin - Karhade
+Brahmin - Kokanastha
+Brahmin - Kota
+Brahmin - Kulin
+Brahmin - Kumaoni
+Brahmin - Madhwa
+Brahmin - Maithil
+Brahmin - Modh
+Brahmin - Mohyal
+Brahmin - Nagar
+Brahmin - Namboodiri
+Brahmin - Narmadiya
+Brahmin - Niyogi
+Brahmin - Paliwal
+Brahmin - Panda
+Brahmin - Pandit
+Brahmin - Pushkarna
+Brahmin - Rarhi
+Brahmin - Rigvedi
+Brahmin - Rudraj
+Brahmin - Sakaldwipi
+Brahmin - Sanadya
+Brahmin - Sanketi
+Brahmin - Saraswat
+Brahmin - Saryuparin
+Brahmin - Shivhalli
+Brahmin - Shrimali
+Brahmin - Sikhwal
+Brahmin - Smartha
+Brahmin - Sri Vaishnava
+Brahmin - Stanika
+Brahmin - Tyagi
+Brahmin - Vaidiki
+Brahmin - Vaikhanasa
+Brahmin - Velanadu
+Brahmin - Vyas
+Brethren
+Bunt (Shetty)
+CKP
+Chambhar
+Chandravanshi Kahar
+Chasa
+Chattada Sri Vaishnava
+Chaudary
+Chaurasia
+Chettiar
+Chhetri
+Chippolu (Mera)
+Christian - Others
+Church of South India
+Coorgi
+Devadiga
+Devandra Kula Vellalar
+Devang Koshthi
+Devanga
+Devar / Thevar / Mukkulathor
+Dhangar
+Dheevara
+Dhiman
+Dhoba
+Dumal
+Dusadh (Paswan)
+Ediga
+Evangelist
+Ezhava
+Ezhuthachan
+Gabit
+Ganda
+Gandla
+Ganiga
+Garhwali
+Gavara
+Gawali
+Ghisadi
+Ghumar
+Goala
+Goan
+Gomantak
+Gondhali
+Goud
+Gounder
+Gowda
+Gramani
+Gudia
+Gujjar
+Gupta
+Guptan
+Gurav
+Gurjar
+Hugar (Jeer)
+Intercaste
+Irani
+Jaalari
+Jacobite
+Jain - Agarwal
+Jain - Asati
+Jain - Ayodhyavasi
+Jain - Bagherwal
+Jain - Bania
+Jain - Barhiya
+Jain - Charanagare
+Jain - Chaturtha
+Jain - Dhakada
+Jain - Gahoi / Grihapati
+Jain - Golalare / Kharaua
+Jain - Golapurva
+Jain - Golsinghare
+Jain - Harada
+Jain - Humad / Humbad
+Jain - Intercaste
+Jain - Jaiswal
+Jain - KVO
+Jain - Kambhoja
+Jain - Kasar
+Jain - Kathanere
+Jain - Khandelwal
+Jain - Kharaua
+Jain - Kutchi
+Jain - Lamechu
+Jain - Nema
+Jain - Oswal
+Jain - Others
+Jain - Padmavati Porwal
+Jain - Palliwal
+Jain - Panchama
+Jain - Parmar
+Jain - Parwar / Paravara
+Jain - Porwad / Porwal
+Jain - Porwal
+Jain - Saitwal
+Jain - Samanar / Nayinar
+Jain - Samiya
+Jain - Sarak
+Jain - Shrimal
+Jain - Unspecified
+Jain - Upadhyaya
+Jain - Vaishya
+Jain - Veerwal
+Jaiswal
+Jandra
+Jangam
+Jangra - Brahmin
+Jat
+Jatav
+Jogi (Nath)
+Kachara
+Kadava Patel
+Kahar
+Kaibarta
+Kalal
+Kalanji
+Kalar
+Kalinga
+Kalinga Vysya
+Kalita
+Kalwar
+Kamboj
+Kamma
+Kansari
+Kapu
+Karana
+Karmakar
+Karuneegar
+Kasar
+Kashyap
+Katiya
+Kayastha
+Kayastha (Bengali)
+Khandayat
+Khandelwal
+Kharwar
+Khatri
+Knanaya
+Knanaya Catholic
+Knanaya Jacobite
+Kokanastha Maratha
+Koli
+Koli Mahadev
+Kongu Vellala Gounder
+Konkani
+Kori
+Kshatriya
+Kudumbi
+Kulal
+Kulalar
+Kulita
+Kumawat
+Kumbhakar
+Kumbhar
+Kumhar
+Kummari
+Kunbi
+Kuravan
+Kurmi
+Kurmi / Kurmi Kshatriya
+Kuruba
+Kuruhina Shetty
+Kurumbar
+Kushwaha (Koiri)
+Kutchi
+Lambadi
+Latin Catholic
+Leva patel
+Leva patil
+Lingayath
+Lodhi Rajput
+Lohana
+Lohar
+Lubana
+Madiga
+Madivala / Dhobi
+Mahajan
+Mahar
+Mahendra
+Maheshwari
+Mahishya
+Majabi
+Mala
+Malankara Catholic
+Mali
+Mallah
+Mangalorean
+Manipuri
+Mapila
+Maratha
+Marthoma
+Maruthuvar
+Matang
+Mathur
+Meena
+Meenavar
+Mehra
+Meru Darji
+Mochi
+Modak
+Mogaveera
+Mudaliyar
+Mudiraj
+Munnuru Kapu
+Muslim - Ansari
+Muslim - Arain
+Muslim - Awan
+Muslim - Bohra
+Muslim - Dekkani
+Muslim - Dudekula
+Muslim - Hanafi
+Muslim - Jat
+Muslim - Khoja
+Muslim - Lebbai
+Muslim - Malik
+Muslim - Mapila
+Muslim - Maraicar
+Muslim - Memon
+Muslim - Mughal
+Muslim - Others
+Muslim - Pathan
+Muslim - Qureshi
+Muslim - Rajput
+Muslim - Rowther
+Muslim - Shafi
+Muslim - Sheikh
+Muslim - Siddiqui
+Muslim - Syed
+Muslim - Unspecified
+Muthuraja / Mutharaiyar
+Naagavamsam
+Nadar
+Nagaralu
+Nai / Nayi Brahmin
+Naicker
+Naidu
+Naik
+Nair
+Namasudra / Namassej
+Nambiar
+Napit
+Nayaka
+Neeli
+Nepali
+Nhavi
+Oswal
+Otari
+Other Brahmins
+Padmasali
+Pal
+Panchal
+Pandaram
+Panicker
+Parkavakulam / Udayar
+Parsi
+Partraj
+Pasi
+Patel
+Pathare Prabhu
+Patnaick / Sistakaranam
+Patra
+Pentecost
+Perika
+Pillai
+Poosala
+Porwal
+Prajapati
+Raigar
+Rajaka / Vannar
+Rajastani
+Rajbhar
+Rajbonshi
+Rajput
+Ramdasia
+Ramgariah
+Ravidasia
+Rawat
+Reddy
+Relli
+Roman Catholic
+SC
+SKP
+ST
+Sadgope
+Sagara (Uppara)
+Saha
+Sahu
+Saini
+Saliya
+Savji
+Senai Thalaivar
+Senguntha Mudaliyar
+Settibalija
+Shimpi / Namdev
+Sikh - Ahluwalia
+Sikh - Arora
+Sikh - Bhatia
+Sikh - Bhatra
+Sikh - Ghumar
+Sikh - Intercaste
+Sikh - Jat
+Sikh - Kamboj
+Sikh - Khatri
+Sikh - Kshatriya
+Sikh - Lubana
+Sikh - Majabi
+Sikh - Nai
+Sikh - Others
+Sikh - Rai
+Sikh - Rajput
+Sikh - Ramdasia
+Sikh - Ramgharia
+Sikh - Ravidasia
+Sikh - Saini
+Sikh - Tonk Kshatriya
+Sikh - Unspecified
+Sindhi
+Sindhi - Amil
+Sindhi - Baibhand
+Sindhi - Bhanusali
+Sindhi - Bhatia
+Sindhi - Chhapru
+Sindhi - Dadu
+Sindhi - Hyderabadi
+Sindhi - Larai
+Sindhi - Larkana
+Sindhi - Lohana
+Sindhi - Rohiri
+Sindhi - Sahiti
+Sindhi - Sakkhar
+Sindhi - Sehwani
+Sindhi - Shikarpuri
+Sindhi - Thatai
+Sonar
+Soni
+Sourashtra
+Sozhiya Vellalar
+Srisayana
+Sugali (Naika)
+Sunari
+Sundhi
+Suthar
+Swakula Sali
+Syrian Catholic
+Syrian Jacobite
+Syrian Orthodox
+Syro Malabar
+Tamboli
+Tanti
+Tantubai
+Telaga
+Teli
+Thakkar
+Thakore
+Thakur
+Thigala
+Thiyya
+Tili
+Togata
+Tonk Kshatriya
+Turupu Kapu
+Urali Gounder
+Urs
+Vada Balija
+Vaddera
+Vaish
+Vaishnav
+Vaishnava
+Vaishya
+Vaishya Vani
+Valluvan
+Valmiki
+Vania
+Vaniya
+Vanjara
+Vanjari
+Vankar
+Vannar
+Vannia Kula Kshatriyar
+Variar
+Varshney
+Veera Saivam
+Velaan
+Velama
+Vellalar
+Veluthedathu Nair
+Vettuva Gounder
+Vilakkithala Nair
+Vishwakarma
+Viswabrahmin
+Vokkaliga
+Vysya
+Yadav
+Yellapu
+Others
+

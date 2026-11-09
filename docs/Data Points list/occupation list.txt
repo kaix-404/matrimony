@@ -1,0 +1,175 @@
+occupation
+
+
+Software Professional
+Teaching / Academician
+Executive
+Doctor
+Manager
+Professor / Lecturer
+Officer
+Human Resources Professional
+--More options--
+--Administration--
+Manager
+Supervisor
+Officer
+Administrative Professional
+Executive
+Clerk
+Human Resources Professional
+Secretary / Front Office
+--Agriculture--
+Agriculture & Farming Professional
+Horticulturist
+--Airline--
+Pilot
+Air Hostess / Flight Attendant
+Airline Professional
+--Architecture & Design--
+Architect
+Interior Designer
+--Banking & Finance--
+Chartered Accountant
+Company Secretary
+Accounts / Finance Professional
+Banking Professional
+Auditor
+Financial Accountant
+Financial Analyst / Planning
+Investment Professional
+--Beauty & Fashion--
+Fashion Designer
+Beautician
+Hair Stylist
+Jewellery Designer
+Designer (Others)
+Makeup Artist
+--BPO & Customer Service--
+BPO / KPO / ITeS Professional
+Customer Service Professional
+--Civil Services--
+Civil Services (IAS / IPS / IRS / IES / IFS)
+--Corporate Professionals--
+Analyst
+Consultant
+Corporate Communication
+Corporate Planning
+Marketing Professional
+Operations Management
+Sales Professional
+Senior Manager / Manager
+Subject Matter Expert
+Business Development Professional
+Content Writer
+--Defence--
+Army
+Navy
+Defence Services (Others)
+Air Force
+Paramilitary
+--Doctor--
+Doctor
+Dentist
+Surgeon
+Veterinary Doctor
+--Education & Training--
+Professor / Lecturer
+Teaching / Academician
+Education Professional
+Training Professional
+Research Assistant
+Research Scholar
+--Engineering--
+Civil Engineer
+Electronics / Telecom Engineer
+Mechanical / Production Engineer
+Quality Assurance Engineer - Non IT
+Engineer - Non IT
+Designer
+Product Manager - Non IT
+Project Manager - Non IT
+--Hospitality--
+Hotel / Hospitality Professional
+Restaurant / Catering Professional
+Chef / Cook
+--IT & Software--
+Software Professional
+Hardware Professional
+Product Manager
+Project Manager
+Program Manager
+Animator
+Cyber / Network Security
+UI / UX Designer
+Web / Graphic Designer
+Software Consultant
+Data Analyst
+Data Scientist
+Network Engineer
+Quality Assurance Engineer
+--Legal--
+Lawyer & Legal Professional
+Legal Assistant
+--Media & Entertainment--
+Journalist
+Media Professional
+Entertainment Professional
+Event Management Professional
+Advertising / PR Professional
+Designer
+Actor / Model
+Artist
+--Medical & Healthcare - Other--
+Health Care Professional
+Paramedical Professional
+Nurse
+Pharmacist
+Physiotherapist
+Psychologist
+Therapist
+Medical Transcriptionist
+Dietician / Nutritionist
+Lab Technician
+Medical Representative
+--Merchant Navy--
+Mariner / Merchant Navy
+Sailor
+--Others--
+Technician
+Arts & Craftsman
+Librarian
+Business Owner / Entrepreneur
+Retired
+Transportation / Logistics Professional
+Agent / Broker / Trader
+Contractor
+Fitness Professional
+Security Professional
+Social Worker / Volunteer / NGO
+Sportsperson
+Travel Professional
+Singer
+Writer
+Politician
+Associate
+Builder
+Chemist
+CNC Operator
+Distributor
+Driver
+Freelancer
+Mechanic
+Musician
+Photo / Videographer
+Surveyor
+Tailor
+Others
+--Police / Law Enforcement--
+Law Enforcement Officer
+Police
+--Scientist--
+Scientist / Researcher
+--Senior Management--
+CXO / President / Director / Chairman
+VP / AVP / GM / DGM / AGM
