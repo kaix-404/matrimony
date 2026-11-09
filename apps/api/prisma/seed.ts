@@ -435,14 +435,24 @@ async function seedBootstrapAdmin(): Promise<{ created: boolean; skipped: boolea
 async function seedDemoFixtures(): Promise<string> {
   const mode = (process.env.SEED_DEMO_PROFILES ?? '').trim().toLowerCase();
 
-  if (mode === 'true' || mode === '1') {
+  if (mode !== 'true' && mode !== '1' && mode !== 'remove') {
+    return 'skipped (set SEED_DEMO_PROFILES=true to create, remove to delete)';
+  }
+
+  // Fixtures are optional, and this seed runs in the boot chain: a throw here
+  // would stop the API from starting, taking authentication and discovery down
+  // over demo data. Reference data above stays fail-hard, because a half-seeded
+  // catalogue is worse than a server that refuses to boot.
+  try {
+    if (mode === 'remove') {
+      return `${await removeDemoProfiles(prisma)} removed`;
+    }
     const result = await seedDemoProfiles(prisma);
     return `${result.created} created, ${result.existing} already present`;
+  } catch (error) {
+    console.error('Demo fixture seed failed; the API will start without it:', error);
+    return `failed: ${error instanceof Error ? error.message : String(error)}`;
   }
-  if (mode === 'remove') {
-    return `${await removeDemoProfiles(prisma)} removed`;
-  }
-  return 'skipped (set SEED_DEMO_PROFILES=true to create, remove to delete)';
 }
 
 async function main(): Promise<void> {
