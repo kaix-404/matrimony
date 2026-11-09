@@ -55,8 +55,10 @@ export class RegistrationService {
       // signed in, but every edit refused with "Account is deleted", which is
       // how this was found.
       if (existing.deletedAt !== null || existing.status === UserStatus.DELETED) {
+        // Closed, not gone: F6 keeps the row restorable during retention, so the
+        // message points at support rather than claiming the number is dead.
         throw new ConflictException(
-          'This number belonged to a closed account and cannot be registered again',
+          'This number belonged to a closed account. Contact support if you want it restored.',
         );
       }
       if (existing.status === UserStatus.SUSPENDED) {
