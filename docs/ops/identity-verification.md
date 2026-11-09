@@ -77,4 +77,5 @@ no sweeper that expires it. The member is not stranded, though: the app compares
 the attempt's `providerReferenceExpiresAt` with the status and, once the session
 has lapsed, replaces "waiting" with a request for a new link. Re-initiating
 overwrites the stuck row, so a fresh attempt needs no operator. The console's
-**Identity checks** queue is still where a stuck one is cleared for the record.
+**Identity checks** queue only shows such a row (filter **Awaiting member**); it
+is a read-only list, and no administrator action expires an attempt.
