@@ -98,6 +98,18 @@ services:
       #   sync: false
       # - key: EMAIL_FROM_ADDRESS
       #   sync: false
+      # Fixture profiles, so discovery and the unlock flow have something in them
+      # in a database otherwise holding only the client's test accounts: twelve
+      # invented members, three in each net-worth band, each one labelled a demo
+      # in its own text and carrying a number in the reserved 90000000xx block.
+      #
+      # `true` creates them on boot (the image seeds on every boot, because
+      # pre-deploy commands are a paid-plan feature), `remove` deletes them, and
+      # any other value leaves the database alone. Set this to `false` — and to
+      # `remove` once — before the product is shown to real members. See
+      # docs/ops/demo-profiles.md.
+      - key: SEED_DEMO_PROFILES
+        value: "true"
     healthCheckPath: /api/v1/health/ready
     healthCheckPort: 4000
     autoDeploy: true

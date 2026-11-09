@@ -16,6 +16,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { AdminRoleSlug, PrismaClient } from '../src/prisma/prisma-client';
 import { hashPassword } from '../src/common/crypto/password';
+import { removeDemoProfiles, seedDemoProfiles } from './demo-profiles';
 import {
   ACCOUNT_SETUP_FEE,
   CRORE_INR,
@@ -422,6 +423,28 @@ async function seedBootstrapAdmin(): Promise<{ created: boolean; skipped: boolea
   return { created: existing === null, skipped: false };
 }
 
+/**
+ * Fixture profiles are opt-in per deployment, by environment variable.
+ *
+ * The API image seeds on every boot (a free-plan Render service has no
+ * pre-deploy command), so this runs on every deploy whether or not anyone wanted
+ * it. The variable is what makes it a decision rather than a surprise: `true`
+ * creates the fixtures, `remove` deletes them, and anything else leaves the
+ * database alone. See docs/ops/demo-profiles.md.
+ */
+async function seedDemoFixtures(): Promise<string> {
+  const mode = (process.env.SEED_DEMO_PROFILES ?? '').trim().toLowerCase();
+
+  if (mode === 'true' || mode === '1') {
+    const result = await seedDemoProfiles(prisma);
+    return `${result.created} created, ${result.existing} already present`;
+  }
+  if (mode === 'remove') {
+    return `${await removeDemoProfiles(prisma)} removed`;
+  }
+  return 'skipped (set SEED_DEMO_PROFILES=true to create, remove to delete)';
+}
+
 async function main(): Promise<void> {
   await seedNetWorthCategories();
   await seedPricing();
@@ -430,6 +453,7 @@ async function main(): Promise<void> {
   await seedInterests();
   await seedRolesAndPermissions();
   const bootstrapAdmin = await seedBootstrapAdmin();
+  const demoFixtures = await seedDemoFixtures();
 
   const [bands, activePrices, lists, reasons, interests, permissions, roles, admins] = await Promise.all([
     prisma.netWorthCategoryRef.count(),
@@ -451,6 +475,7 @@ async function main(): Promise<void> {
   console.log(`  permissions         : ${permissions}`);
   console.log(`  roles               : ${roles}`);
   console.log(`  administrators      : ${admins}`);
+  console.log(`  demo profiles       : ${demoFixtures}`);
   if (bootstrapAdmin.skipped) {
     console.log('  bootstrap admin     : skipped (set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD to create one)');
   } else {
