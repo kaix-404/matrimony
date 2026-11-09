@@ -68,13 +68,16 @@ async function seedNetWorthCategories(): Promise<void> {
     // Copy shown to the user when picking categories. It deliberately does not say
     // "you will discover profiles in this category": a profile is discoverable
     // only when both sides agree, so the band is neither a partition nor a
-    // promise. It states the price instead, because the price follows the band
-    // and the user will want to know it before choosing.
+    // promise.
+    //
+    // It no longer quotes the unlock price (client feedback, 2026-11-09): asking
+    // "what is your family net worth" and answering every option with what it
+    // costs to contact them made the choice look like shopping. The schedule is
+    // shown on its own pricing screen, and `quotePayment` above still fails the
+    // seed if the tables disagree with the client's price list.
     const description =
-      `Profiles in this band cost \u20b9${pricing.baseAmount} to unlock, plus ` +
-      `${pricing.gstPercent}% GST, a total of \u20b9${quote.totalAmount}. ` +
-      `Visibility is two-way: you also need to allow this band, and this band's ` +
-      `owners need to allow yours.`;
+      'Choose the band your family\u2019s total net worth falls in. It decides who ' +
+      'you can find and who can find you, and it cannot be changed later.';
 
     await prisma.netWorthCategoryRef.upsert({
       where: { key: band.key },

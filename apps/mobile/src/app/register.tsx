@@ -17,6 +17,10 @@ import { colors, spacing, typography } from '../theme/tokens';
  * and there is deliberately no edit path anywhere else in the app. Bands come
  * from `GET /master-data/net-worth-categories` rather than a hardcoded list —
  * an admin adds a band, and a client release should not be required to offer it.
+ *
+ * The option copy carries no prices (client feedback, 2026-11-09): the question
+ * is what the family is worth, and the unlock schedule belongs on the pricing
+ * screen, not attached to each answer as though the choice were a purchase.
  */
 export default function RegisterScreen() {
   const { mobile } = useLocalSearchParams<{ mobile?: string }>();
@@ -71,8 +75,8 @@ export default function RegisterScreen() {
 
   return (
     <Screen
-      title="Your net-worth band"
-      subtitle="This decides who can find you, and who you can find. It cannot be changed later."
+      title="What is your family net worth?"
+      subtitle="This decides who you can find, and who can find you. It cannot be changed later."
       back
       footer={
         <PrimaryButton

@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
   BIODATA_FIELD_LABELS,
   type BiodataExtraction,
@@ -34,6 +34,10 @@ import { colors, spacing, typography } from '../theme/tokens';
 export default function BiodataImportScreen() {
   const { ready } = useRequireAuth();
   const { token, refreshUser } = useAuth();
+  // Set by onboarding, where the import stands in for the details form: the
+  // member has just created their profile and still has to pass KYC, so the
+  // screen it returns to is the identity check rather than "back".
+  const { next } = useLocalSearchParams<{ next?: string }>();
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +104,15 @@ export default function BiodataImportScreen() {
     setError(null);
     try {
       await apiClient.updateProfile(patch, token);
+      if (next === 'verification') {
+        // The import is the whole of the profile form on this path, so it also
+        // submits for review; leaving it a draft would hide the member from
+        // discovery with nothing explaining why.
+        await apiClient.submitProfileForReview(token).catch(() => undefined);
+        await refreshUser();
+        router.replace('/verification');
+        return;
+      }
       await refreshUser();
       router.back();
     } catch (e) {

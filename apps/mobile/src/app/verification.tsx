@@ -149,8 +149,12 @@ export default function VerificationScreen() {
       ) : (
         <>
           <Text style={styles.lead}>
-            We verify every member through DigiLocker so that the person behind a profile is real.
-            You will be taken to DigiLocker to sign in and share your Aadhaar details.
+            As per Government of India norms, please complete KYC verification for Aadhaar. You will
+            be taken to DigiLocker to sign in and share your Aadhaar details, so that the person
+            behind a profile is real.
+          </Text>
+          <Text style={styles.note}>
+            Your profile will be offline until KYC is completed.
           </Text>
 
           {linkExpired ? (
