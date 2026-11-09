@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -18,12 +19,14 @@ import { PrismaClient } from '../prisma/prisma-client';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
 import { SmsGateway } from '../sms/sms.gateway';
 import {
+  ChangeMobileSchema,
   CompleteRegistrationSchema,
   RefreshSchema,
   RequestOtpSchema,
   SMS_UNAVAILABLE_CODE,
   VerifyOtpSchema,
   type AccessTokenClaims,
+  type ChangeMobileInput,
   type CompleteRegistrationInput,
   type CurrentUser,
   type OtpRequested,
@@ -172,6 +175,14 @@ export class AuthController {
       return { verified: true };
     }
 
+    // A number change is verified by the change endpoint itself, against the code
+    // still pending. Answering here would consume that pending state (a wrong guess
+    // burns an attempt, a right one marks it VERIFIED) and leave `/mobile/change`
+    // with nothing to check, so this route refuses the purpose outright.
+    if (body.purpose === 'CHANGE_MOBILE') {
+      throw new BadRequestException('Complete the change with POST /auth/mobile/change');
+    }
+
     // Spent here rather than left available, for the same reason as the
     // registration code: a verified code is a session, and it must not be
     // redeemable twice.
@@ -180,6 +191,24 @@ export class AuthController {
     const tokens = await this.auth.signIn(body.mobile);
 
     return tokens ? { verified: true, tokens } : { verified: true };
+  }
+
+  /**
+   * Moves the signed-in account to a new mobile number.
+   *
+   * The code was requested with `POST /auth/otp/request` and purpose
+   * `CHANGE_MOBILE`, sent to the number being moved to. A fresh token pair comes
+   * back because every session authorised by the old number is revoked — including
+   * this one — and the caller must not be signed out for having used the feature.
+   */
+  @Post('mobile/change')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async changeMobile(
+    @AuthUser() claims: AccessTokenClaims,
+    @Body(new ZodValidationPipe(ChangeMobileSchema)) body: ChangeMobileInput,
+  ): Promise<TokenPair> {
+    return this.auth.changeMobile(claims.sub, body.mobile, body.code);
   }
 
   /**

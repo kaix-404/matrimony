@@ -43,7 +43,15 @@ export const IndianMobileSchema = z
 
 export type IndianMobile = z.infer<typeof IndianMobileSchema>;
 
-export const OTP_PURPOSES = ['REGISTRATION', 'LOGIN', 'DELETE_ACCOUNT', 'CATEGORY_REVIEW'] as const;
+export const OTP_PURPOSES = [
+  'REGISTRATION',
+  'LOGIN',
+  'DELETE_ACCOUNT',
+  'CATEGORY_REVIEW',
+  // Verifying a number the account is moving to. Its own purpose so a code minted
+  // to log in cannot be spent on a number change, or the reverse.
+  'CHANGE_MOBILE',
+] as const;
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
 
 // ---------------------------------------------------------------------------
@@ -103,6 +111,26 @@ export type OtpRequested = z.infer<typeof OtpRequestedSchema>;
  * from a validation error or an outage instead of printing a generic failure.
  */
 export const SMS_UNAVAILABLE_CODE = 'SMS_UNAVAILABLE';
+
+/**
+ * Completing a change of the account's mobile number.
+ *
+ * The number is the login identity, so this is a verified swap rather than a
+ * profile edit: a code sent to the NEW number proves the member can receive it,
+ * and the bearer token proves they are already signed in as the account. The
+ * code is bound to `CHANGE_MOBILE`, so a login code cannot be reused here.
+ */
+export const ChangeMobileSchema = z
+  .object({
+    mobile: IndianMobileSchema,
+    code: z
+      .string()
+      .trim()
+      .regex(new RegExp(`^\\d{${OTP_CODE_LENGTH}}$`), `must be exactly ${OTP_CODE_LENGTH} digits`),
+  })
+  .strict();
+
+export type ChangeMobileInput = z.infer<typeof ChangeMobileSchema>;
 
 export const VerifyOtpSchema = z
   .object({

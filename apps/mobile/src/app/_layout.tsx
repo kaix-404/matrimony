@@ -27,6 +27,7 @@ export default function RootLayout() {
           <Stack.Screen name="pricing" />
           <Stack.Screen name="help" />
           <Stack.Screen name="discovery-settings" />
+          <Stack.Screen name="change-mobile" />
           <Stack.Screen name="delete-account" />
           <Stack.Screen name="unlocks" />
           <Stack.Screen name="blocks" />

@@ -6,6 +6,7 @@ import type {
   BlockedListResponse,
   BlockResult,
   BiodataUploadTicket,
+  ChangeMobileInput,
   CreateProfileInput,
   CurrentUser,
   DataRequest,
@@ -216,6 +217,21 @@ class ApiClient {
     return this.fetchJson('auth/refresh', {
       method: 'POST',
       body: JSON.stringify(body),
+    });
+  }
+
+  /**
+   * Moves the account to a new mobile number, after a code sent to it.
+   *
+   * Returns a fresh token pair because every session minted against the old
+   * number is revoked on the server; without adopting this one the member would
+   * be signed out by their own account change.
+   */
+  async changeMobile(input: ChangeMobileInput, token: string): Promise<TokenPair> {
+    return this.fetchJson('auth/mobile/change', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: authHeaders(token),
     });
   }
 

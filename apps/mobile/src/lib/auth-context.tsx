@@ -43,6 +43,14 @@ interface AuthContextValue {
   signOut: () => Promise<void>;
   /** Re-reads `GET /auth/me`; best-effort, never throws. */
   refreshUser: () => Promise<void>;
+  /**
+   * Adopts a pair minted by the server for this member.
+   *
+   * Only the account-change flow uses it: the server revokes every session when
+   * the login number moves, and hands the changing device a new pair so the
+   * member is not signed out by their own change.
+   */
+  replaceSession: (tokens: TokenPair) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -192,6 +200,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [refreshUser],
   );
 
+  const replaceSession = useCallback(
+    async (tokens: TokenPair) => {
+      await persistSession(tokens);
+      await refreshUser();
+    },
+    [persistSession, refreshUser],
+  );
+
   const signOut = useCallback(async () => {
     const session = sessionRef.current;
     if (session) {
@@ -290,8 +306,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn,
       signOut,
       refreshUser,
+      replaceSession,
     }),
-    [state.status, state.user, accessToken, signIn, signOut, refreshUser],
+    [state.status, state.user, accessToken, signIn, signOut, refreshUser, replaceSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

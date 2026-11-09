@@ -214,6 +214,22 @@ export class TokenService {
   }
 
   /**
+   * Revokes every session an account has.
+   *
+   * Used when the thing that authenticates those sessions changes: the mobile
+   * number is the login identity, so after it moves, a token minted against the
+   * old number must not keep working. The caller re-issues for the device that
+   * made the change, so only the other devices are actually signed out.
+   */
+  async revokeAllForUser(userId: string, reason: string): Promise<number> {
+    const result = await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: this.clock.now(), revokedReason: reason },
+    });
+    return result.count;
+  }
+
+  /**
    * Revokes a single token. Used by logout.
    *
    * Only the presented token is revoked, not the family: logging out on one

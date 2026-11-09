@@ -30,7 +30,7 @@ export declare const OTP_CODE_LENGTH = 6;
  */
 export declare const IndianMobileSchema: z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>;
 export type IndianMobile = z.infer<typeof IndianMobileSchema>;
-export declare const OTP_PURPOSES: readonly ["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW"];
+export declare const OTP_PURPOSES: readonly ["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE"];
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
 /**
  * Requesting a code never reveals whether the mobile is already registered.
@@ -42,16 +42,16 @@ export type OtpPurpose = (typeof OTP_PURPOSES)[number];
  */
 export declare const RequestOtpSchema: z.ZodObject<{
     mobile: z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>;
-    purpose: z.ZodEnum<["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW"]>;
+    purpose: z.ZodEnum<["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE"]>;
     /** Free-form device identifier; recorded for rate-limit auditing only. */
     device_id: z.ZodOptional<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     mobile: string;
-    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW";
+    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE";
     device_id?: string | undefined;
 }, {
     mobile: string;
-    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW";
+    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE";
     device_id?: string | undefined;
 }>;
 export type RequestOtpInput = z.infer<typeof RequestOtpSchema>;
@@ -95,18 +95,37 @@ export type OtpRequested = z.infer<typeof OtpRequestedSchema>;
  * from a validation error or an outage instead of printing a generic failure.
  */
 export declare const SMS_UNAVAILABLE_CODE = "SMS_UNAVAILABLE";
-export declare const VerifyOtpSchema: z.ZodObject<{
+/**
+ * Completing a change of the account's mobile number.
+ *
+ * The number is the login identity, so this is a verified swap rather than a
+ * profile edit: a code sent to the NEW number proves the member can receive it,
+ * and the bearer token proves they are already signed in as the account. The
+ * code is bound to `CHANGE_MOBILE`, so a login code cannot be reused here.
+ */
+export declare const ChangeMobileSchema: z.ZodObject<{
     mobile: z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>;
-    purpose: z.ZodEnum<["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW"]>;
     code: z.ZodString;
 }, "strict", z.ZodTypeAny, {
     code: string;
     mobile: string;
-    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW";
 }, {
     code: string;
     mobile: string;
-    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW";
+}>;
+export type ChangeMobileInput = z.infer<typeof ChangeMobileSchema>;
+export declare const VerifyOtpSchema: z.ZodObject<{
+    mobile: z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>;
+    purpose: z.ZodEnum<["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE"]>;
+    code: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    code: string;
+    mobile: string;
+    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE";
+}, {
+    code: string;
+    mobile: string;
+    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE";
 }>;
 export type VerifyOtpInput = z.infer<typeof VerifyOtpSchema>;
 /**

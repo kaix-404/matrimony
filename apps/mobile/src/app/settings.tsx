@@ -20,10 +20,11 @@ import { colors, radii, spacing, typography } from '../theme/tokens';
  * reversible version of deleting an account, and putting it next to the
  * irreversible one is how a member finds it before they delete anything.
  *
- * Changing the mobile number and adding an email are not here yet. The number is
- * the login identity, so it needs its own verified-swap flow rather than a text
- * field, and email needs a provider this deployment does not have configured;
- * shipping a button that cannot complete would be worse than its absence.
+ * The mobile number is changed through a verified swap (a code to the new number,
+ * then every other session revoked) rather than a text field, because it is the
+ * login identity. Adding an email is not here yet: it needs a mail provider this
+ * deployment does not have configured, and shipping a button that cannot send
+ * would be worse than its absence.
  */
 export default function SettingsScreen() {
   const { ready } = useRequireAuth();
@@ -126,6 +127,11 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Account</Text>
+        <PrimaryButton
+          variant="outline"
+          label="Change mobile number"
+          onPress={() => router.push('/change-mobile')}
+        />
         <PrimaryButton
           variant="outline"
           label="Identity verification"

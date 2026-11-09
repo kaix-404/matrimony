@@ -3,11 +3,18 @@ import { UnauthorizedException } from '@nestjs/common';
 import { ClockService, FrozenClock } from '../common/clock/clock.service';
 import { PrismaClient, UserStatus } from '../prisma/prisma-client';
 import { AuthService } from './auth.service';
+import { OtpService } from './otp.service';
 import { TokenService } from './token.service';
 
 /** Records the calls that must not happen, so a test can assert on them. */
 class RecordingTokenService {
   issued: string[] = [];
+  revokedAll: { userId: string; reason: string }[] = [];
+
+  async revokeAllForUser(userId: string, reason: string) {
+    this.revokedAll.push({ userId, reason });
+    return 1;
+  }
 
   async issueRefreshToken(userId: string) {
     this.issued.push(userId);
@@ -33,6 +40,7 @@ function harness() {
       lockedUntil: null as Date | null,
       deletedAt: null as Date | null,
       isAnonymised: false,
+      isPhoneVerified: false,
       mobile: '9876543210',
     },
   ];
@@ -48,6 +56,11 @@ function harness() {
     user: {
       findUnique: async ({ where }: { where: Lookup }): Promise<Row | null> =>
         users.find((u) => u.id === where.id || u.mobile === where.mobile) ?? null,
+      findUniqueOrThrow: async ({ where }: { where: Lookup }): Promise<Row> => {
+        const row = users.find((u) => u.id === where.id || u.mobile === where.mobile);
+        if (!row) throw new Error(`no user ${JSON.stringify(where)}`);
+        return row;
+      },
       update: async ({
         where,
         data,
@@ -79,17 +92,36 @@ function harness() {
   return { users, prisma };
 }
 
+/** A stand-in for the OTP store: what was verified, and what was spent. */
+class RecordingOtpService {
+  verified: { mobile: string; code: string }[] = [];
+  consumed: string[] = [];
+  nextVerification: string | null = 'otp-row-1';
+
+  async verify(input: { mobile: string; code: string }) {
+    this.verified.push({ mobile: input.mobile, code: input.code });
+    return this.nextVerification;
+  }
+
+  async consumeVerified(input: { mobile: string }) {
+    this.consumed.push(input.mobile);
+    return true;
+  }
+}
+
 async function makeService(prisma: unknown, clock: ClockService) {
   const tokens = new RecordingTokenService();
+  const otp = new RecordingOtpService();
   const moduleRef = await Test.createTestingModule({
     providers: [
       AuthService,
       { provide: TokenService, useValue: tokens },
+      { provide: OtpService, useValue: otp },
       { provide: PrismaClient, useValue: prisma },
       { provide: ClockService, useValue: clock },
     ],
   }).compile();
-  return { service: moduleRef.get(AuthService), tokens };
+  return { service: moduleRef.get(AuthService), tokens, otp };
 }
 
 describe('AuthService.signIn', () => {
@@ -254,5 +286,79 @@ describe('AuthService.recordFailedSignInForMobile', () => {
     }
 
     expect(users[0].lockedUntil?.getTime()).toBe(clock.now().getTime() + 15 * 60_000);
+  });
+});
+
+/**
+ * Changing the number an account signs in with.
+ *
+ * The number is the identity, so the properties that matter are: the code must be
+ * one sent to the NEW number, a number already in use must be refused, a refusal
+ * must not spend the code, and every session minted against the old number must
+ * end — while the device making the change keeps working.
+ */
+describe('AuthService.changeMobile', () => {
+  it('moves the number, revokes other sessions and re-issues for this device', async () => {
+    const { prisma, users } = harness();
+    const { service, tokens, otp } = await makeService(prisma, new ClockService());
+
+    const pair = await service.changeMobile('u1', '9123456789', '123456');
+
+    expect(users[0].mobile).toBe('9123456789');
+    expect(users[0].isPhoneVerified).toBe(true);
+    expect(otp.verified).toEqual([{ mobile: '9123456789', code: '123456' }]);
+    expect(otp.consumed).toEqual(['9123456789']);
+    expect(tokens.revokedAll).toEqual([{ userId: 'u1', reason: 'MOBILE_CHANGED' }]);
+    expect(pair).toEqual({
+      access_token: 'access-for-u1',
+      refresh_token: 'refresh-for-u1',
+      token_type: 'Bearer',
+      expires_in: 900,
+    });
+  });
+
+  it('refuses a code that does not verify, and spends nothing', async () => {
+    const { prisma, users } = harness();
+    const { service, tokens, otp } = await makeService(prisma, new ClockService());
+    otp.nextVerification = null;
+
+    await expect(service.changeMobile('u1', '9123456789', '000000')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(users[0].mobile).toBe('9876543210');
+    expect(otp.consumed).toEqual([]);
+    expect(tokens.revokedAll).toEqual([]);
+  });
+
+  it('refuses a number another account already uses', async () => {
+    const { prisma, users } = harness();
+    const { service, tokens, otp } = await makeService(prisma, new ClockService());
+    users.push({ ...users[0], id: 'u2', mobile: '9123456789', failedLoginCount: 0 });
+
+    await expect(service.changeMobile('u1', '9123456789', '123456')).rejects.toThrow(
+      /already registered/,
+    );
+    expect(otp.consumed).toEqual([]);
+    expect(tokens.revokedAll).toEqual([]);
+  });
+
+  it('refuses the number the account already has', async () => {
+    const { prisma } = harness();
+    const { service, otp } = await makeService(prisma, new ClockService());
+
+    await expect(service.changeMobile('u1', '9876543210', '123456')).rejects.toThrow(
+      /already your mobile/,
+    );
+    expect(otp.verified).toEqual([]);
+  });
+
+  it('refuses a deleted account', async () => {
+    const { prisma, users } = harness();
+    const { service } = await makeService(prisma, new ClockService());
+    users[0].deletedAt = new Date();
+
+    await expect(service.changeMobile('u1', '9123456789', '123456')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 });

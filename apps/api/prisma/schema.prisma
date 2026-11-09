@@ -164,6 +164,8 @@ enum OtpPurpose {
   LOGIN
   DELETE_ACCOUNT
   CATEGORY_REVIEW
+  /// A code sent to the number an account is moving to.
+  CHANGE_MOBILE
 }
 
 /// Section 40. Amounts are snapshotted at order creation and are thereafter

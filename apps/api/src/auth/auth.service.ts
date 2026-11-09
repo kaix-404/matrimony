@@ -1,6 +1,12 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ClockService } from '../common/clock/clock.service';
 import { PrismaClient, UserStatus } from '../prisma/prisma-client';
+import { OtpService } from './otp.service';
 import { TokenService } from './token.service';
 import type { TokenPair } from '@matrimony/shared';
 
@@ -25,7 +31,80 @@ export class AuthService {
     private readonly prisma: PrismaClient,
     private readonly clock: ClockService,
     private readonly tokens: TokenService,
+    private readonly otp: OtpService,
   ) {}
+
+  /**
+   * Moves the account to a new mobile number.
+   *
+   * Two proofs are required and they are different proofs: the bearer token says
+   * the caller is signed in as this account, and the code says they can receive
+   * SMS on the new number. Either alone would be enough to take over an account
+   * — a stolen phone, or a stolen session.
+   *
+   * The number is the login identity, so every session minted against the old
+   * number is revoked. The device that made the change is handed a fresh pair, so
+   * it stays signed in and the other devices do not.
+   */
+  async changeMobile(userId: string, mobile: string, code: string): Promise<TokenPair> {
+    const current = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { mobile: true, deletedAt: true, isAnonymised: true },
+    });
+
+    if (current.deletedAt !== null || current.isAnonymised) {
+      throw new UnauthorizedException('This account can no longer be changed');
+    }
+
+    if (current.mobile === mobile) {
+      throw new BadRequestException('That is already your mobile number');
+    }
+
+    // Verified first, so an expired or guessed code answers the same way as a
+    // taken number would not: the caller learns nothing until they hold the
+    // number.
+    const verified = await this.otp.verify({ mobile, purpose: 'CHANGE_MOBILE', code });
+    if (verified === null) {
+      throw new UnauthorizedException('That code is not valid for this number');
+    }
+
+    const owner = await this.prisma.user.findUnique({ where: { mobile }, select: { id: true } });
+    if (owner !== null) {
+      // Told plainly: the caller has just proved they control the number, which is
+      // the same proof registration relies on before it reveals this.
+      throw new ConflictException('That mobile number is already registered');
+    }
+
+    // Spent only once everything that can refuse the change has passed, so a
+    // refused attempt does not burn the member's code.
+    await this.otp.consumeVerified({ mobile, purpose: 'CHANGE_MOBILE' });
+
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { mobile, isPhoneVerified: true },
+      });
+    } catch {
+      // The unique index is the real arbiter: two accounts changing to the same
+      // number at the same moment both pass the check above.
+      throw new ConflictException('That mobile number is already registered');
+    }
+
+    await this.tokens.revokeAllForUser(userId, 'MOBILE_CHANGED');
+
+    const account = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { id: true, status: true, networthCategory: true },
+    });
+    const refresh = await this.tokens.issueRefreshToken(userId);
+
+    return {
+      access_token: await this.tokens.issueAccessToken(account),
+      refresh_token: refresh.token,
+      token_type: 'Bearer',
+      expires_in: this.tokens.accessTtlSeconds(),
+    };
+  }
 
   /**
    * Issues tokens for a mobile number, or throws if the account cannot sign in.
