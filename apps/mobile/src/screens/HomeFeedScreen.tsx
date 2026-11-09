@@ -38,13 +38,19 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
   const filtersActive = Object.keys(filters).length > 0;
 
   // D9: verification comes before the fee, and an unverified account is not
-  // discoverable either. Like the fee gate below, this state has one action.
+  // discoverable either. Like the fee gate below, this state has one action —
+  // except for a member whose registration never reached the profile form, who
+  // is asked for that first: identity checks and the fee are both pointless on
+  // an account with nothing to show.
   if (user?.status === 'PENDING_VERIFICATION') {
     return (
       <AppShell>
         <View style={styles.gated}>
           <HeaderBar />
-          <VerificationBanner />
+          {/* Strictly false: an API that predates this field sends nothing, and
+              the identity check is the right guess for a member who already has
+              a profile. */}
+          {user.has_profile === false ? <FinishProfileBanner /> : <VerificationBanner />}
         </View>
         <BottomNav />
       </AppShell>
@@ -133,6 +139,27 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
         onClose={() => setSheetOpen(false)}
       />
     </AppShell>
+  );
+}
+
+/**
+ * Registered, but the onboarding form was never completed — the app used to
+ * offer only the identity check here, which led a member through Aadhaar and the
+ * fee without ever creating a profile.
+ */
+function FinishProfileBanner() {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      style={styles.banner}
+      onPress={() => router.push('/onboarding')}
+    >
+      <Text style={styles.bannerTitle}>Finish your profile</Text>
+      <Text style={styles.bannerBody}>
+        Your account is created, but we still need your name, gender and date of birth. It takes a
+        minute.
+      </Text>
+    </Pressable>
   );
 }
 

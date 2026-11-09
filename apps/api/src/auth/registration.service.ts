@@ -126,6 +126,9 @@ export class RegistrationService {
       setup_fee_paid: setupFeePaid,
       can_discover: live && user.status === UserStatus.ACTIVE && identityVerified && setupFeePaid,
       profile_complete: user.profile !== null && user.profile.status !== 'DRAFT',
+      // Distinguishes "never started" from "has a draft": only the first should
+      // be sent back to the form that creates the row.
+      has_profile: user.profile !== null,
     };
   }
 }

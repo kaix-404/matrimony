@@ -194,6 +194,15 @@ export declare const CurrentUserSchema: z.ZodObject<{
     /** True only when status is ACTIVE: verified, paid, not suspended. */
     can_discover: z.ZodBoolean;
     profile_complete: z.ZodBoolean;
+    /**
+     * Whether a profile row exists at all — not whether it is finished.
+     *
+     * `profile_complete` is false both for a member who never started and one
+     * holding a draft. The app needs the difference: the first has to be sent
+     * back to the onboarding form, which creates the row, and the second must
+     * edit what already exists.
+     */
+    has_profile: z.ZodBoolean;
 }, "strict", z.ZodTypeAny, {
     mobile: string;
     status: "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | "ACTIVE" | "SUSPENDED" | "DELETED";
@@ -204,6 +213,7 @@ export declare const CurrentUserSchema: z.ZodObject<{
     setup_fee_paid: boolean;
     can_discover: boolean;
     profile_complete: boolean;
+    has_profile: boolean;
 }, {
     mobile: string;
     status: "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | "ACTIVE" | "SUSPENDED" | "DELETED";
@@ -214,6 +224,7 @@ export declare const CurrentUserSchema: z.ZodObject<{
     setup_fee_paid: boolean;
     can_discover: boolean;
     profile_complete: boolean;
+    has_profile: boolean;
 }>;
 export type CurrentUser = z.infer<typeof CurrentUserSchema>;
 //# sourceMappingURL=auth.d.ts.map

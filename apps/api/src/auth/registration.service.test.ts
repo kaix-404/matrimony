@@ -248,12 +248,17 @@ describe('RegistrationService.currentUser', () => {
     const id = users[0].id;
 
     expect((await service.currentUser(id)).profile_complete).toBe(false);
+    expect((await service.currentUser(id)).has_profile).toBe(false);
 
     users[0].profile = { status: 'DRAFT' };
     expect((await service.currentUser(id)).profile_complete).toBe(false);
+    // A draft is unfinished, but the row exists: the app must edit it rather
+    // than offer the form that would fail to create a second one.
+    expect((await service.currentUser(id)).has_profile).toBe(true);
 
     users[0].profile = { status: 'PENDING_REVIEW' };
     expect((await service.currentUser(id)).profile_complete).toBe(true);
+    expect((await service.currentUser(id)).has_profile).toBe(true);
   });
 
   it('carries no profile field into the payload', async () => {
@@ -265,6 +270,7 @@ describe('RegistrationService.currentUser', () => {
 
     expect(Object.keys(payload).sort()).toEqual([
       'can_discover',
+      'has_profile',
       'id',
       'identity_verified',
       'is_phone_verified',
