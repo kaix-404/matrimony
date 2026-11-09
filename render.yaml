@@ -55,10 +55,19 @@ services:
       #   valueType: secret
       # - key: RAZORPAY_WEBHOOK_SECRET
       #   valueType: secret
-      # - key: CASHFREE_CLIENT_ID
-      #   valueType: secret
-      # - key: CASHFREE_CLIENT_SECRET
-      #   valueType: secret
+      # Identity verification (D9). Without these the API boots and answers 503
+      # to every attempt to start a DigiLocker session, which is why production
+      # shows "Verify your identity" and cannot complete it. See
+      # docs/ops/identity-verification.md for the whole switch-on.
+      - key: CASHFREE_CLIENT_ID
+        valueType: secret
+      - key: CASHFREE_CLIENT_SECRET
+        valueType: secret
+      # `sandbox` until Cashfree approves production Secure ID. Sandbox and
+      # production credentials are not interchangeable, and a sandbox secret on
+      # the production host fails with a validation error that reads like a bug.
+      - key: CASHFREE_ENVIRONMENT
+        value: sandbox
       # - key: FCM_SERVICE_ACCOUNT_JSON
       #   valueType: secret
       # - key: SMS_PROVIDER_API_KEY
@@ -105,6 +114,9 @@ services:
         - package-lock.json
         - .npmrc
         - tsconfig*.json
+        # The service's own definition: changing env vars or the boot command
+        # has to redeploy, or the blueprint and the running service disagree.
+        - render.yaml
       ignoredPaths:
         - "**/*.test.ts"
         - "**/*.md"
@@ -138,6 +150,7 @@ services:
         - package.json
         - package-lock.json
         - tsconfig*.json
+        - render.yaml
       ignoredPaths:
         - "**/*.test.ts"
         - "**/*.md"
