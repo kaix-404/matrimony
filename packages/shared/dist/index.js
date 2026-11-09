@@ -25,6 +25,7 @@ __exportStar(require("./contracts/biodata.js"), exports);
 __exportStar(require("./contracts/master-data.js"), exports);
 __exportStar(require("./contracts/discovery.js"), exports);
 __exportStar(require("./contracts/partner-preferences.js"), exports);
+__exportStar(require("./contracts/pricing.js"), exports);
 __exportStar(require("./contracts/payments.js"), exports);
 __exportStar(require("./contracts/trust-safety.js"), exports);
 __exportStar(require("./contracts/data-requests.js"), exports);

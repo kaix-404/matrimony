@@ -23,6 +23,7 @@ import type {
   NetWorthVisibilityPreferenceState,
   OtpRequested,
   PartnerPreferenceState,
+  PricingSchedule,
   UpdatePartnerPreferenceInput,
   PaymentOrderResponse,
   PaymentStatusResponse,
@@ -249,6 +250,11 @@ class ApiClient {
   /** Reference lists for pickers. Public: needed on sign-up before a session exists. */
   async getMasterLists(): Promise<MasterListsResponse> {
     return this.fetchJson('master-data/lists');
+  }
+
+  /** The published price list: setup fee and unlock price per band. */
+  async getPricingSchedule(): Promise<PricingSchedule> {
+    return this.fetchJson('master-data/pricing');
   }
 
   async getNetWorthCategories(): Promise<NetWorthCategoryOption[]> {

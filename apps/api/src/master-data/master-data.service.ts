@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaClient } from '../prisma/prisma-client';
 import {
+  ACCOUNT_SETUP_FEE,
   MASTER_LIST_KEYS,
   NET_WORTH_PENDING_REVIEW_KEY,
   GST_PERCENT,
@@ -8,6 +9,8 @@ import {
   type MasterList,
   type MasterListsResponse,
   type NetWorthCategoryOption,
+  type PricingSchedule,
+  type UnlockPriceQuote,
 } from '@matrimony/shared';
 
 /**
@@ -68,6 +71,77 @@ export class MasterDataService {
    * boundary is that the band is awaiting review. The `is_discoverable` flag
    * carries that, and the preference contracts reject the bucket outright.
    */
+  /**
+   * The published price list: the one-time setup fee and what an unlock costs in
+   * each band.
+   *
+   * Read from the tables the payment path charges from rather than from the
+   * constants, so a page advertising a price and a checkout quoting it cannot
+   * disagree. Only bands that are actually offered appear: the manual-review
+   * bucket has no price and is not a choice anybody can make.
+   */
+  async pricing(): Promise<PricingSchedule> {
+    const bands = await this.prisma.netWorthCategoryRef.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      select: { key: true, label: true, setupFeeAmount: true, isDiscoverable: true },
+    });
+
+    const offered = bands.filter(
+      (band) => band.isDiscoverable && band.key !== NET_WORTH_PENDING_REVIEW_KEY,
+    );
+
+    // Only the current row per band: a price change closes the old row, so
+    // ordering newest-first and taking the first per category gives the price a
+    // payment today would be charged.
+    const priceRows =
+      offered.length === 0
+        ? []
+        : await this.prisma.pricingConfig.findMany({
+            where: { category: { in: offered.map((band) => band.key) }, effectiveTo: null },
+            orderBy: { effectiveFrom: 'desc' },
+            select: { category: true, baseAmount: true, gstRate: true },
+          });
+
+    const prices = new Map<string, UnlockPriceQuote>();
+    for (const row of priceRows) {
+      if (prices.has(row.category)) continue;
+      // gstRate is stored as a fraction (0.1800); quotePayment takes a percent.
+      const quote = quotePayment(row.baseAmount, row.gstRate.mul(100));
+      prices.set(row.category, {
+        base_amount: quote.baseAmount,
+        gst_rate: quote.gstRate,
+        gst_amount: quote.gstAmount,
+        total_amount: quote.totalAmount,
+        currency: 'INR',
+      });
+    }
+
+    // Every band carries the same fee, so the first row is the source; the
+    // constant covers an empty table rather than printing a fee of zero.
+    const setupBase =
+      offered.length > 0
+        ? offered[0]!.setupFeeAmount.toFixed(2)
+        : quotePayment(ACCOUNT_SETUP_FEE, 0).baseAmount;
+    const setupQuote = quotePayment(setupBase, GST_PERCENT);
+
+    return {
+      currency: 'INR',
+      setup_fee: {
+        base_amount: setupQuote.baseAmount,
+        gst_rate: setupQuote.gstRate,
+        gst_amount: setupQuote.gstAmount,
+        total_amount: setupQuote.totalAmount,
+      },
+      bands: offered.map((band) => ({
+        key: band.key,
+        label: band.label,
+        unlock_price: prices.get(band.key) ?? null,
+      })),
+      generated_at: new Date().toISOString(),
+    };
+  }
+
   async netWorthCategories(): Promise<NetWorthCategoryOption[]> {
     const rows = await this.prisma.netWorthCategoryRef.findMany({
       where: { isActive: true },

@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common';
 import { MasterDataService } from './master-data.service';
-import type { MasterListsResponse, NetWorthCategoryOption } from '@matrimony/shared';
+import type { MasterListsResponse, NetWorthCategoryOption, PricingSchedule } from '@matrimony/shared';
 
 /**
  * Reference data for pickers in the app.
@@ -30,5 +30,17 @@ export class MasterDataController {
   @Get('net-worth-categories')
   async netWorthCategories(): Promise<NetWorthCategoryOption[]> {
     return this.masterData.netWorthCategories();
+  }
+
+  /**
+   * The price list, for the pricing screen.
+   *
+   * Public like the rest of this controller: a price is not user data, and a
+   * member should be able to read it before they have an account. No user data
+   * is read to build it, so a shared cache is safe.
+   */
+  @Get('pricing')
+  async pricing(): Promise<PricingSchedule> {
+    return this.masterData.pricing();
   }
 }

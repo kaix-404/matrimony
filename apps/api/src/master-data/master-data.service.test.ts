@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import Decimal from 'decimal.js';
 import { MasterDataService } from './master-data.service';
 import { PrismaClient } from '../prisma/prisma-client';
 
@@ -114,6 +115,14 @@ class FakePrisma {
       this.bands.filter((b) => b['isActive'] === where.isActive),
   };
 
+  /** Current unlock prices, one row per band. */
+  pricingRows: Row[] = [];
+
+  pricingConfig = {
+    findMany: async ({ where }: { where: { category: { in: string[] } } }) =>
+      this.pricingRows.filter((row) => where.category.in.includes(row['category'] as string)),
+  };
+
   masterListValue = {
     findFirst: async ({ where }: { where: { id: string; listKey: string; isActive: boolean } }) => {
       for (const list of this.lists) {
@@ -137,6 +146,39 @@ describe('MasterDataService', () => {
       providers: [MasterDataService, { provide: PrismaClient, useValue: prisma }],
     }).compile();
     service = moduleRef.get(MasterDataService);
+  });
+
+  it('prices every band it offers, and only those', async () => {
+    prisma.pricingRows = [
+      { category: 'BELOW_2CR', baseAmount: new Decimal('99.00'), gstRate: new Decimal('0.18') },
+    ];
+
+    const schedule = await service.pricing();
+
+    // The manual-review bucket and the retired band are not choices, so they are
+    // not prices either.
+    expect(schedule.bands.map((band) => band.key)).toEqual(['BELOW_2CR', 'ABOVE_10CR']);
+    expect(schedule.bands[0]!.unlock_price).toEqual({
+      base_amount: '99.00',
+      // A fraction, not a percentage — the same form every other money quote uses.
+      gst_rate: '0.1800',
+      gst_amount: '17.82',
+      total_amount: '116.82',
+      currency: 'INR',
+    });
+    // No active price means "not published", which the screen hides; showing 0
+    // would advertise a free unlock.
+    expect(schedule.bands[1]!.unlock_price).toBeNull();
+  });
+
+  it('states the setup fee with its GST included', async () => {
+    const schedule = await service.pricing();
+    expect(schedule.setup_fee).toEqual({
+      base_amount: '15.00',
+      gst_rate: '0.1800',
+      gst_amount: '2.70',
+      total_amount: '17.70',
+    });
   });
 
   it('serves the seeded lists in a stable order', async () => {

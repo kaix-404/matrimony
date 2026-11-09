@@ -181,6 +181,11 @@ export default function SettingsScreen() {
       />
       <PrimaryButton
         variant="outline"
+        label="Pricing"
+        onPress={() => router.push('/pricing')}
+      />
+      <PrimaryButton
+        variant="outline"
         label="Blocked profiles"
         onPress={() => router.push('/blocks')}
       />

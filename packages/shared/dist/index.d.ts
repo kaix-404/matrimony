@@ -9,6 +9,7 @@ export * from './contracts/biodata.js';
 export * from './contracts/master-data.js';
 export * from './contracts/discovery.js';
 export * from './contracts/partner-preferences.js';
+export * from './contracts/pricing.js';
 export * from './contracts/payments.js';
 export * from './contracts/trust-safety.js';
 export * from './contracts/data-requests.js';
