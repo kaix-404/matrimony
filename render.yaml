@@ -90,6 +90,24 @@ services:
     autoDeploy: true
     rootDirectory: .
     maxDuration: 60
+    # Every commit used to rebuild and reboot the API, including changes to the
+    # mobile app. That is slow, it restarts migrations for no reason, and two
+    # deploys landing together collided on the migration advisory lock — a
+    # mobile-only commit once showed up as a failed API deploy. Only rebuild for
+    # what the image actually contains.
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/shared/**
+        - prisma/**
+        - Dockerfile
+        - package.json
+        - package-lock.json
+        - .npmrc
+        - tsconfig*.json
+      ignoredPaths:
+        - "**/*.test.ts"
+        - "**/*.md"
 
   # --- Admin Dashboard (Next.js, Node runtime) -------------------------------
   # @matrimony/shared resolves to packages/shared/dist, so it is built first.
@@ -111,6 +129,18 @@ services:
     healthCheckPath: /login
     autoDeploy: true
     rootDirectory: .
+    # Same reasoning as the API: the console is not rebuilt for a change to the
+    # mobile app or the landing page.
+    buildFilter:
+      paths:
+        - apps/admin/**
+        - packages/shared/**
+        - package.json
+        - package-lock.json
+        - tsconfig*.json
+      ignoredPaths:
+        - "**/*.test.ts"
+        - "**/*.md"
 
   # --- Landing Page ---------------------------------------------------------
   - type: web

@@ -19,6 +19,29 @@ const BASELINE_DOCS = 'https://www.prisma.io/docs/orm/prisma-migrate/workflows/b
 const SCHEMA_NOT_EMPTY = 'P3005';
 
 /**
+ * Prisma codes that mean "try again" rather than "this database is wrong".
+ *
+ * P1002 is the one that actually happened: `migrate deploy` takes a Postgres
+ * advisory lock for its own duration with a ten-second timeout, so two deploys
+ * overlapping — or one slow connect to a pooled database — abort a release that
+ * had nothing wrong with it. P1001 and P1017 are the same shape: the database
+ * was unreachable or the connection dropped. Dedicated by code rather than by
+ * matching prose, because the wording is Prisma's to change.
+ */
+const TRANSIENT_CODES = ['P1001', 'P1002', 'P1017'];
+
+/**
+ * Whether a failed `migrate deploy` is worth another attempt.
+ *
+ * Deliberately narrow: P3005 (no migration history) and a failed migration are
+ * not transient, and retrying them only delays an explanation the operator
+ * needs. Everything else is treated as terminal.
+ */
+export function isTransientMigrateFailure(output: string): boolean {
+  return TRANSIENT_CODES.some((code) => new RegExp(`\\b${code}\\b`).test(output));
+}
+
+/**
  * The operator-facing explanation for a failed `migrate deploy`.
  *
  * @param output Combined stdout and stderr of the Prisma command.

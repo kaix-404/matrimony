@@ -15,13 +15,30 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { explainMigrateFailure } from './migrate-guard';
+import { explainMigrateFailure, isTransientMigrateFailure } from './migrate-guard';
 
 /** `apps/api`: the directory holding prisma.config.ts, so Prisma resolves the same config the CLI does. */
 const API_DIR = resolve(__dirname, '..', '..');
 
 /** The repository root in a checkout, and `/app` in the image; node_modules lives here. */
 const ROOT_DIR = resolve(API_DIR, '..', '..');
+
+/**
+ * How many times a transient failure is retried before the deploy gives up.
+ *
+ * `migrate deploy` holds a Postgres advisory lock with a ten-second timeout, so
+ * two deploys landing together — one from a push, one from a restart — make the
+ * second one fail on a release that was fine. Four attempts over about a minute
+ * covers the overlap without hiding a database that is genuinely unreachable.
+ */
+const MAX_ATTEMPTS = 4;
+
+/** Backoff between attempts; the lock timeout is ten seconds, so it starts above it. */
+const RETRY_DELAY_MS = 15_000;
+
+function sleep(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
 
 /**
  * Locates the Prisma CLI entry file.
@@ -54,21 +71,34 @@ function main(): void {
   const cli = resolvePrismaCli();
   process.stdout.write('[deploy] applying pending database migrations\n');
 
-  const result = spawnSync(process.execPath, [cli, 'migrate', 'deploy'], {
-    cwd: API_DIR,
-    encoding: 'utf8',
-  });
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    const result = spawnSync(process.execPath, [cli, 'migrate', 'deploy'], {
+      cwd: API_DIR,
+      encoding: 'utf8',
+    });
 
-  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
-  process.stdout.write(output);
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+    process.stdout.write(output);
 
-  if (result.error !== undefined && result.error !== null) {
-    console.error(`[deploy] could not run the Prisma CLI: ${result.error.message}`);
-    process.exit(1);
-  }
+    if (result.error !== undefined && result.error !== null) {
+      console.error(`[deploy] could not run the Prisma CLI: ${result.error.message}`);
+      process.exit(1);
+    }
 
-  if (result.status !== 0) {
-    console.error(explainMigrateFailure(output, result.status ?? 1));
+    if (result.status === 0) return;
+
+    const status = result.status ?? 1;
+    // A lock timeout or a dropped connection is not a broken release, and failing
+    // the boot on it is how a good commit got marked as a failed deploy.
+    if (attempt < MAX_ATTEMPTS && isTransientMigrateFailure(output)) {
+      process.stdout.write(
+        `[deploy] migration attempt ${attempt} of ${MAX_ATTEMPTS} failed transiently; retrying in ${RETRY_DELAY_MS / 1000}s\n`,
+      );
+      sleep(RETRY_DELAY_MS);
+      continue;
+    }
+
+    console.error(explainMigrateFailure(output, status));
     process.exit(1);
   }
 }

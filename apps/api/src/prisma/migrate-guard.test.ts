@@ -1,4 +1,45 @@
-import { explainMigrateFailure } from './migrate-guard';
+import { explainMigrateFailure, isTransientMigrateFailure } from './migrate-guard';
+
+/**
+ * Which failures are worth a second attempt.
+ *
+ * The case that matters is P1002: the advisory lock has a ten-second timeout, so
+ * two deploys overlapping mark a perfectly good release as failed — which is how
+ * a mobile-only commit appeared to break the API.
+ */
+describe('isTransientMigrateFailure', () => {
+  it('retries a lock timeout', () => {
+    const output = [
+      'Error: P1002',
+      '',
+      'The database server was reached but timed out.',
+      'Context: Timed out trying to acquire a postgres advisory lock',
+    ].join('\n');
+
+    expect(isTransientMigrateFailure(output)).toBe(true);
+  });
+
+  it('retries an unreachable or dropped connection', () => {
+    expect(isTransientMigrateFailure('Error: P1001\n\nCan’t reach database server')).toBe(true);
+    expect(isTransientMigrateFailure('Error: P1017\n\nServer has closed the connection')).toBe(
+      true,
+    );
+  });
+
+  it('does not retry an unmanaged schema, which needs a baseline', () => {
+    expect(isTransientMigrateFailure('Error: P3005\n\nThe database schema is not empty')).toBe(
+      false,
+    );
+  });
+
+  it('does not retry a failed migration', () => {
+    expect(isTransientMigrateFailure('Error: P3018\n\nA migration failed to apply')).toBe(false);
+  });
+
+  it('does not treat a missing code as transient', () => {
+    expect(isTransientMigrateFailure('Something went wrong')).toBe(false);
+  });
+});
 
 describe('explainMigrateFailure', () => {
   /** Trimmed from what Prisma 7 prints when it refuses an unmanaged schema. */
