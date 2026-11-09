@@ -57,6 +57,7 @@ describe('ADMIN_PERMISSIONS catalogue', () => {
         'user:change_category',
         'user:delete',
         'user:read',
+        'user:restore',
         'user:suspend',
       ].sort(),
     );
@@ -71,7 +72,13 @@ describe('ADMIN_PERMISSIONS catalogue', () => {
   });
 
   it('marks F2(a) Super-Admin-only actions as sensitive', () => {
-    for (const key of ['user:change_category', 'pricing:write', 'unlock:grant', 'user:delete']) {
+    for (const key of [
+      'user:change_category',
+      'pricing:write',
+      'unlock:grant',
+      'user:delete',
+      'user:restore',
+    ]) {
       expect(ADMIN_PERMISSIONS[key as keyof typeof ADMIN_PERMISSIONS].sensitive).toBe(true);
     }
   });

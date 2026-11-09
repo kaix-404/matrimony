@@ -280,7 +280,14 @@ const ALL_PERMISSION_KEYS = PERMISSIONS.map((p) => p.key);
  * delete a user and F2(a) does not answer it (docs/decisions GAP-6), so it is
  * restricted to the safest role pending a decision rather than left open.
  */
-const SUPER_ADMIN_ONLY = ['user:change_category', 'pricing:write', 'unlock:grant', 'user:delete'];
+const SUPER_ADMIN_ONLY = [
+  'user:change_category',
+  'pricing:write',
+  'unlock:grant',
+  'user:delete',
+  // F6: undoing a deletion is the same kind of decision as making one.
+  'user:restore',
+];
 
 const ROLE_GRANTS = {
   SUPER_ADMIN: ALL_PERMISSION_KEYS,

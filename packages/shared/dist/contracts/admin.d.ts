@@ -61,6 +61,12 @@ export declare const ADMIN_PERMISSIONS: {
         readonly sensitive: true;
         readonly description: "Move a user between net-worth categories (F2(a): Super Admin only)";
     };
+    readonly 'user:restore': {
+        readonly resource: "user";
+        readonly action: "restore";
+        readonly sensitive: true;
+        readonly description: "Bring a closed account back during its retention window (F6)";
+    };
     readonly 'profile:read': {
         readonly resource: "profile";
         readonly action: "read";
@@ -172,7 +178,7 @@ export declare const ADMIN_PERMISSIONS: {
 };
 /** Every valid permission key. A guard can require nothing outside this union. */
 export type AdminPermissionKey = keyof typeof ADMIN_PERMISSIONS;
-export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "admin:manage")[]]>;
+export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "admin:manage")[]]>;
 export declare const AdminRoleSlugSchema: z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>;
 /** The resolved `Permission` rows the seed should create. */
 export declare function permissionCatalogueRows(): Array<{
@@ -413,6 +419,8 @@ export interface AdminUserDetailView {
     categoryReviewNote: string | null;
     categoryChangedAt: string | null;
     deletedAt: string | null;
+    /** True once the retention pass has overwritten the personal data (section 21). */
+    isAnonymised: boolean;
     profile: {
         id: string;
         status: string;
@@ -623,6 +631,28 @@ export interface AdminCategoryChangeView {
     networthCategory: string;
     changedAt: string;
     changedByAdminId: string;
+}
+/**
+ * F6: undo a deletion while the row is still inside its retention window.
+ *
+ * The reason is mandatory for the same purpose as a category change: bringing an
+ * account back is an access-control decision, and the audit row has to explain
+ * it afterwards. Restoration is refused once the account has been anonymised,
+ * because by then the personal data the account existed for is gone.
+ */
+export declare const AdminRestoreUserSchema: z.ZodObject<{
+    reason: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    reason: string;
+}, {
+    reason: string;
+}>;
+export type AdminRestoreUserInput = z.infer<typeof AdminRestoreUserSchema>;
+export interface AdminRestoreUserView {
+    userId: string;
+    status: string;
+    restoredAt: string;
+    restoredByAdminId: string;
 }
 /**
  * Section 29: publish a new pricing version.

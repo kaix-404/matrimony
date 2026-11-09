@@ -76,6 +76,12 @@ export const ADMIN_PERMISSIONS = {
     sensitive: true,
     description: 'Move a user between net-worth categories (F2(a): Super Admin only)',
   },
+  'user:restore': {
+    resource: 'user',
+    action: 'restore',
+    sensitive: true,
+    description: 'Bring a closed account back during its retention window (F6)',
+  },
   'profile:read': {
     resource: 'profile',
     action: 'read',
@@ -378,6 +384,8 @@ export interface AdminUserDetailView {
   categoryReviewNote: string | null;
   categoryChangedAt: string | null;
   deletedAt: string | null;
+  /** True once the retention pass has overwritten the personal data (section 21). */
+  isAnonymised: boolean;
   profile: { id: string; status: string; visibility: string } | null;
 }
 
@@ -576,6 +584,28 @@ export interface AdminCategoryChangeView {
   networthCategory: string;
   changedAt: string;
   changedByAdminId: string;
+}
+
+/**
+ * F6: undo a deletion while the row is still inside its retention window.
+ *
+ * The reason is mandatory for the same purpose as a category change: bringing an
+ * account back is an access-control decision, and the audit row has to explain
+ * it afterwards. Restoration is refused once the account has been anonymised,
+ * because by then the personal data the account existed for is gone.
+ */
+export const AdminRestoreUserSchema = z
+  .object({
+    reason: z.string().trim().min(1).max(500),
+  })
+  .strict();
+export type AdminRestoreUserInput = z.infer<typeof AdminRestoreUserSchema>;
+
+export interface AdminRestoreUserView {
+  userId: string;
+  status: string;
+  restoredAt: string;
+  restoredByAdminId: string;
 }
 
 /**

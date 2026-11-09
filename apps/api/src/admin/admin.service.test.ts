@@ -112,6 +112,11 @@ function setup() {
       categoryReviewNote: null as string | null,
       categoryChangedAt: null as Date | null,
       deletedAt: null as Date | null,
+      isAnonymised: false,
+      purgeAfter: null as Date | null,
+      deletionRequestedAt: null as Date | null,
+      failedLoginCount: 0,
+      lockedUntil: null as Date | null,
       profile: { id: 'profile_1', status: 'APPROVED', visibility: 'ACTIVE' } as {
         id: string;
         status: string;
@@ -125,6 +130,11 @@ function setup() {
       email: 'RAVI@Example.com' as string | null,
       mobile: '9123456780',
       createdAt: new Date('2026-09-02T04:00:00.000Z'),
+      isAnonymised: false,
+      purgeAfter: null as Date | null,
+      deletionRequestedAt: null as Date | null,
+      failedLoginCount: 0,
+      lockedUntil: null as Date | null,
     },
     {
       id: 'user_3',
@@ -133,6 +143,11 @@ function setup() {
       email: null as string | null,
       mobile: '9000000001',
       createdAt: new Date('2026-09-03T04:00:00.000Z'),
+      isAnonymised: false,
+      purgeAfter: null as Date | null,
+      deletionRequestedAt: null as Date | null,
+      failedLoginCount: 0,
+      lockedUntil: null as Date | null,
     },
   ];
 
@@ -380,6 +395,13 @@ function setup() {
           const row = profiles.find((p) => p.id === where.id)!;
           Object.assign(row, data);
           return row;
+        },
+      ),
+      updateMany: jest.fn(
+        async ({ where, data }: { where: { userId: string }; data: Record<string, unknown> }) => {
+          const rows = profiles.filter((p) => p.userId === where.userId);
+          for (const row of rows) Object.assign(row, data);
+          return { count: rows.length };
         },
       ),
     },
@@ -855,6 +877,106 @@ describe('AdminService.resetMfa', () => {
     await expect(service.resetMfa('admin_actor', 'admin_target')).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+});
+
+describe('AdminService.restoreUser', () => {
+  function deleted(overrides: Record<string, unknown> = {}) {
+    const { service, prisma, users, profiles, audit } = setup();
+    const row = users.find((u) => u.id === 'user_1')! as unknown as Record<string, unknown>;
+    Object.assign(row, {
+      status: 'DELETED',
+      deletedAt: new Date('2026-11-05T19:42:00.000Z'),
+      purgeAfter: new Date('2027-05-05T19:42:00.000Z'),
+      isAnonymised: false,
+      failedLoginCount: 4,
+      lockedUntil: new Date('2026-11-06T00:00:00.000Z'),
+      ...overrides,
+    });
+    profiles[0]!.userId = 'user_1';
+    profiles[0]!.deletedAt = new Date('2026-11-05T19:42:00.000Z');
+    return { service, prisma, users, profiles, audit };
+  }
+
+  it('brings back a verified, paid account as ACTIVE and clears the erasure marks', async () => {
+    const { service, users, audit } = deleted();
+
+    const result = await service.restoreUser(
+      'user_1',
+      { reason: 'Deletion was a mistake (F6)' },
+      'admin_actor',
+    );
+
+    expect(result).toMatchObject({ userId: 'user_1', status: 'ACTIVE' });
+    const row = users.find((u) => u.id === 'user_1')! as unknown as Record<string, unknown>;
+    expect(row).toMatchObject({
+      status: 'ACTIVE',
+      deletedAt: null,
+      purgeAfter: null,
+      deletionRequestedAt: null,
+      // A member must not come back locked out of the account they recovered.
+      failedLoginCount: 0,
+      lockedUntil: null,
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'user:restore',
+        resourceId: 'user_1',
+        reason: 'Deletion was a mistake (F6)',
+      }),
+    );
+  });
+
+  it('restores an unverified account to PENDING_VERIFICATION, not ACTIVE', async () => {
+    // ACTIVE here would hand a member browse access they never earned; the gates
+    // the account still fails are exactly what the status has to keep saying.
+    const { service, users } = deleted({
+      identityVerifiedAt: null,
+      setupFeePaidAt: null,
+    });
+
+    const result = await service.restoreUser('user_1', { reason: 'x' }, 'admin_actor');
+
+    expect(result.status).toBe('PENDING_VERIFICATION');
+    expect(
+      (users.find((u) => u.id === 'user_1') as unknown as Record<string, unknown>).status,
+    ).toBe('PENDING_VERIFICATION');
+  });
+
+  it('un-deletes the profile but leaves its moderation status alone', async () => {
+    const { service, profiles } = deleted();
+
+    await service.restoreUser('user_1', { reason: 'x' }, 'admin_actor');
+
+    expect(profiles[0]!.deletedAt).toBeNull();
+    // A restoration is not a review decision: an unapproved profile must still be
+    // approved through the ordinary queue.
+    expect(profiles[0]!.status).toBe('PENDING_REVIEW');
+  });
+
+  it('refuses once the retention pass has anonymised the account', async () => {
+    const { service, prisma } = deleted({ isAnonymised: true });
+
+    await expect(
+      service.restoreUser('user_1', { reason: 'x' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('refuses an account that is not deleted', async () => {
+    const { service } = setup();
+
+    await expect(
+      service.restoreUser('user_1', { reason: 'x' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('reports a missing user', async () => {
+    const { service } = setup();
+
+    await expect(
+      service.restoreUser('nobody', { reason: 'x' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -1607,7 +1729,11 @@ describe('AdminService.rejectProfile', () => {
     const { service, profiles } = setup();
     profiles[0]!.status = 'APPROVED';
 
-    await service.rejectProfile('profile_row_1', { rejection_reason: 'Impersonation' }, 'admin_actor');
+    await service.rejectProfile(
+      'profile_row_1',
+      { rejection_reason: 'Impersonation' },
+      'admin_actor',
+    );
 
     expect(profiles[0]?.status).toBe('REJECTED');
     expect(profiles[0]?.approvedAt).toBeNull();

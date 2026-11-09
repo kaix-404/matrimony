@@ -17,7 +17,7 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminRejectProfileSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminRejectProfileSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const enums_js_1 = require("../enums.js");
@@ -54,6 +54,12 @@ exports.ADMIN_PERMISSIONS = {
         action: 'change_category',
         sensitive: true,
         description: 'Move a user between net-worth categories (F2(a): Super Admin only)',
+    },
+    'user:restore': {
+        resource: 'user',
+        action: 'restore',
+        sensitive: true,
+        description: 'Bring a closed account back during its retention window (F6)',
     },
     'profile:read': {
         resource: 'profile',
@@ -362,6 +368,19 @@ const RupeesSchema = zod_1.z.string().regex(/^\d+(\.\d{1,2})?$/);
 exports.AdminChangeCategorySchema = zod_1.z
     .object({
     category: zod_1.z.string().trim().min(1).max(64),
+    reason: zod_1.z.string().trim().min(1).max(500),
+})
+    .strict();
+/**
+ * F6: undo a deletion while the row is still inside its retention window.
+ *
+ * The reason is mandatory for the same purpose as a category change: bringing an
+ * account back is an access-control decision, and the audit row has to explain
+ * it afterwards. Restoration is refused once the account has been anonymised,
+ * because by then the personal data the account existed for is gone.
+ */
+exports.AdminRestoreUserSchema = zod_1.z
+    .object({
     reason: zod_1.z.string().trim().min(1).max(500),
 })
     .strict();

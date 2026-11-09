@@ -4,7 +4,7 @@ import { adminFetch } from '@/lib/api';
 import { describeError } from '@/lib/errors';
 import { formatDateTime } from '@/lib/format';
 import { memberStatusLabel, memberStatusTone } from '@/lib/members';
-import { CategoryForm, UnlockForm } from './member-forms';
+import { CategoryForm, RestoreAccountForm, UnlockForm } from './member-forms';
 
 /**
  * One member account, for the support conversation about it.
@@ -93,6 +93,27 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
             </dl>
           </div>
 
+          {member.status === 'DELETED' || member.deletedAt !== null ? (
+            <div className="card">
+              <h2>Restore this account</h2>
+              {member.isAnonymised ? (
+                <p className="notice">
+                  This account has been anonymised now that its retention window has passed, so its
+                  personal data is gone and it cannot be restored.
+                </p>
+              ) : (
+                <>
+                  <p className="notice">
+                    Deletion is reversible for a few months. Restoring brings the account and its
+                    profile back, but not its access: verification, the setup fee and the profile
+                    review all stand where they were.
+                  </p>
+                  <RestoreAccountForm memberId={member.id} />
+                </>
+              )}
+            </div>
+          ) : null}
+
           <div className="card">
             <h2>Profile</h2>
             {member.profile === null ? (
@@ -116,7 +137,8 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
             <dl className="meta">
               <dt>Current band</dt>
               <dd>
-                {bandLabel ?? 'Unknown band'} <span className="mono">({member.networthCategory})</span>
+                {bandLabel ?? 'Unknown band'}{' '}
+                <span className="mono">({member.networthCategory})</span>
               </dd>
               <dt>Review note</dt>
               <dd>{member.categoryReviewNote ?? '-'}</dd>
@@ -144,9 +166,9 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
             <div className="card">
               <h2>Manual authorisation</h2>
               <p className="notice">
-                Records a 24-hour authorisation to disclose this profile&rsquo;s contact details with
-                no payment, against your name and the reason you give. It creates no charge and no
-                unlock record: those exist only against a verified payment.
+                Records a 24-hour authorisation to disclose this profile&rsquo;s contact details
+                with no payment, against your name and the reason you give. It creates no charge and
+                no unlock record: those exist only against a verified payment.
               </p>
               <UnlockForm memberId={member.id} profileId={member.profile.id} />
             </div>

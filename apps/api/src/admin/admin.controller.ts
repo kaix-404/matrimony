@@ -24,6 +24,7 @@ import {
   AdminPublishPricingSchema,
   AdminRejectProfileSchema,
   AdminResolveDataRequestSchema,
+  AdminRestoreUserSchema,
   AdminReviewPhotoSchema,
   AdminReviewReportSchema,
   AdminRoleSlugSchema,
@@ -51,6 +52,8 @@ import {
   type AdminPublishPricingInput,
   type AdminReportView,
   type AdminResolveDataRequestInput,
+  type AdminRestoreUserInput,
+  type AdminRestoreUserView,
   type AdminReviewPhotoInput,
   type AdminReviewReportInput,
   type AdminRoleSlug,
@@ -182,6 +185,23 @@ export class AdminController {
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminCategoryChangeView> {
     return this.adminService.changeCategory(id, body, principal.id);
+  }
+
+  /**
+   * F6: bring a closed account back during its retention window.
+   *
+   * Super-Admin-only like deletion itself: undoing an erasure is the same kind of
+   * decision as making one, and it is audited with the reason supplied.
+   */
+  @Post('users/:id/restore')
+  @RequirePermission('user:restore')
+  @HttpCode(200)
+  async restoreUser(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminRestoreUserSchema)) body: AdminRestoreUserInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminRestoreUserView> {
+    return this.adminService.restoreUser(id, body, principal.id);
   }
 
   /**

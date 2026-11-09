@@ -31,6 +31,8 @@ import type {
   AdminPublishPricingInput,
   AdminReportView,
   AdminResolveDataRequestInput,
+  AdminRestoreUserInput,
+  AdminRestoreUserView,
   AdminReviewPhotoInput,
   AdminReviewReportInput,
   AdminRoleSlug,
@@ -436,6 +438,7 @@ export class AdminService {
         categoryReviewNote: true,
         categoryChangedAt: true,
         deletedAt: true,
+        isAnonymised: true,
         profile: { select: { id: true, status: true, visibility: true } },
       },
     });
@@ -457,6 +460,7 @@ export class AdminService {
       categoryReviewNote: row.categoryReviewNote,
       categoryChangedAt: row.categoryChangedAt ? row.categoryChangedAt.toISOString() : null,
       deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+      isAnonymised: row.isAnonymised,
       profile: row.profile
         ? { id: row.profile.id, status: row.profile.status, visibility: row.profile.visibility }
         : null,
@@ -1310,6 +1314,103 @@ export class AdminService {
       // recorded and must not be rolled back because a notice could not be sent.
       this.logger.error(`Failed to notify profile ${profileId}: ${String(error)}`);
     }
+  }
+
+  /**
+   * F6: undo a deletion inside the retention window.
+   *
+   * Deletion is a soft state here — the row and the profile survive until the
+   * retention pass anonymises them — so a deletion made by mistake is
+   * recoverable, which is the whole point of holding the row for months. What
+   * cannot come back is an anonymised account: the mobile has been replaced with
+   * a tombstone and the personal data is gone, so restoring it would produce an
+   * empty husk on a number nobody owns.
+   *
+   * The restored status is derived from the account's own gates rather than
+   * remembered: verification and payment timestamps are what decide whether a
+   * member can browse, and inventing ACTIVE for somebody who never paid would
+   * hand them access they never earned.
+   *
+   * The profile is un-deleted with the account. Its moderation status is left
+   * alone — restoring an account is not a review decision, so a DRAFT stays DRAFT
+   * and the member submits again through the ordinary flow.
+   */
+  async restoreUser(
+    id: string,
+    input: AdminRestoreUserInput,
+    actingAdminId: string,
+  ): Promise<AdminRestoreUserView> {
+    const row = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        deletedAt: true,
+        purgeAfter: true,
+        isAnonymised: true,
+        identityVerifiedAt: true,
+        setupFeePaidAt: true,
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (row.isAnonymised) {
+      throw new ConflictException(
+        'This account was anonymised after its retention window and cannot be restored',
+      );
+    }
+    if (row.deletedAt === null && row.status !== 'DELETED') {
+      throw new ConflictException('This account is not deleted');
+    }
+
+    const now = this.clock.now();
+    const status =
+      row.identityVerifiedAt !== null && row.setupFeePaidAt !== null
+        ? 'ACTIVE'
+        : 'PENDING_VERIFICATION';
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id },
+        data: {
+          status: status as never,
+          deletedAt: null,
+          purgeAfter: null,
+          deletionRequestedAt: null,
+          // The lock and the counters describe attempts against an account that
+          // no longer exists; carrying them into the restored one would leave a
+          // member locked out of the account they just recovered.
+          failedLoginCount: 0,
+          lockedUntil: null,
+        },
+      });
+      await tx.profile.updateMany({
+        where: { userId: id, deletedAt: { not: null } },
+        data: { deletedAt: null },
+      });
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'user:restore',
+      resourceType: 'User',
+      resourceId: id,
+      previousValue: {
+        status: row.status,
+        deletedAt: row.deletedAt ? row.deletedAt.toISOString() : null,
+      },
+      newValue: { status },
+      reason: input.reason,
+    });
+
+    return {
+      userId: id,
+      status,
+      restoredAt: now.toISOString(),
+      restoredByAdminId: actingAdminId,
+    };
   }
 
   async listReports(limit = 20, cursor?: string, status?: ReportStatus) {

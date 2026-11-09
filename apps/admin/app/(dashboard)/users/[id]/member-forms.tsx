@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import type { NetWorthCategoryOption } from '@matrimony/shared';
 import { useAdminAction } from '@/lib/use-admin-action';
-import { changeCategoryAction, grantUnlockAction } from './actions';
+import { changeCategoryAction, grantUnlockAction, restoreAccountAction } from './actions';
 
 /**
  * Moves a member to another net-worth band (F2(a)).
@@ -114,6 +114,53 @@ export function UnlockForm({ memberId, profileId }: { memberId: string; profileI
       <div className="actions">
         <button className="btn btn-secondary" type="submit" disabled={pending}>
           {pending ? 'Recording...' : 'Record 24-hour authorisation'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * F6: undo a deletion inside the retention window.
+ *
+ * Deletion is deliberately reversible for a few months, so the console has to
+ * offer the reversal somewhere other than a database console. What comes back is
+ * the account, not its access: verification and payment are untouched, and the
+ * profile returns to DRAFT for an ordinary review, so a restoration cannot put an
+ * unreviewed profile into discovery.
+ */
+export function RestoreAccountForm({ memberId }: { memberId: string }) {
+  const [reason, setReason] = useState('');
+  const [restored, setRestored] = useState(false);
+
+  const { state, pending, run } = useAdminAction(restoreAccountAction, () => {
+    setRestored(true);
+    setReason('');
+  });
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    setRestored(false);
+    run({ id: memberId, reason });
+  }
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <label htmlFor="restore-reason">Reason (recorded in the audit log)</label>
+      <textarea
+        id="restore-reason"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+      />
+
+      {state.error !== null ? <div className="error">{state.error}</div> : null}
+      {restored && state.error === null ? (
+        <p className="notice">Account restored. The member can sign in again.</p>
+      ) : null}
+
+      <div className="actions">
+        <button className="btn" type="submit" disabled={pending}>
+          {pending ? 'Restoring...' : 'Restore account'}
         </button>
       </div>
     </form>
