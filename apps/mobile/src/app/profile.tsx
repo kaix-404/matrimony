@@ -6,6 +6,7 @@ import type { MyProfile, NetWorthCategoryOption, ProfileCompleteness } from '@ma
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { apiClient } from '../lib/api-client';
+import { ApiError } from '../lib/api-errors';
 import { useAuth } from '../lib/auth-context';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { colors, radii, spacing, typography } from '../theme/tokens';
@@ -64,11 +65,16 @@ export default function ProfileScreen() {
       );
       setNotCreated(false);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      if (message.startsWith('API 404')) {
+      // The status, not the wording: the API's 404 body reads "Profile not
+      // found", which used to be shown as an error because this branch was
+      // matching a message prefix the client no longer produces.
+      if (e instanceof ApiError && e.status === 404) {
+        setProfile(null);
+        setCompleteness(null);
         setNotCreated(true);
+        setError(null);
       } else {
-        setError(message);
+        setError(e instanceof Error ? e.message : 'Could not load your profile.');
       }
     } finally {
       setLoading(false);
