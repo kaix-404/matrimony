@@ -3,8 +3,7 @@ import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { VerificationService } from './verification.service';
 import { VerificationController } from './verification.controller';
-import { CashfreeVerificationGateway, VerificationGateway } from './verification.gateway';
-import type { Env } from '../config/env';
+import { createVerificationGateway, VerificationGateway } from './verification.gateway';
 
 /**
  * Identity verification (D9).
@@ -26,16 +25,9 @@ import type { Env } from '../config/env';
     {
       provide: VerificationGateway,
       inject: ['ENV'],
-      useFactory: (env: Env): VerificationGateway =>
-        new CashfreeVerificationGateway(
-          env.CASHFREE_CLIENT_ID,
-          env.CASHFREE_CLIENT_SECRET,
-          env.CASHFREE_ENVIRONMENT,
-        ),
+      useFactory: createVerificationGateway,
     },
   ],
-  // The gateway itself is exported so readiness can report whether the vendor
-  // is configured without reaching into the service's business methods.
-  exports: [VerificationService, VerificationGateway],
+  exports: [VerificationService],
 })
 export class VerificationModule {}

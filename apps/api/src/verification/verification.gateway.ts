@@ -16,6 +16,7 @@
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { Injectable, Logger } from '@nestjs/common';
+import type { Env } from '../config/env';
 
 /** A DigiLocker consent session, as the supplier created it. */
 export interface DigiLockerSession {
@@ -194,4 +195,20 @@ export class CashfreeVerificationGateway extends VerificationGateway {
     if (a.length !== b.length) return false;
     return timingSafeEqual(a, b);
   }
+}
+
+/**
+ * Builds the supplier client from the environment.
+ *
+ * Exported so readiness can report whether KYC is configured without importing
+ * the module that owns the vendor: that module pulls in the whole auth graph,
+ * and a health check has no business instantiating it. The gateway is stateless,
+ * so a second instance reads the same environment and behaves identically.
+ */
+export function createVerificationGateway(env: Env): VerificationGateway {
+  return new CashfreeVerificationGateway(
+    env.CASHFREE_CLIENT_ID,
+    env.CASHFREE_CLIENT_SECRET,
+    env.CASHFREE_ENVIRONMENT,
+  );
 }
