@@ -2,6 +2,7 @@ import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.module';
 import { ClockDriftGuard, ClockService } from '../common/clock/clock.service';
+import { VerificationGateway } from '../verification/verification.gateway';
 
 interface HealthReport {
   status: 'ok' | 'degraded';
@@ -20,6 +21,7 @@ export class HealthController {
     private readonly prisma: PrismaService,
     private readonly clock: ClockService,
     private readonly driftGuard: ClockDriftGuard,
+    private readonly verification: VerificationGateway,
   ) {}
 
   /**
@@ -50,7 +52,17 @@ export class HealthController {
       service: 'matrimony-api',
       serverTime: this.clock.now().toISOString(),
       uptimeSeconds: Math.floor((Date.now() - this.bootedAt) / 1000),
-      checks: { database: database ? 'up' : 'down', clock: clock ? 'up' : 'down' },
+      checks: {
+        database: database ? 'up' : 'down',
+        clock: clock ? 'up' : 'down',
+        // Informational, and deliberately not part of `status`: the API is
+        // ready to serve even when KYC is switched off (every other surface
+        // works). It is reported so a deploy can be checked from outside —
+        // "unconfigured" and "the vendor rejected our credentials" both
+        // surface as 503 on `/verification/initiate`, and only this or the
+        // boot log tells them apart.
+        identityVerification: this.verification.configured ? 'up' : 'down',
+      },
     };
     if (report.status !== 'ok') {
       throw new ServiceUnavailableException(report);

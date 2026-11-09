@@ -70,6 +70,21 @@ regains focus, so there is no web page to return to.
    the fee unpaid, the member still cannot browse. Paying it is the last step
    before two members can actually find each other.
 
+## Checking that a deploy actually picked the credentials up
+
+`GET /api/v1/health/ready` reports `checks.identityVerification` as `up` or
+`down`. It is informational — the API stays `ok` when KYC is off, because every
+other surface works — but it answers "did my environment change reach the
+process?" without a login, which the 503 on `/verification/initiate` cannot:
+that status is identical whether the credentials are missing or Cashfree
+rejected them. If readiness says `down`, the values are not in the running
+container; if it says `up` and initiate still fails, the vendor refused the
+request and the API log names the reason.
+
+The variable names are `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET` and
+`CASHFREE_ENVIRONMENT`, and a value wrapped in quotes is sent with the quotes
+(surrounding whitespace is trimmed, quotes are not).
+
 ## What is still not automatic
 
 An identity check that the vendor never calls back about stays `PENDING`; there is

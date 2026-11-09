@@ -90,6 +90,10 @@ describe('application bootstrap (section 41)', () => {
     // Clock drift is a new readiness signal; an unexpected value here means
     // ClockDriftGuard is not wired into the health report.
     expect(response.body.checks.clock).toBe('up');
+    // Whether KYC credentials are present is reported, never enforced: the API
+    // must stay ready with identity verification switched off, so the value
+    // depends on the environment while `status` above does not.
+    expect(['up', 'down']).toContain(response.body.checks.identityVerification);
     expect(Number.isNaN(Date.parse(response.body.serverTime))).toBe(false);
   });
 

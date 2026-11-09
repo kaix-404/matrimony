@@ -34,6 +34,8 @@ import type { Env } from '../config/env';
         ),
     },
   ],
-  exports: [VerificationService],
+  // The gateway itself is exported so readiness can report whether the vendor
+  // is configured without reaching into the service's business methods.
+  exports: [VerificationService, VerificationGateway],
 })
 export class VerificationModule {}
