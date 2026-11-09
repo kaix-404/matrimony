@@ -55,6 +55,22 @@ import {
   VerifyOtpSchema,
 } from '@matrimony/shared';
 
+/**
+ * Minted by the auth provider: given the bearer token the API just refused,
+ * return a fresh one, or null when the session is genuinely over.
+ *
+ * Registered here rather than imported so the client stays a plain transport:
+ * the provider owns credentials and this module must not depend on React state.
+ */
+type UnauthorizedHandler = (staleAccessToken: string) => Promise<string | null>;
+
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
+/** Registers the token refresher. Pass null on unmount. */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
+}
+
 /** A profile seen through the unlock paywall: locked, expired or unlocked. */
 export type ViewedProfile = LockedProfileResponse | UnlockedProfileResponse | ExpiredUnlockResponse;
 
@@ -119,7 +135,7 @@ function serializeQuery(params: Record<string, unknown>, prefix = ''): string {
 }
 
 class ApiClient {
-  private async fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  private async fetchJson<T>(path: string, init?: RequestInit, mayRetry = true): Promise<T> {
     const headers = new Headers(init?.headers || {});
     if (init?.body && !headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json');
@@ -129,6 +145,22 @@ class ApiClient {
       ...init,
       headers,
     });
+
+    // The access token lives 15 minutes, which a member reading profiles will
+    // cross mid-session. A refused bearer is not a failed action if a refresh
+    // token can mint another, so retry once with the new one — exactly once, so
+    // a server that keeps answering 401 cannot loop. Requests without a bearer
+    // (OTP, register, refresh itself) skip this entirely.
+    if (response.status === 401 && mayRetry && unauthorizedHandler !== null) {
+      const bearer = headers.get('Authorization');
+      const stale = bearer?.startsWith('Bearer ') ? bearer.slice('Bearer '.length) : null;
+      const fresh = stale === null ? null : await unauthorizedHandler(stale);
+      if (fresh !== null && fresh !== stale) {
+        const retryHeaders = new Headers(headers);
+        retryHeaders.set('Authorization', 'Bearer ' + fresh);
+        return this.fetchJson<T>(path, { ...init, headers: retryHeaders }, false);
+      }
+    }
 
     if (!response.ok) {
       // The body is the API's own account of what went wrong; keeping its code

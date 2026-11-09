@@ -24,6 +24,30 @@ export interface StoredSession {
   tokenType: TokenPair['token_type'];
   /** Access-token lifetime in seconds, as reported by the server. */
   expiresIn: number;
+  /**
+   * Epoch milliseconds when this pair was issued.
+   *
+   * `expiresIn` alone cannot answer "is this still valid", and the token is
+   * restored from storage days later, so the issued-at time has to be stored
+   * with it. Optional because sessions written by earlier builds do not carry
+   * it: absent means "unknown", which is treated as expired, and the refresh
+   * token then mints a usable pair on the next launch.
+   */
+  obtainedAt?: number;
+}
+
+/** Refresh this long before the access token expires, not at the wire edge. */
+export const REFRESH_LEAD_MS = 60_000;
+
+/**
+ * When the access token in `session` stops working, in epoch milliseconds.
+ *
+ * A session with no `obtainedAt` reports 0 — in the past — so a restored legacy
+ * session refreshes before its first authenticated call instead of waiting for a
+ * 401.
+ */
+export function sessionExpiresAt(session: StoredSession): number {
+  return (session.obtainedAt ?? 0) + session.expiresIn * 1000;
 }
 
 let memoryFallback: StoredSession | null = null;
@@ -37,17 +61,20 @@ function isStoredSession(value: unknown): value is StoredSession {
     typeof candidate.refreshToken === 'string' &&
     candidate.refreshToken.length > 0 &&
     candidate.tokenType === 'Bearer' &&
-    typeof candidate.expiresIn === 'number'
+    typeof candidate.expiresIn === 'number' &&
+    (candidate.obtainedAt === undefined ||
+      (typeof candidate.obtainedAt === 'number' && Number.isFinite(candidate.obtainedAt)))
   );
 }
 
 /** Converts the wire `TokenPair` (snake_case) into the stored shape. */
-export function toStoredSession(tokens: TokenPair): StoredSession {
+export function toStoredSession(tokens: TokenPair, now: number = Date.now()): StoredSession {
   return {
     accessToken: tokens.access_token,
     refreshToken: tokens.refresh_token,
     tokenType: tokens.token_type,
     expiresIn: tokens.expires_in,
+    obtainedAt: now,
   };
 }
 

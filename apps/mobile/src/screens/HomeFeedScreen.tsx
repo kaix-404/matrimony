@@ -89,7 +89,6 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
               onOpenFilters={() => setSheetOpen(true)}
               filtersActive={filtersActive}
             />
-            {!isLive && <SignInBanner />}
           </View>
         }
         ListEmptyComponent={
@@ -191,26 +190,6 @@ function SetupFeeBanner() {
       <Text style={styles.bannerBody}>
         Your identity is verified. Pay ₹ 17.70 once to activate your account and start browsing
         profiles.
-      </Text>
-    </Pressable>
-  );
-}
-
-/**
- * Shown while the feed is still the design placeholder. Discovery needs a
- * session — the API withholds a feed from an anonymous caller — so the preview
- * is honest about being a preview and offers the way in.
- */
-function SignInBanner() {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      style={styles.banner}
-      onPress={() => router.push('/auth')}
-    >
-      <Text style={styles.bannerTitle}>Sign in to see real profiles</Text>
-      <Text style={styles.bannerBody}>
-        This is a preview. Sign in with your mobile number to start matching.
       </Text>
     </Pressable>
   );
