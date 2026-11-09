@@ -112,6 +112,10 @@ export default function OnboardingScreen() {
       await apiClient.createProfile(profileInput(), token);
       await apiClient.submitProfileForReview(token).catch(() => undefined);
       await refreshUser();
+      // Signup is over, so the band picker and this form come off the stack:
+      // otherwise the back chevron on the identity check returns the member to a
+      // registration flow they have already finished.
+      if (router.canDismiss()) router.dismissAll();
       router.replace('/verification');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save your profile.');

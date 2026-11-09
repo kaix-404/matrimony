@@ -110,6 +110,9 @@ export default function BiodataImportScreen() {
         // discovery with nothing explaining why.
         await apiClient.submitProfileForReview(token).catch(() => undefined);
         await refreshUser();
+        // Signup is over: the band picker and the setup form come off the stack
+        // so back from the identity check does not return to them.
+        if (router.canDismiss()) router.dismissAll();
         router.replace('/verification');
         return;
       }
