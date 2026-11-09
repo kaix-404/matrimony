@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ClockService } from '../common/clock/clock.service';
 import { PrismaClient, UserStatus } from '../prisma/prisma-client';
 import type { CompleteRegistrationInput, CurrentUser } from '@matrimony/shared';
@@ -44,10 +44,24 @@ export class RegistrationService {
 
     const existing = await this.prisma.user.findUnique({
       where: { mobile: input.mobile },
-      select: { id: true },
+      select: { id: true, status: true, deletedAt: true },
     });
 
     if (existing) {
+      // Idempotency only covers a live account. A closed or suspended one must
+      // not be handed back: sign-in answers `null` for a deleted account (it
+      // cannot tell the caller why), so the app reads that as "new number" and
+      // arrives here. Returning the id would mint a session on a dead row —
+      // signed in, but every edit refused with "Account is deleted", which is
+      // how this was found.
+      if (existing.deletedAt !== null || existing.status === UserStatus.DELETED) {
+        throw new ConflictException(
+          'This number belonged to a closed account and cannot be registered again',
+        );
+      }
+      if (existing.status === UserStatus.SUSPENDED) {
+        throw new ConflictException('This account is suspended');
+      }
       return { userId: existing.id, created: false };
     }
 

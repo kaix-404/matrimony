@@ -155,6 +155,25 @@ describe('RegistrationService.complete', () => {
     expect(users).toHaveLength(1);
   });
 
+  it.each([
+    ['soft-deleted', { deletedAt: new Date('2026-11-01T00:00:00Z') }, /closed account/i],
+    ['status DELETED', { status: UserStatus.DELETED }, /closed account/i],
+    ['suspended', { status: UserStatus.SUSPENDED }, /suspended/i],
+  ])('refuses to re-register a %s account', async (_label, patch, message) => {
+    // Sign-in answers `null` for a deleted account, so the app treats the number
+    // as new and comes here. Handing back the existing id issued a session on a
+    // dead row: the member was signed in but every edit was refused.
+    const { prisma, users } = harness();
+    const service = await makeService(prisma, new ClockService());
+    await service.complete({ mobile: '9876543210', networth_category: 'ABOVE_10CR' });
+    Object.assign(users[0], patch);
+
+    await expect(
+      service.complete({ mobile: '9876543210', networth_category: 'ABOVE_10CR' }),
+    ).rejects.toThrow(message);
+    expect(users).toHaveLength(1);
+  });
+
   it('does not let a retry change the category of an existing account', async () => {
     const { prisma, users } = harness();
     const service = await makeService(prisma, new ClockService());
