@@ -258,12 +258,17 @@ export default function ProfileEditScreen() {
       </Section>
 
       <Section title="Community and beliefs">
-        <SelectField
-          label="Community"
-          options={idOptions(community)}
-          value={form.communityId || null}
-          onChange={(v) => set('communityId', v ?? '')}
-        />
+        {/* The client has not sent a community list yet, so the API serves none.
+            A picker over an empty list opens on a sheet with no answers, so the
+            question is asked only once there is something to choose from. */}
+        {(community?.values.length ?? 0) > 0 ? (
+          <SelectField
+            label="Community"
+            options={idOptions(community)}
+            value={form.communityId || null}
+            onChange={(v) => set('communityId', v ?? '')}
+          />
+        ) : null}
         <SelectField
           label="Religion"
           options={textOptions(religionList)}
