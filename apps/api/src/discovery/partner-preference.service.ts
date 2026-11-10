@@ -75,7 +75,7 @@ export const PREFERENCE_SELECT = {
   preferredState: true,
   preferredCity: true,
   updatedAt: true,
-} as const;
+} as const satisfies Prisma.PartnerPreferenceSelect;
 
 /** Stored columns to the wire shape the app reads. */
 export function toPreferenceValues(row: PreferenceRow): PartnerPreferenceValues {

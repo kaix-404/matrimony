@@ -6,6 +6,7 @@ import type {
 } from '@matrimony/shared';
 import { ClockService } from '../common/clock/clock.service';
 import { PrismaClient, DataRequestStatus, DataRequestType } from '../prisma/prisma-client';
+import type { Prisma } from '../prisma/prisma-client';
 
 /**
  * How long a member waits for an answer, in days.
@@ -33,7 +34,7 @@ const DATA_REQUEST_SELECT = {
   dueAt: true,
   completedAt: true,
   resolutionNotes: true,
-} as const;
+} as const satisfies Prisma.DataRequestSelect;
 
 interface DataRequestRow {
   id: string;

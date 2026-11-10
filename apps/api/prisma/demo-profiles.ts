@@ -20,7 +20,7 @@
  * deliberately removed with `SEED_DEMO_PROFILES=remove`.
  */
 
-import type { PrismaClient } from '../src/prisma/prisma-client';
+import type { Prisma, PrismaClient } from '../src/prisma/prisma-client';
 
 /**
  * Reserved for fixtures. Nothing outside this file may allocate these numbers,
@@ -32,11 +32,7 @@ export const DEMO_MOBILE_PREFIX = '90000000';
 /** Spelled out in every fixture so a real member who stumbles in can tell. */
 export const DEMO_MARKER = 'Demo profile used to test browsing and unlocking.';
 
-export type DemoBand =
-  | 'BELOW_2CR'
-  | 'TWO_CR_TO_FIVE_CR'
-  | 'FIVE_CR_TO_TEN_CR'
-  | 'ABOVE_10CR';
+export type DemoBand = 'BELOW_2CR' | 'TWO_CR_TO_FIVE_CR' | 'FIVE_CR_TO_TEN_CR' | 'ABOVE_10CR';
 
 export type DemoGender = 'MALE' | 'FEMALE';
 
@@ -391,7 +387,9 @@ export async function seedDemoProfiles(prisma: PrismaClient): Promise<DemoSeedRe
       workLocation: fixture.workLocation,
       aboutMe: fixture.aboutMe,
       familyDescription: fixture.familyDescription,
-    };
+      // Checked against the model: this object reaches Prisma by name, so a
+      // mistyped column here would only fail while the demo profiles seed.
+    } satisfies Omit<Prisma.ProfileUncheckedCreateInput, 'userId'>;
 
     await prisma.profile.upsert({
       where: { userId: user.id },

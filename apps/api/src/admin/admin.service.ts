@@ -82,7 +82,7 @@ const ADMIN_SELECT = {
   lastLoginAt: true,
   createdAt: true,
   roles: { select: { role: { select: { slug: true } } } },
-} as const;
+} as const satisfies Prisma.AdminUserSelect;
 
 /**
  * Never returns a password hash or the MFA secret. The `mfaSecret` column is
@@ -125,7 +125,7 @@ const VERIFICATION_SELECT = {
   updatedAt: true,
   user: { select: { mobile: true, status: true } },
   consentRecord: { select: { grantedAt: true } },
-} as const;
+} as const satisfies Prisma.IdentityVerificationSelect;
 
 interface VerificationRow {
   id: string;
@@ -182,7 +182,7 @@ const PROFILE_REVIEW_SELECT = {
     take: 1,
     select: { objectKey: true },
   },
-};
+} satisfies Prisma.ProfileSelect;
 
 interface ProfileReviewRow {
   id: string;
@@ -248,7 +248,7 @@ const PHOTO_SELECT = {
   rejectionReason: true,
   reviewedByAdminId: true,
   profile: { select: { firstName: true } },
-} as const;
+} as const satisfies Prisma.ProfilePhotoSelect;
 
 interface PhotoRow {
   id: string;
@@ -295,7 +295,7 @@ const DATA_REQUEST_SELECT = {
   completedAt: true,
   resolutionNotes: true,
   handledByAdminId: true,
-} as const;
+} as const satisfies Prisma.DataRequestSelect;
 
 interface DataRequestRow {
   id: string;
@@ -337,7 +337,7 @@ const REPORT_SELECT = {
   reportedProfileId: true,
   reportedUserId: true,
   reason: { select: { code: true } },
-} as const;
+} as const satisfies Prisma.ReportSelect;
 
 interface ReportRow {
   id: string;
