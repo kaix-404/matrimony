@@ -336,6 +336,10 @@ export default function PartnerPreferencesScreen() {
           onChange={(v) => set('motherTongue', v)}
           placeholder="Any"
         />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Education and career</Text>
         <SelectField
           label="Education"
           options={idOptions(educationList)}
