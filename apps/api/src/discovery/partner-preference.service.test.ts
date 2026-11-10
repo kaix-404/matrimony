@@ -1,4 +1,11 @@
-import { EMPTY_PREFERENCE, partnerPreferenceWhere } from './partner-preference.service';
+import {
+  EMPTY_PREFERENCE,
+  PREFERENCE_SELECT,
+  partnerPreferenceWhere,
+  toPreferenceColumns,
+  toPreferenceValues,
+} from './partner-preference.service';
+import { Prisma } from '../prisma/prisma-client';
 import type { PartnerPreferenceValues } from '@matrimony/shared';
 
 /** A fixed clock: the age bounds are derived from the year, so the test owns it. */
@@ -17,6 +24,61 @@ function preference(overrides: Partial<PartnerPreferenceValues> = {}): PartnerPr
  * and change nothing. And the age window must be a date range, because that is
  * the only form the database can answer from an index on birth date.
  */
+/**
+ * The column names this service reads and writes.
+ *
+ * A `select` or create object naming a column the model does not have passes
+ * TypeScript when it is passed as a variable, so it reaches production as a
+ * Prisma validation error — the preference screen and the discovery feed both
+ * answered 500 for exactly that reason (they asked for `country` where the model
+ * says `preferredCountry`). Checking the keys against Prisma's own field list is
+ * what turns that into a failing test.
+ */
+describe('partner preference columns', () => {
+  const modelFields: string[] = Object.values(Prisma.PartnerPreferenceScalarFieldEnum);
+
+  it('selects only columns the model has', () => {
+    for (const column of Object.keys(PREFERENCE_SELECT)) {
+      expect(modelFields).toContain(column);
+    }
+  });
+
+  it('writes only columns the model has', () => {
+    const columns = toPreferenceColumns({ ...EMPTY_PREFERENCE, country: 'in' });
+
+    expect(Object.keys(columns).length).toBeGreaterThan(0);
+    for (const column of Object.keys(columns)) {
+      expect(modelFields).toContain(column);
+    }
+  });
+
+  it('maps the stored columns to the wire shape', () => {
+    const values = toPreferenceValues({
+      gender: 'ANY',
+      ageMin: null,
+      ageMax: null,
+      heightMinCm: null,
+      heightMaxCm: null,
+      maritalStatus: null,
+      religion: 'Hindu',
+      subCaste: 'Vokkaliga',
+      motherTongue: null,
+      preferredCountry: 'IN',
+      preferredState: 'Karnataka',
+      preferredCity: null,
+      updatedAt: new Date('2026-11-10T00:00:00Z'),
+    });
+
+    expect(values).toMatchObject({
+      religion: 'Hindu',
+      sub_caste: 'Vokkaliga',
+      country: 'IN',
+      state: 'Karnataka',
+      city: null,
+    });
+  });
+});
+
 describe('partnerPreferenceWhere', () => {
   it('adds no predicate when nothing has been saved', () => {
     expect(partnerPreferenceWhere(null, NOW)).toEqual({});

@@ -143,7 +143,9 @@ class FakePrisma {
   partnerPreference = {
     findUnique: async ({ where }: { where: { userId: string } }) => {
       if (where.userId !== 'viewer') {
-        throw new Error(`double only has a preference row for the viewer, asked for ${where.userId}`);
+        throw new Error(
+          `double only has a preference row for the viewer, asked for ${where.userId}`,
+        );
       }
       if (this.partnerPreferenceRow === null) return null;
       return { ...this.partnerPreferenceRow, updatedAt: new Date('2026-01-01T00:00:00Z') };
@@ -273,10 +275,19 @@ function matchesProfile(
   // not asked to be shown profiles whose religion is unknown.
   const eq = (actual: unknown, expected: unknown): boolean =>
     typeof expected === 'object' && expected !== null && 'equals' in expected
-      ? String(actual ?? '').toLowerCase() === String((expected as { equals: unknown }).equals ?? '').toLowerCase()
+      ? String(actual ?? '').toLowerCase() ===
+        String((expected as { equals: unknown }).equals ?? '').toLowerCase()
       : actual === expected;
 
-  for (const key of ['gender', 'maritalStatus', 'religion', 'motherTongue', 'country', 'state', 'city']) {
+  for (const key of [
+    'gender',
+    'maritalStatus',
+    'religion',
+    'motherTongue',
+    'country',
+    'state',
+    'city',
+  ]) {
     if (where[key] === undefined) continue;
     if (p[key as keyof SeedProfile] === undefined || p[key as keyof SeedProfile] === null) {
       return false;
@@ -736,7 +747,11 @@ describe('DiscoveryService', () => {
       seedEligible('hindu', 'LOW', {
         visibilityConfigured: true,
         visibleTo: ['LOW'],
-        profile: { religion: 'Hindu', gender: 'FEMALE', dateOfBirth: new Date('1995-06-01T00:00:00Z') },
+        profile: {
+          religion: 'Hindu',
+          gender: 'FEMALE',
+          dateOfBirth: new Date('1995-06-01T00:00:00Z'),
+        },
       });
       seedEligible('other', 'LOW', {
         visibilityConfigured: true,
@@ -752,7 +767,9 @@ describe('DiscoveryService', () => {
     it('shows everyone when nothing has been saved', async () => {
       both();
       const result = await service.search('viewer', query());
-      expect(result.items.map((i) => i.profile_id).sort()).toEqual([pid('hindu'), pid('other')].sort());
+      expect(result.items.map((i) => i.profile_id).sort()).toEqual(
+        [pid('hindu'), pid('other')].sort(),
+      );
     });
 
     it('filters on religion, ignoring case', async () => {
@@ -765,10 +782,11 @@ describe('DiscoveryService', () => {
         heightMaxCm: null,
         maritalStatus: null,
         religion: 'hindu',
+        subCaste: null,
         motherTongue: null,
-        country: null,
-        state: null,
-        city: null,
+        preferredCountry: null,
+        preferredState: null,
+        preferredCity: null,
       };
 
       const result = await service.search('viewer', query());
@@ -779,7 +797,11 @@ describe('DiscoveryService', () => {
       seedEligible('unknown', 'LOW', {
         visibilityConfigured: true,
         visibleTo: ['LOW'],
-        profile: { religion: null, gender: 'FEMALE', dateOfBirth: new Date('1992-01-01T00:00:00Z') },
+        profile: {
+          religion: null,
+          gender: 'FEMALE',
+          dateOfBirth: new Date('1992-01-01T00:00:00Z'),
+        },
       });
       prisma.partnerPreferenceRow = {
         gender: 'ANY',
@@ -789,10 +811,11 @@ describe('DiscoveryService', () => {
         heightMaxCm: null,
         maritalStatus: null,
         religion: 'Hindu',
+        subCaste: null,
         motherTongue: null,
-        country: null,
-        state: null,
-        city: null,
+        preferredCountry: null,
+        preferredState: null,
+        preferredCity: null,
       };
 
       const result = await service.search('viewer', query());

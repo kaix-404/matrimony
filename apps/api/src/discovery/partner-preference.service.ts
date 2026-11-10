@@ -40,13 +40,22 @@ type PreferenceRow = {
   religion: string | null;
   subCaste: string | null;
   motherTongue: string | null;
-  country: string | null;
-  state: string | null;
-  city: string | null;
+  preferredCountry: string | null;
+  preferredState: string | null;
+  preferredCity: string | null;
   updatedAt: Date;
 };
 
-const SELECT = {
+/**
+ * The columns this service reads.
+ *
+ * Exported so a test can check every key against Prisma's own field list. A
+ * select naming a column that does not exist is not a type error — an object
+ * passed as a variable skips TypeScript's excess-property check — so it reaches
+ * production as a runtime validation error and turns the whole screen, and the
+ * feed that reads the same row, into a 500.
+ */
+export const PREFERENCE_SELECT = {
   gender: true,
   ageMin: true,
   ageMax: true,
@@ -56,9 +65,9 @@ const SELECT = {
   religion: true,
   subCaste: true,
   motherTongue: true,
-  country: true,
-  state: true,
-  city: true,
+  preferredCountry: true,
+  preferredState: true,
+  preferredCity: true,
   updatedAt: true,
 } as const;
 
@@ -74,9 +83,38 @@ export function toPreferenceValues(row: PreferenceRow): PartnerPreferenceValues 
     religion: row.religion,
     sub_caste: row.subCaste,
     mother_tongue: row.motherTongue,
-    country: row.country,
-    state: row.state,
-    city: row.city,
+    country: row.preferredCountry,
+    state: row.preferredState,
+    city: row.preferredCity,
+  };
+}
+
+/**
+ * The stored columns for a preference being saved.
+ *
+ * The return type is what catches a wrong column name here: a literal returned
+ * as a Prisma input type is checked for excess properties, so naming a column
+ * the model does not have fails the build instead of failing at runtime on the
+ * member's first save. The create input is used because it takes plain values;
+ * the update input's field-operation unions are not assignable back into a
+ * create.
+ */
+export function toPreferenceColumns(
+  input: UpdatePartnerPreferenceInput,
+): Omit<Prisma.PartnerPreferenceUncheckedCreateInput, 'userId' | 'id'> {
+  return {
+    gender: input.gender,
+    ageMin: input.age_min,
+    ageMax: input.age_max,
+    heightMinCm: input.height_min_cm,
+    heightMaxCm: input.height_max_cm,
+    maritalStatus: input.marital_status,
+    religion: input.religion,
+    subCaste: input.sub_caste,
+    motherTongue: input.mother_tongue,
+    preferredCountry: input.country === null ? null : input.country.toUpperCase(),
+    preferredState: input.state,
+    preferredCity: input.city,
   };
 }
 
@@ -150,7 +188,7 @@ export class PartnerPreferenceService {
   async get(userId: string): Promise<PartnerPreferenceState> {
     const row = await this.prisma.partnerPreference.findUnique({
       where: { userId },
-      select: SELECT,
+      select: PREFERENCE_SELECT,
     });
 
     if (row === null) {
@@ -168,26 +206,13 @@ export class PartnerPreferenceService {
   }
 
   async save(userId: string, input: UpdatePartnerPreferenceInput): Promise<PartnerPreferenceState> {
-    const data = {
-      gender: input.gender,
-      ageMin: input.age_min,
-      ageMax: input.age_max,
-      heightMinCm: input.height_min_cm,
-      heightMaxCm: input.height_max_cm,
-      maritalStatus: input.marital_status,
-      religion: input.religion,
-      subCaste: input.sub_caste,
-      motherTongue: input.mother_tongue,
-      country: input.country === null ? null : input.country.toUpperCase(),
-      state: input.state,
-      city: input.city,
-    };
+    const data = toPreferenceColumns(input);
 
     const row = await this.prisma.partnerPreference.upsert({
       where: { userId },
       create: { userId, ...data },
       update: data,
-      select: SELECT,
+      select: PREFERENCE_SELECT,
     });
 
     return {
