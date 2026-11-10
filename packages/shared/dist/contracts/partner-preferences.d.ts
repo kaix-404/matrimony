@@ -23,6 +23,9 @@ export declare const PartnerPreferenceValuesSchema: z.ZodEffects<z.ZodObject<{
     religion: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
     /** Religion-scoped sub-caste, matched against the profile's `sub_caste`. */
     sub_caste: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
+    /** Master-list ids from `EDUCATION` and `PROFESSION`. */
+    education_id: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
+    profession_id: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
     mother_tongue: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
     /** ISO 3166-1 alpha-2, matching how profiles store a country. */
     country: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
@@ -37,6 +40,8 @@ export declare const PartnerPreferenceValuesSchema: z.ZodEffects<z.ZodObject<{
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
     sub_caste: string | null;
+    education_id: string | null;
+    profession_id: string | null;
     mother_tongue: string | null;
     country: string | null;
     state: string | null;
@@ -50,6 +55,8 @@ export declare const PartnerPreferenceValuesSchema: z.ZodEffects<z.ZodObject<{
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
     sub_caste: string | null;
+    education_id: string | null;
+    profession_id: string | null;
     mother_tongue: string | null;
     country: string | null;
     state: string | null;
@@ -63,6 +70,8 @@ export declare const PartnerPreferenceValuesSchema: z.ZodEffects<z.ZodObject<{
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
     sub_caste: string | null;
+    education_id: string | null;
+    profession_id: string | null;
     mother_tongue: string | null;
     country: string | null;
     state: string | null;
@@ -76,6 +85,8 @@ export declare const PartnerPreferenceValuesSchema: z.ZodEffects<z.ZodObject<{
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
     sub_caste: string | null;
+    education_id: string | null;
+    profession_id: string | null;
     mother_tongue: string | null;
     country: string | null;
     state: string | null;
@@ -94,6 +105,9 @@ export declare const PartnerPreferenceStateSchema: z.ZodObject<{
         religion: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
         /** Religion-scoped sub-caste, matched against the profile's `sub_caste`. */
         sub_caste: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
+        /** Master-list ids from `EDUCATION` and `PROFESSION`. */
+        education_id: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
+        profession_id: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
         mother_tongue: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
         /** ISO 3166-1 alpha-2, matching how profiles store a country. */
         country: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
@@ -108,6 +122,8 @@ export declare const PartnerPreferenceStateSchema: z.ZodObject<{
         marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
         religion: string | null;
         sub_caste: string | null;
+        education_id: string | null;
+        profession_id: string | null;
         mother_tongue: string | null;
         country: string | null;
         state: string | null;
@@ -121,6 +137,8 @@ export declare const PartnerPreferenceStateSchema: z.ZodObject<{
         marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
         religion: string | null;
         sub_caste: string | null;
+        education_id: string | null;
+        profession_id: string | null;
         mother_tongue: string | null;
         country: string | null;
         state: string | null;
@@ -134,6 +152,8 @@ export declare const PartnerPreferenceStateSchema: z.ZodObject<{
         marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
         religion: string | null;
         sub_caste: string | null;
+        education_id: string | null;
+        profession_id: string | null;
         mother_tongue: string | null;
         country: string | null;
         state: string | null;
@@ -147,6 +167,8 @@ export declare const PartnerPreferenceStateSchema: z.ZodObject<{
         marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
         religion: string | null;
         sub_caste: string | null;
+        education_id: string | null;
+        profession_id: string | null;
         mother_tongue: string | null;
         country: string | null;
         state: string | null;
@@ -165,6 +187,8 @@ export declare const PartnerPreferenceStateSchema: z.ZodObject<{
         marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
         religion: string | null;
         sub_caste: string | null;
+        education_id: string | null;
+        profession_id: string | null;
         mother_tongue: string | null;
         country: string | null;
         state: string | null;
@@ -182,6 +206,8 @@ export declare const PartnerPreferenceStateSchema: z.ZodObject<{
         marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
         religion: string | null;
         sub_caste: string | null;
+        education_id: string | null;
+        profession_id: string | null;
         mother_tongue: string | null;
         country: string | null;
         state: string | null;
@@ -209,6 +235,9 @@ export declare const UpdatePartnerPreferenceSchema: z.ZodEffects<z.ZodObject<{
     religion: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
     /** Religion-scoped sub-caste, matched against the profile's `sub_caste`. */
     sub_caste: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
+    /** Master-list ids from `EDUCATION` and `PROFESSION`. */
+    education_id: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
+    profession_id: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
     mother_tongue: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
     /** ISO 3166-1 alpha-2, matching how profiles store a country. */
     country: z.ZodEffects<z.ZodNullable<z.ZodString>, string | null, string | null>;
@@ -223,6 +252,8 @@ export declare const UpdatePartnerPreferenceSchema: z.ZodEffects<z.ZodObject<{
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
     sub_caste: string | null;
+    education_id: string | null;
+    profession_id: string | null;
     mother_tongue: string | null;
     country: string | null;
     state: string | null;
@@ -236,6 +267,8 @@ export declare const UpdatePartnerPreferenceSchema: z.ZodEffects<z.ZodObject<{
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
     sub_caste: string | null;
+    education_id: string | null;
+    profession_id: string | null;
     mother_tongue: string | null;
     country: string | null;
     state: string | null;
@@ -249,6 +282,8 @@ export declare const UpdatePartnerPreferenceSchema: z.ZodEffects<z.ZodObject<{
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
     sub_caste: string | null;
+    education_id: string | null;
+    profession_id: string | null;
     mother_tongue: string | null;
     country: string | null;
     state: string | null;
@@ -262,6 +297,8 @@ export declare const UpdatePartnerPreferenceSchema: z.ZodEffects<z.ZodObject<{
     marital_status: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null;
     religion: string | null;
     sub_caste: string | null;
+    education_id: string | null;
+    profession_id: string | null;
     mother_tongue: string | null;
     country: string | null;
     state: string | null;

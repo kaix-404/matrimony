@@ -15,7 +15,13 @@ import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../lib/auth-context';
-import { listFor, subCasteOptions, textOptions, withCurrent } from '../lib/master-list-options';
+import {
+  idOptions,
+  listFor,
+  subCasteOptions,
+  textOptions,
+  withCurrent,
+} from '../lib/master-list-options';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -254,7 +260,7 @@ export default function ProfileEditScreen() {
       <Section title="Community and beliefs">
         <SelectField
           label="Community"
-          options={optionsFor(community)}
+          options={idOptions(community)}
           value={form.communityId || null}
           onChange={(v) => set('communityId', v ?? '')}
         />
@@ -293,13 +299,13 @@ export default function ProfileEditScreen() {
       <Section title="Education and work">
         <SelectField
           label="Education"
-          options={optionsFor(education)}
+          options={idOptions(education)}
           value={form.educationId || null}
           onChange={(v) => set('educationId', v ?? '')}
         />
         <SelectField
           label="Profession"
-          options={optionsFor(profession)}
+          options={idOptions(profession)}
           value={form.professionId || null}
           onChange={(v) => set('professionId', v ?? '')}
         />
@@ -387,10 +393,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       {children}
     </View>
   );
-}
-
-function optionsFor(list: MasterList | undefined) {
-  return (list?.values ?? []).map((value) => ({ value: value.id, label: value.value }));
 }
 
 /** Matches a stored label back to a master-list value id, for pre-selection. */

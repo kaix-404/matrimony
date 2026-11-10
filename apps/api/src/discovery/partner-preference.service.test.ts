@@ -62,6 +62,8 @@ describe('partner preference columns', () => {
       maritalStatus: null,
       religion: 'Hindu',
       subCaste: 'Vokkaliga',
+      educationId: 'clx_education',
+      professionId: null,
       motherTongue: null,
       preferredCountry: 'IN',
       preferredState: 'Karnataka',
@@ -72,6 +74,8 @@ describe('partner preference columns', () => {
     expect(values).toMatchObject({
       religion: 'Hindu',
       sub_caste: 'Vokkaliga',
+      education_id: 'clx_education',
+      profession_id: null,
       country: 'IN',
       state: 'Karnataka',
       city: null,
@@ -109,6 +113,18 @@ describe('partnerPreferenceWhere', () => {
 
     expect(where.religion).toEqual({ equals: 'Hindu', mode: 'insensitive' });
     expect(where.city).toEqual({ equals: 'Pune', mode: 'insensitive' });
+  });
+
+  it('matches education and profession by master-list id', () => {
+    // By id, not label: the lists repeat a label across sections, so a label
+    // would pull in profiles from the wrong section.
+    const where = partnerPreferenceWhere(
+      preference({ education_id: 'education_1', profession_id: 'profession_2' }),
+      NOW,
+    );
+
+    expect(where.educationId).toBe('education_1');
+    expect(where.professionId).toBe('profession_2');
   });
 
   it('narrows by sub-caste independently of religion', () => {

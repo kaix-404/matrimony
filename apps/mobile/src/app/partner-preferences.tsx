@@ -8,7 +8,13 @@ import { SelectList, type SelectOption } from '../components/SelectList';
 import { TextField } from '../components/TextField';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../lib/auth-context';
-import { listFor, subCasteOptions, textOptions, withCurrent } from '../lib/master-list-options';
+import {
+  idOptions,
+  listFor,
+  subCasteOptions,
+  textOptions,
+  withCurrent,
+} from '../lib/master-list-options';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
@@ -45,6 +51,8 @@ interface FormState {
   maritalStatus: string | null;
   religion: string | null;
   subCaste: string | null;
+  educationId: string | null;
+  professionId: string | null;
   motherTongue: string | null;
   city: string;
   state: string | null;
@@ -59,6 +67,8 @@ const EMPTY_FORM: FormState = {
   maritalStatus: null,
   religion: null,
   subCaste: null,
+  educationId: null,
+  professionId: null,
   motherTongue: null,
   city: '',
   state: null,
@@ -121,6 +131,8 @@ export default function PartnerPreferencesScreen() {
         maritalStatus: state.preference.marital_status,
         religion: state.preference.religion,
         subCaste: state.preference.sub_caste,
+        educationId: state.preference.education_id,
+        professionId: state.preference.profession_id,
         motherTongue: state.preference.mother_tongue,
         city: state.preference.city ?? '',
         state: state.preference.state,
@@ -162,6 +174,8 @@ export default function PartnerPreferencesScreen() {
           marital_status: form.maritalStatus as (typeof MARITAL_STATUSES)[number] | null,
           religion: form.religion,
           sub_caste: form.subCaste,
+          education_id: form.educationId,
+          profession_id: form.professionId,
           mother_tongue: form.motherTongue,
           country: null,
           city: toText(form.city),
@@ -203,6 +217,8 @@ export default function PartnerPreferencesScreen() {
   const motherTongueList = listFor(lists, 'MOTHER_TONGUE');
   const casteList = listFor(lists, 'CASTE');
   const stateList = listFor(lists, 'STATE');
+  const educationList = listFor(lists, 'EDUCATION');
+  const professionList = listFor(lists, 'PROFESSION');
 
   /**
    * Religion and sub-caste are stored as labels, and the sub-caste list is
@@ -318,6 +334,20 @@ export default function PartnerPreferencesScreen() {
           options={withCurrent(textOptions(motherTongueList), form.motherTongue ?? '')}
           value={form.motherTongue}
           onChange={(v) => set('motherTongue', v)}
+          placeholder="Any"
+        />
+        <SelectField
+          label="Education"
+          options={idOptions(educationList)}
+          value={form.educationId}
+          onChange={(v) => set('educationId', v)}
+          placeholder="Any"
+        />
+        <SelectField
+          label="Profession"
+          options={idOptions(professionList)}
+          value={form.professionId}
+          onChange={(v) => set('professionId', v)}
           placeholder="Any"
         />
       </View>

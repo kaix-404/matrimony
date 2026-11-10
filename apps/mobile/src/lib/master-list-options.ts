@@ -24,6 +24,11 @@ export function listFor(lists: MasterList[], key: string): MasterList | undefine
   return lists.find((list) => list.key === key);
 }
 
+/** Options for a list whose rows are referenced by id (education, profession). */
+export function idOptions(list: MasterList | undefined): LabelOption[] {
+  return (list?.values ?? []).map((value) => ({ value: value.id, label: value.value }));
+}
+
 /** Options for a list whose value *is* the label (religion, mother tongue, state). */
 export function textOptions(list: MasterList | undefined): LabelOption[] {
   return [...new Set((list?.values ?? []).map((value) => value.value))].map((value) => ({

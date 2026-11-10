@@ -13,6 +13,8 @@ const EMPTY_VALUES: PartnerPreferenceValues = {
   marital_status: null,
   religion: null,
   sub_caste: null,
+  education_id: null,
+  profession_id: null,
   mother_tongue: null,
   country: null,
   state: null,
@@ -47,11 +49,15 @@ describe('PartnerPreferenceValuesSchema', () => {
   it('stores an empty text field as no constraint rather than an empty string', () => {
     const parsed = PartnerPreferenceValuesSchema.parse({ ...EMPTY_VALUES, religion: '   ' });
     expect(parsed.religion).toBeNull();
+    expect(
+      PartnerPreferenceValuesSchema.parse({ ...EMPTY_VALUES, education_id: '  ' }).education_id,
+    ).toBeNull();
   });
 
   it('counts any set field as a constraint', () => {
     expect(hasPartnerPreferenceConstraints({ ...EMPTY_VALUES, city: 'Pune' })).toBe(true);
     expect(hasPartnerPreferenceConstraints({ ...EMPTY_VALUES, sub_caste: 'Vokkaliga' })).toBe(true);
+    expect(hasPartnerPreferenceConstraints({ ...EMPTY_VALUES, education_id: 'clx123' })).toBe(true);
     expect(hasPartnerPreferenceConstraints({ ...EMPTY_VALUES, gender: 'FEMALE' })).toBe(true);
   });
 });

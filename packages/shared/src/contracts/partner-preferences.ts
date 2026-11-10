@@ -23,6 +23,19 @@ const optionalText = (max: number) =>
     .nullable()
     .transform((value) => (value === '' ? null : value));
 
+/**
+ * A master-list id, nullable like every other preference.
+ *
+ * Ids rather than labels: the education and profession lists repeat a label
+ * across sections, so a label would match rows in the wrong section.
+ */
+const optionalListId = z
+  .string()
+  .trim()
+  .max(64)
+  .nullable()
+  .transform((value) => (value === '' ? null : value));
+
 const optionalAge = z.number().int().min(18).max(100).nullable();
 const optionalHeight = z.number().int().min(120).max(250).nullable();
 
@@ -38,6 +51,9 @@ export const PartnerPreferenceValuesSchema = z
     religion: optionalText(80),
     /** Religion-scoped sub-caste, matched against the profile's `sub_caste`. */
     sub_caste: optionalText(120),
+    /** Master-list ids from `EDUCATION` and `PROFESSION`. */
+    education_id: optionalListId,
+    profession_id: optionalListId,
     mother_tongue: optionalText(60),
     /** ISO 3166-1 alpha-2, matching how profiles store a country. */
     country: optionalText(2),
@@ -105,6 +121,8 @@ export function hasPartnerPreferenceConstraints(preference: PartnerPreferenceVal
     preference.marital_status !== null ||
     preference.religion !== null ||
     preference.sub_caste !== null ||
+    preference.education_id !== null ||
+    preference.profession_id !== null ||
     preference.mother_tongue !== null ||
     preference.country !== null ||
     preference.state !== null ||

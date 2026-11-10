@@ -24,6 +24,8 @@ export const EMPTY_PREFERENCE: PartnerPreferenceValues = {
   marital_status: null,
   religion: null,
   sub_caste: null,
+  education_id: null,
+  profession_id: null,
   mother_tongue: null,
   country: null,
   state: null,
@@ -39,6 +41,8 @@ type PreferenceRow = {
   maritalStatus: PartnerPreferenceValues['marital_status'];
   religion: string | null;
   subCaste: string | null;
+  educationId: string | null;
+  professionId: string | null;
   motherTongue: string | null;
   preferredCountry: string | null;
   preferredState: string | null;
@@ -64,6 +68,8 @@ export const PREFERENCE_SELECT = {
   maritalStatus: true,
   religion: true,
   subCaste: true,
+  educationId: true,
+  professionId: true,
   motherTongue: true,
   preferredCountry: true,
   preferredState: true,
@@ -82,6 +88,8 @@ export function toPreferenceValues(row: PreferenceRow): PartnerPreferenceValues 
     marital_status: row.maritalStatus,
     religion: row.religion,
     sub_caste: row.subCaste,
+    education_id: row.educationId,
+    profession_id: row.professionId,
     mother_tongue: row.motherTongue,
     country: row.preferredCountry,
     state: row.preferredState,
@@ -111,6 +119,8 @@ export function toPreferenceColumns(
     maritalStatus: input.marital_status,
     religion: input.religion,
     subCaste: input.sub_caste,
+    educationId: input.education_id,
+    professionId: input.profession_id,
     motherTongue: input.mother_tongue,
     preferredCountry: input.country === null ? null : input.country.toUpperCase(),
     preferredState: input.state,
@@ -122,10 +132,10 @@ export function toPreferenceColumns(
  * The discovery filter a saved preference describes.
  *
  * Only fields a profile actually carries are expressible here: religion,
- * sub-caste, mother tongue, marital status, height, gender, age and location. A
- * constraint on a
- * field the candidate does not have excludes the candidate — a member who asked
- * for Hindu profiles has not asked to be shown profiles of unknown religion.
+ * sub-caste, education, profession, mother tongue, marital status, height,
+ * gender, age and location. A constraint on a field the candidate does not have
+ * excludes the candidate — a member who asked for Hindu profiles has not asked
+ * to be shown profiles of unknown religion.
  *
  * Age is a date range rather than a computed age so the query can use the
  * `(gender, dateOfBirth)` index, and `now` is a parameter so the boundaries are
@@ -162,6 +172,8 @@ export function partnerPreferenceWhere(
   if (preference.sub_caste !== null) {
     where.subCaste = { equals: preference.sub_caste, mode: 'insensitive' };
   }
+  if (preference.education_id !== null) where.educationId = preference.education_id;
+  if (preference.profession_id !== null) where.professionId = preference.profession_id;
   if (preference.mother_tongue !== null) {
     where.motherTongue = { equals: preference.mother_tongue, mode: 'insensitive' };
   }

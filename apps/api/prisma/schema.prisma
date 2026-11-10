@@ -506,6 +506,9 @@ model MasterListValue {
   professionFor Profile[] @relation("ProfessionValue")
   communityFor  Profile[] @relation("CommunityValue")
 
+  preferredEducationFor  PartnerPreference[] @relation("PreferredEducationValue")
+  preferredProfessionFor PartnerPreference[] @relation("PreferredProfessionValue")
+
   @@unique([listKey, groupLabel, value])
   @@index([listKey, isActive, sortOrder])
 }
@@ -796,6 +799,16 @@ model PartnerPreference {
   preferredState   String?
   preferredCity    String?
 
+  /// Preferred education and profession, as master-list ids like the profile's
+  /// own columns: the lists repeat labels across sections ("Manager" under two
+  /// industries), so a label would match the wrong rows.
+  educationId     String?
+  educationValue  MasterListValue? @relation("PreferredEducationValue", fields: [educationId], references: [id], onDelete: SetNull)
+  professionId    String?
+  professionValue MasterListValue? @relation("PreferredProfessionValue", fields: [professionId], references: [id], onDelete: SetNull)
+
+  /// Legacy free-text columns from before the lists were master-list backed.
+  /// Nothing reads or writes them; kept so the migration does not drop data.
   education     String?
   profession    String?
   maritalStatus MaritalStatus?
