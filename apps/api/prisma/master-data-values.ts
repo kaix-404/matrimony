@@ -2,12 +2,13 @@
  * Master-list values supplied by the client in docs/Data Points list/.
  *
  * One entry per line the client supplied: the title line and the file's
- * "--More options--" marker are dropped, and a label repeated inside one list
- * is collapsed (the mother-tongue file repeats its eight quick picks in the
- * long list; the occupation file repeats a job title under two industries).
- * Sub-castes stay per religion block: the client's file repeats an identical
- * block for each Muslim and Jain sect, and the picker filters by the religion
- * the member chose.
+ * "--More options--" marker are dropped. A value repeated within one section is
+ * collapsed (the mother-tongue file repeats its eight quick picks in the long
+ * list), but a label the client files under two sections is kept in both —
+ * "Designer" is listed under IT & Software and under Media & Entertainment, and
+ * a member filtering by either industry should find it. Sub-castes stay per
+ * religion block: the client's file repeats an identical block for each Muslim
+ * and Jain sect, and the picker filters by the religion the member chose.
  *
  * Seeded by upsert on (list, group, value), so editing an entry here and
  * redeploying updates it rather than duplicating it. Nothing is deleted: a
@@ -423,6 +424,10 @@ export const PROFESSION_VALUES: MasterListValueSeed[] = [
   { value: 'Entertainment Professional', group: 'Media & Entertainment' },
   { value: 'Event Management Professional', group: 'Media & Entertainment' },
   { value: 'Advertising / PR Professional', group: 'Media & Entertainment' },
+  // Listed under IT & Software too. The client files it in both industries, and
+  // uniqueness is per section, so both rows stay: a member looking for media
+  // work should find it where the client put it.
+  { value: 'Designer', group: 'Media & Entertainment' },
   { value: 'Actor / Model', group: 'Media & Entertainment' },
   { value: 'Artist', group: 'Media & Entertainment' },
   { value: 'Health Care Professional', group: 'Medical & Healthcare - Other' },
