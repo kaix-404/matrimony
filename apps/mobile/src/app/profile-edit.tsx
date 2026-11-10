@@ -15,6 +15,7 @@ import { SelectField } from '../components/SelectField';
 import { TextField } from '../components/TextField';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../lib/auth-context';
+import { listFor, subCasteOptions, textOptions, withCurrent } from '../lib/master-list-options';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -60,17 +61,6 @@ const TEXT_FIELDS: TextSpec[] = [
   { key: 'city', api: 'city', maxLength: 80 },
   { key: 'country', api: 'country', maxLength: 2, kind: 'country' },
 ];
-
-/**
- * The sub-caste block the client labelled "other Sub Cast".
- *
- * It is not a religion, but it holds the general Indian caste list (Agarwal,
- * Adi Dravidar, Vokkaliga, …) that the Hindu block does not repeat, so it is
- * offered to every religion alongside that religion's own block. Without it a
- * Hindu member would only see the 49 South Indian caste names in the "Hindu"
- * block.
- */
-const SHARED_SUB_CASTE_GROUP = 'Other Sub Cast';
 
 /**
  * Edits the caller's own profile with PATCH semantics.
@@ -399,40 +389,8 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function listFor(lists: MasterList[], key: string): MasterList | undefined {
-  return lists.find((list) => list.key === key);
-}
-
 function optionsFor(list: MasterList | undefined) {
   return (list?.values ?? []).map((value) => ({ value: value.id, label: value.value }));
-}
-
-/** Options for a list whose value *is* the label (religion, mother tongue, state). */
-function textOptions(list: MasterList | undefined) {
-  return [...new Set((list?.values ?? []).map((value) => value.value))].map((value) => ({
-    value,
-    label: value,
-  }));
-}
-
-/** The sub-castes offered for a religion, plus the shared general list. */
-function subCasteOptions(list: MasterList | undefined, religion: string) {
-  if (religion === '') return [];
-  return (list?.values ?? [])
-    .filter((value) => value.group === religion || value.group === SHARED_SUB_CASTE_GROUP)
-    .map((value) => ({ value: value.value, label: value.value }));
-}
-
-/**
- * Keeps a stored value selectable when the admin has since retired it.
- *
- * Without this the field would render as "Not set" while the profile still
- * holds the old value, and the next save would silently clear it.
- */
-function withCurrent(options: { value: string; label: string }[], current: string) {
-  const value = current.trim();
-  if (value === '' || options.some((option) => option.value === value)) return options;
-  return [{ value, label: value }, ...options];
 }
 
 /** Matches a stored label back to a master-list value id, for pre-selection. */

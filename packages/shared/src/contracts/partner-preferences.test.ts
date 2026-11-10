@@ -12,6 +12,7 @@ const EMPTY_VALUES: PartnerPreferenceValues = {
   height_max_cm: null,
   marital_status: null,
   religion: null,
+  sub_caste: null,
   mother_tongue: null,
   country: null,
   state: null,
@@ -31,7 +32,11 @@ describe('PartnerPreferenceValuesSchema', () => {
       PartnerPreferenceValuesSchema.parse({ ...EMPTY_VALUES, age_min: 40, age_max: 30 }),
     ).toThrow(/Maximum age/);
     expect(() =>
-      PartnerPreferenceValuesSchema.parse({ ...EMPTY_VALUES, height_min_cm: 180, height_max_cm: 150 }),
+      PartnerPreferenceValuesSchema.parse({
+        ...EMPTY_VALUES,
+        height_min_cm: 180,
+        height_max_cm: 150,
+      }),
     ).toThrow(/Maximum height/);
   });
 
@@ -46,6 +51,7 @@ describe('PartnerPreferenceValuesSchema', () => {
 
   it('counts any set field as a constraint', () => {
     expect(hasPartnerPreferenceConstraints({ ...EMPTY_VALUES, city: 'Pune' })).toBe(true);
+    expect(hasPartnerPreferenceConstraints({ ...EMPTY_VALUES, sub_caste: 'Vokkaliga' })).toBe(true);
     expect(hasPartnerPreferenceConstraints({ ...EMPTY_VALUES, gender: 'FEMALE' })).toBe(true);
   });
 });

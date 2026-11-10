@@ -49,6 +49,16 @@ describe('partnerPreferenceWhere', () => {
     expect(where.city).toEqual({ equals: 'Pune', mode: 'insensitive' });
   });
 
+  it('narrows by sub-caste independently of religion', () => {
+    // Sub-caste is religion-scoped on the profile, so a member who picked one
+    // without a religion is asking for that caste only, not for any caste of
+    // an unspecified faith.
+    expect(partnerPreferenceWhere(preference({ sub_caste: 'Vokkaliga' }), NOW).subCaste).toEqual({
+      equals: 'Vokkaliga',
+      mode: 'insensitive',
+    });
+  });
+
   it('uppercases a country code to match how profiles store one', () => {
     expect(partnerPreferenceWhere(preference({ country: 'in' }), NOW).country).toEqual({
       equals: 'IN',

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { GENDER_PREFERENCES, MARITAL_STATUSES } from '@matrimony/shared';
+import { GENDER_PREFERENCES, MARITAL_STATUSES, type MasterList } from '@matrimony/shared';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { SelectField } from '../components/SelectField';
@@ -8,6 +8,7 @@ import { SelectList, type SelectOption } from '../components/SelectList';
 import { TextField } from '../components/TextField';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../lib/auth-context';
+import { listFor, subCasteOptions, textOptions, withCurrent } from '../lib/master-list-options';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
@@ -42,10 +43,11 @@ interface FormState {
   heightMin: string;
   heightMax: string;
   maritalStatus: string | null;
-  religion: string;
-  motherTongue: string;
+  religion: string | null;
+  subCaste: string | null;
+  motherTongue: string | null;
   city: string;
-  state: string;
+  state: string | null;
 }
 
 const EMPTY_FORM: FormState = {
@@ -55,10 +57,11 @@ const EMPTY_FORM: FormState = {
   heightMin: '',
   heightMax: '',
   maritalStatus: null,
-  religion: '',
-  motherTongue: '',
+  religion: null,
+  subCaste: null,
+  motherTongue: null,
   city: '',
-  state: '',
+  state: null,
 };
 
 /** Empty means no constraint, never zero. */
@@ -89,6 +92,7 @@ export default function PartnerPreferencesScreen() {
   const { ready } = useRequireAuth();
   const { token } = useAuth();
 
+  const [lists, setLists] = useState<MasterList[]>([]);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [pristine, setPristine] = useState<FormState>(EMPTY_FORM);
   const [configured, setConfigured] = useState(false);
@@ -102,7 +106,10 @@ export default function PartnerPreferencesScreen() {
     setLoading(true);
     setError(null);
     try {
-      const state = await apiClient.getPartnerPreference(token);
+      const [state, master] = await Promise.all([
+        apiClient.getPartnerPreference(token),
+        apiClient.getMasterLists(),
+      ]);
       const next: FormState = {
         gender: state.preference.gender,
         ageMin: state.preference.age_min === null ? '' : String(state.preference.age_min),
@@ -112,11 +119,13 @@ export default function PartnerPreferencesScreen() {
         heightMax:
           state.preference.height_max_cm === null ? '' : String(state.preference.height_max_cm),
         maritalStatus: state.preference.marital_status,
-        religion: state.preference.religion ?? '',
-        motherTongue: state.preference.mother_tongue ?? '',
+        religion: state.preference.religion,
+        subCaste: state.preference.sub_caste,
+        motherTongue: state.preference.mother_tongue,
         city: state.preference.city ?? '',
-        state: state.preference.state ?? '',
+        state: state.preference.state,
       };
+      setLists(master.lists);
       setForm(next);
       setPristine(next);
       setConfigured(state.configured);
@@ -151,11 +160,12 @@ export default function PartnerPreferencesScreen() {
           height_min_cm: toNumber(form.heightMin),
           height_max_cm: toNumber(form.heightMax),
           marital_status: form.maritalStatus as (typeof MARITAL_STATUSES)[number] | null,
-          religion: toText(form.religion),
-          mother_tongue: toText(form.motherTongue),
+          religion: form.religion,
+          sub_caste: form.subCaste,
+          mother_tongue: form.motherTongue,
           country: null,
           city: toText(form.city),
-          state: toText(form.state),
+          state: form.state,
         },
         token,
       );
@@ -187,6 +197,28 @@ export default function PartnerPreferencesScreen() {
         </View>
       </Screen>
     );
+  }
+
+  const religionList = listFor(lists, 'RELIGION');
+  const motherTongueList = listFor(lists, 'MOTHER_TONGUE');
+  const casteList = listFor(lists, 'CASTE');
+  const stateList = listFor(lists, 'STATE');
+
+  /**
+   * Religion and sub-caste are stored as labels, and the sub-caste list is
+   * religion-scoped, so a new religion drops a sub-caste that no longer belongs
+   * to it — the same rule the profile editor applies.
+   */
+  function changeReligion(next: string | null) {
+    setSaved(false);
+    setForm((prev) => ({
+      ...prev,
+      religion: next,
+      subCaste:
+        next !== null && subCasteOptions(casteList, next).some((o) => o.value === prev.subCaste)
+          ? prev.subCaste
+          : null,
+    }));
   }
 
   return (
@@ -267,20 +299,25 @@ export default function PartnerPreferencesScreen() {
           value={form.maritalStatus}
           onChange={(v) => set('maritalStatus', v)}
         />
-        <TextField
+        <SelectField
           label="Religion"
+          options={withCurrent(textOptions(religionList), form.religion ?? '')}
           value={form.religion}
-          onChangeText={(v) => set('religion', v)}
-          maxLength={80}
-          autoCapitalize="words"
+          onChange={changeReligion}
           placeholder="Any"
         />
-        <TextField
+        <SelectField
+          label="Sub-caste"
+          options={subCasteOptions(casteList, form.religion ?? '')}
+          value={form.subCaste}
+          onChange={(v) => set('subCaste', v)}
+          placeholder={form.religion ? 'Any' : 'Choose a religion first'}
+        />
+        <SelectField
           label="Mother tongue"
+          options={withCurrent(textOptions(motherTongueList), form.motherTongue ?? '')}
           value={form.motherTongue}
-          onChangeText={(v) => set('motherTongue', v)}
-          maxLength={60}
-          autoCapitalize="words"
+          onChange={(v) => set('motherTongue', v)}
           placeholder="Any"
         />
       </View>
@@ -295,12 +332,11 @@ export default function PartnerPreferencesScreen() {
           autoCapitalize="words"
           placeholder="Any"
         />
-        <TextField
+        <SelectField
           label="State"
+          options={withCurrent(textOptions(stateList), form.state ?? '')}
           value={form.state}
-          onChangeText={(v) => set('state', v)}
-          maxLength={80}
-          autoCapitalize="words"
+          onChange={(v) => set('state', v)}
           placeholder="Any"
         />
       </View>

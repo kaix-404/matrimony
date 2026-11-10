@@ -800,6 +800,9 @@ model PartnerPreference {
   profession    String?
   maritalStatus MaritalStatus?
   religion      String?
+  /// Religion-scoped, like `Profile.subCaste`: the value is only meaningful
+  /// together with the preferred religion.
+  subCaste      String?
   community     String?
   motherTongue  String?
   annualIncome  String?

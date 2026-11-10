@@ -36,6 +36,8 @@ export const PartnerPreferenceValuesSchema = z
     height_max_cm: optionalHeight,
     marital_status: z.enum(MARITAL_STATUSES).nullable(),
     religion: optionalText(80),
+    /** Religion-scoped sub-caste, matched against the profile's `sub_caste`. */
+    sub_caste: optionalText(120),
     mother_tongue: optionalText(60),
     /** ISO 3166-1 alpha-2, matching how profiles store a country. */
     country: optionalText(2),
@@ -102,6 +104,7 @@ export function hasPartnerPreferenceConstraints(preference: PartnerPreferenceVal
     preference.height_max_cm !== null ||
     preference.marital_status !== null ||
     preference.religion !== null ||
+    preference.sub_caste !== null ||
     preference.mother_tongue !== null ||
     preference.country !== null ||
     preference.state !== null ||

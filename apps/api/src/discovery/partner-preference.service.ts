@@ -23,6 +23,7 @@ export const EMPTY_PREFERENCE: PartnerPreferenceValues = {
   height_max_cm: null,
   marital_status: null,
   religion: null,
+  sub_caste: null,
   mother_tongue: null,
   country: null,
   state: null,
@@ -37,6 +38,7 @@ type PreferenceRow = {
   heightMaxCm: number | null;
   maritalStatus: PartnerPreferenceValues['marital_status'];
   religion: string | null;
+  subCaste: string | null;
   motherTongue: string | null;
   country: string | null;
   state: string | null;
@@ -52,6 +54,7 @@ const SELECT = {
   heightMaxCm: true,
   maritalStatus: true,
   religion: true,
+  subCaste: true,
   motherTongue: true,
   country: true,
   state: true,
@@ -69,6 +72,7 @@ export function toPreferenceValues(row: PreferenceRow): PartnerPreferenceValues 
     height_max_cm: row.heightMaxCm,
     marital_status: row.maritalStatus,
     religion: row.religion,
+    sub_caste: row.subCaste,
     mother_tongue: row.motherTongue,
     country: row.country,
     state: row.state,
@@ -79,8 +83,9 @@ export function toPreferenceValues(row: PreferenceRow): PartnerPreferenceValues 
 /**
  * The discovery filter a saved preference describes.
  *
- * Only fields a profile actually carries are expressible here: religion, mother
- * tongue, marital status, height, gender, age and location. A constraint on a
+ * Only fields a profile actually carries are expressible here: religion,
+ * sub-caste, mother tongue, marital status, height, gender, age and location. A
+ * constraint on a
  * field the candidate does not have excludes the candidate — a member who asked
  * for Hindu profiles has not asked to be shown profiles of unknown religion.
  *
@@ -108,12 +113,16 @@ export function partnerPreferenceWhere(
   // age_max bounds the oldest allowed: born on or after the start of that year.
   if (preference.age_max !== null) birth.gte = new Date(Date.UTC(year - preference.age_max, 0, 1));
   // age_min bounds the youngest allowed: born on or before the end of that year.
-  if (preference.age_min !== null) birth.lte = new Date(Date.UTC(year - preference.age_min, 11, 31));
+  if (preference.age_min !== null)
+    birth.lte = new Date(Date.UTC(year - preference.age_min, 11, 31));
   if (birth.gte !== undefined || birth.lte !== undefined) where.dateOfBirth = birth;
 
   if (preference.marital_status !== null) where.maritalStatus = preference.marital_status;
   if (preference.religion !== null) {
     where.religion = { equals: preference.religion, mode: 'insensitive' };
+  }
+  if (preference.sub_caste !== null) {
+    where.subCaste = { equals: preference.sub_caste, mode: 'insensitive' };
   }
   if (preference.mother_tongue !== null) {
     where.motherTongue = { equals: preference.mother_tongue, mode: 'insensitive' };
@@ -167,6 +176,7 @@ export class PartnerPreferenceService {
       heightMaxCm: input.height_max_cm,
       maritalStatus: input.marital_status,
       religion: input.religion,
+      subCaste: input.sub_caste,
       motherTongue: input.mother_tongue,
       country: input.country === null ? null : input.country.toUpperCase(),
       state: input.state,
