@@ -1,6 +1,6 @@
 NETWORTH MATRIMONY - PROJECT STATUS REPORT
 
-Report Date: November 11, 2026 | Branch: main (b788730) | Repo: D:\matrimony
+Report Date: November 11, 2026 | Branch: main (88acacf) | Repo: D:\matrimony
 
 EXECUTIVE SUMMARY
 
@@ -18,14 +18,14 @@ visibility preferences, notifications, unlocks, the feature-flagged For You feed
 a settings screen limited to the actions the client asked for. The client's own
 datapoint lists now drive every picker in the profile and in partner preferences, and
 the admin console can maintain those lists without a release. All gates are green
-with 1162 automated tests passing.
+with 1176 automated tests passing.
 
 KEY METRICS
 
-  Automated tests      1162  (754 API + 81 Admin + 284 Shared + 43 Mobile)
-  Test suites            80  (46 API + 12 Admin + 15 Shared + 7 Mobile)
+  Automated tests      1176  (760 API + 81 Admin + 292 Shared + 43 Mobile)
+  Test suites            82  (47 API + 12 Admin + 16 Shared + 7 Mobile)
   Admin permission keys  25
-  Current commit    b788730
+  Current commit    88acacf
   Status          All Gates Green
 
 IMPLEMENTATION STATUS BY PHASE
@@ -67,6 +67,19 @@ Client Feedback Round (items 1-4)
     profession are picked, not typed. Sub-castes are offered only for the preferred
     religion, and changing religion clears a sub-caste that no longer applies.
     Education and profession preferences reference the same list ids a profile uses.
+
+Email Address Change (MSG91 Email)
+
+  - Settings now offers "Add or change email"; the address is verified by a code
+    sent to it, so a typo cannot silently put account mail somewhere unreachable.
+  - The code is bound to the mailbox it was issued for and carries its own OTP
+    purpose, so it is never redeemable as a sign-in or as a number change.
+  - No sessions are revoked: email is not a login identity, and losing a mailbox
+    must not sign a member out of the app.
+  - Delivery goes through MSG91's email API behind an EmailGateway seam, mirroring
+    SMS; unconfigured, it fails closed with EMAIL_UNAVAILABLE rather than claiming
+    a send. The deployment still needs EMAIL_PROVIDER_API_KEY, EMAIL_FROM_ADDRESS
+    and EMAIL_TEMPLATE_ID.
 
 Master List Console (Admin)
 
@@ -155,7 +168,7 @@ PLATFORM WORK (sections 15, 21, 30, 42, admin)
 
 QUALITY ASSURANCE
 
-  Tests     1162 passed (754 API + 81 Admin + 284 Shared + 43 Mobile)
+  Tests     1176 passed (760 API + 81 Admin + 292 Shared + 43 Mobile)
   Typecheck PASS (workspaces + tools, including the seed and the mobile app)
   Lint      PASS
   Build     PASS (shared + API + admin)
@@ -164,11 +177,6 @@ QUALITY ASSURANCE
 
 NEXT STEPS
 
-  - Email change: settings must offer change-email, and the client chose MSG91 for
-    transactional email. The API needs an email gateway, a CHANGE_EMAIL purpose and a
-    verified-change endpoint; the deployment needs EMAIL_PROVIDER_API_KEY,
-    EMAIL_FROM_ADDRESS and the MSG91 email template id; the app must confirm the new
-    address by code before it replaces the old one.
   - Community values from the client: wired end to end but empty until they send a
     list; once sent it can be entered in the console without a release.
   - State spellings: Orissa, Pondicherry and Delhi / NCR are exactly as the client's

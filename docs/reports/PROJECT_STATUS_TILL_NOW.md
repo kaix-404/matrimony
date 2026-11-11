@@ -1,19 +1,19 @@
 # Networth Matrimony - Project Status Report
 
-**Report Date:** November 11, 2026  |  **Branch:** main (b788730)  |  **Repository:** D:\matrimony
+**Report Date:** November 11, 2026  |  **Branch:** main (88acacf)  |  **Repository:** D:\matrimony
 
 ## Executive Summary
 
-The platform is feature-complete end to end, and the client's first feedback round (items 1-4) is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, and the admin console can maintain those lists without a release. All gates are green with 1162 automated tests passing.
+The platform is feature-complete end to end, and the client's first feedback round (items 1-4) is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, the admin console can maintain those lists without a release, and an email address can be added or moved once the client supplies the MSG91 email credentials. All gates are green with 1176 automated tests passing.
 
 ## Key Metrics
 
 | Metric | Value |
 |---|---|
-| Automated Tests | 1162 (754 API + 81 Admin + 284 Shared + 43 Mobile) |
-| Test Suites | 80 (46 API + 12 Admin + 15 Shared + 7 Mobile) |
+| Automated Tests | 1176 (760 API + 81 Admin + 292 Shared + 43 Mobile) |
+| Test Suites | 82 (47 API + 12 Admin + 16 Shared + 7 Mobile) |
 | Admin Permission Keys | 25 |
-| Current Commit | b788730 |
+| Current Commit | 88acacf |
 | Status | All Gates Green |
 
 ## Implementation Status by Phase
@@ -39,6 +39,13 @@ The platform is feature-complete end to end, and the client's first feedback rou
 - **Registration in the client's order.** Mobile plus OTP, then the net-worth band, then profile setup, then review, then identity verification, then the one-time setup fee. The API enforces the same sequence through `UserStatus`, so a client cannot skip a step by calling the endpoints out of order.
 - **Settings, and only what was asked for.** Partner preferences, discovery and visibility filters, blocked members, data export/deletion requests, change mobile number, identity verification, delete account, pricing and help. Pause/resume lives on the profile screen as the visibility toggle, which is the same control the API exposes.
 - **Partner preferences from the client's lists.** Religion, sub-caste, education and profession are picked from the client's datapoint lists rather than typed. Sub-castes are offered only for the religion the member prefers (a Hindu and a Muslim sub-caste list share not a single value), and changing the religion clears a sub-caste that no longer applies. Education and profession preferences reference the same list ids a profile uses, so "Manager" under two industries stays two distinct choices.
+
+### Email Address Change (MSG91 Email)
+
+- Settings now has "Add or change email", and the address is verified by a code sent to it: the address is not stored until the code is typed back, so a typo cannot silently put account mail somewhere unreachable.
+- The code is bound to the exact mailbox it was issued for, so a code obtained for one address cannot be spent moving the account to another. It carries its own OTP purpose, so a mailbox code is never redeemable as a sign-in or as a mobile-number change.
+- No sessions are revoked. Email is not a login identity here, and losing a mailbox must not sign a member out of the app they are already using.
+- Delivery goes through MSG91's email API behind an `EmailGateway` seam, mirroring SMS: configured in production, or answered with a coded 503 (`EMAIL_UNAVAILABLE`); locally an unconfigured gateway echoes a development code. The deployment needs `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS` and `EMAIL_TEMPLATE_ID`; until they are set the endpoint fails closed rather than claiming a send.
 
 ### Master List Console (Admin)
 
@@ -130,7 +137,7 @@ The platform is feature-complete end to end, and the client's first feedback rou
 
 ## Quality Assurance
 
-- Tests: 1162 passed (754 API + 81 Admin + 284 Shared + 43 Mobile)
+- Tests: 1176 passed (760 API + 81 Admin + 292 Shared + 43 Mobile)
 - Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
@@ -139,11 +146,10 @@ The platform is feature-complete end to end, and the client's first feedback rou
 
 ## Next Steps
 
-- **Email change.** Settings must offer change-email, and the client has chosen MSG91 for transactional email. The API needs an email gateway, an `CHANGE_EMAIL` purpose and a verified-change endpoint, and the deployment needs `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS` and the MSG91 email template id; the app must also confirm the new address by code before it replaces the old one.
 - **Community values from the client.** The list is wired end to end but has no values because no community list was supplied; once they send one it can be entered in the console without a release.
 - **State spellings.** `Orissa`, `Pondicherry` and `Delhi / NCR` are exactly as the client's file spells them. If they want Odisha/Puducherry, the console can rename them (profiles follow the row) once they confirm.
 - **Feedback item 5 ("User Dashboard").** The client's document is truncated mid-sentence, so the requirement is unknown; everything in items 1-4 is delivered.
 - Device-level QA of the Expo app (dev build) and the pending store identifiers (`bundleIdentifier` / Android `package`)
-- Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS/email; the webhook secret, sender/template/DLT ids and MSG91 email config are still unset
+- Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS/email; the webhook secret, sender/template/DLT ids and the MSG91 email key, sender and template id are still unset, so email verification is built and deployed but not yet sending
 - Flip `FEATURE_AI_RECOMMENDATIONS` on after a gradual rollout decision; the For You surface is already shipped behind the flag (currently 10% rollout)
 - Client clarifications all closed: GAP-2 (net-worth boundaries) resolved, GAP-11 privacy wording accepted (R2 best-effort APAC), GAP-12 email via MSG91
