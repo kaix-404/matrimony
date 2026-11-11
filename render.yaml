@@ -94,10 +94,21 @@ services:
         value: var1
       - key: SMS_COUNTRY_CODE
         value: "91"
-      # - key: EMAIL_PROVIDER_API_KEY
-      #   sync: false
-      # - key: EMAIL_FROM_ADDRESS
-      #   sync: false
+      # Transactional email (client decision GAP-12). The key and the verified
+      # sender live in the dashboard, never in this repository; until they are set
+      # the API answers 503 to an email-verification request rather than pretending
+      # a message was sent.
+      - key: EMAIL_PROVIDER_API_KEY
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: EMAIL_TEMPLATE_ID
+        sync: false
+      # The template variable holding the code, as named in the MSG91 template.
+      - key: EMAIL_OTP_TEMPLATE_VAR
+        value: otp
+      - key: EMAIL_FROM_NAME
+        value: Networth Matrimony
       # Fixture profiles, so discovery and the unlock flow have something in them
       # in a database otherwise holding only the client's test accounts: twelve
       # invented members, three in each net-worth band, each one labelled a demo

@@ -899,8 +899,8 @@ export declare const AdminPhotoViewSchema: z.ZodObject<{
     rejection_reason: z.ZodNullable<z.ZodString>;
     reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    id: string;
     status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    id: string;
     profile_id: string;
     profile_name: string | null;
     photo_type: "SINGLE" | "FAMILY";
@@ -910,8 +910,8 @@ export declare const AdminPhotoViewSchema: z.ZodObject<{
     rejection_reason: string | null;
     reviewed_by_admin_id: string | null;
 }, {
-    id: string;
     status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    id: string;
     profile_id: string;
     profile_name: string | null;
     photo_type: "SINGLE" | "FAMILY";
@@ -935,8 +935,8 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
         rejection_reason: z.ZodNullable<z.ZodString>;
         reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        id: string;
         status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        id: string;
         profile_id: string;
         profile_name: string | null;
         photo_type: "SINGLE" | "FAMILY";
@@ -946,8 +946,8 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
         rejection_reason: string | null;
         reviewed_by_admin_id: string | null;
     }, {
-        id: string;
         status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        id: string;
         profile_id: string;
         profile_name: string | null;
         photo_type: "SINGLE" | "FAMILY";
@@ -961,8 +961,8 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
     hasMore: z.ZodBoolean;
 }, "strict", z.ZodTypeAny, {
     photos: {
-        id: string;
         status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        id: string;
         profile_id: string;
         profile_name: string | null;
         photo_type: "SINGLE" | "FAMILY";
@@ -976,8 +976,8 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
     hasMore: boolean;
 }, {
     photos: {
-        id: string;
         status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+        id: string;
         profile_id: string;
         profile_name: string | null;
         photo_type: "SINGLE" | "FAMILY";
@@ -1056,8 +1056,8 @@ export declare const AdminProfileViewSchema: z.ZodObject<{
     reviewed_at: z.ZodNullable<z.ZodString>;
     rejection_reason: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    id: string;
     status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    id: string;
     name: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
@@ -1067,8 +1067,8 @@ export declare const AdminProfileViewSchema: z.ZodObject<{
     photo_url: string | null;
     submitted_at: string;
 }, {
-    id: string;
     status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    id: string;
     name: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
@@ -1092,8 +1092,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
         reviewed_at: z.ZodNullable<z.ZodString>;
         rejection_reason: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        id: string;
         status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        id: string;
         name: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1103,8 +1103,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
         photo_url: string | null;
         submitted_at: string;
     }, {
-        id: string;
         status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        id: string;
         name: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1120,8 +1120,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
     nextCursor: string | null;
     hasMore: boolean;
     profiles: {
-        id: string;
         status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        id: string;
         name: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1135,8 +1135,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
     nextCursor: string | null;
     hasMore: boolean;
     profiles: {
-        id: string;
         status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        id: string;
         name: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1181,14 +1181,14 @@ export declare const AdminMasterListValueViewSchema: z.ZodObject<{
     is_active: z.ZodBoolean;
     sort_order: z.ZodNumber;
 }, "strict", z.ZodTypeAny, {
-    id: string;
     value: string;
+    id: string;
     group: string | null;
     is_active: boolean;
     sort_order: number;
 }, {
-    id: string;
     value: string;
+    id: string;
     group: string | null;
     is_active: boolean;
     sort_order: number;
@@ -1205,22 +1205,22 @@ export declare const AdminMasterListViewSchema: z.ZodObject<{
         is_active: z.ZodBoolean;
         sort_order: z.ZodNumber;
     }, "strict", z.ZodTypeAny, {
-        id: string;
         value: string;
+        id: string;
         group: string | null;
         is_active: boolean;
         sort_order: number;
     }, {
-        id: string;
         value: string;
+        id: string;
         group: string | null;
         is_active: boolean;
         sort_order: number;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     values: {
-        id: string;
         value: string;
+        id: string;
         group: string | null;
         is_active: boolean;
         sort_order: number;
@@ -1230,8 +1230,8 @@ export declare const AdminMasterListViewSchema: z.ZodObject<{
     is_active: boolean;
 }, {
     values: {
-        id: string;
         value: string;
+        id: string;
         group: string | null;
         is_active: boolean;
         sort_order: number;
@@ -1253,22 +1253,22 @@ export declare const AdminMasterListsResponseSchema: z.ZodObject<{
             is_active: z.ZodBoolean;
             sort_order: z.ZodNumber;
         }, "strict", z.ZodTypeAny, {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
             is_active: boolean;
             sort_order: number;
         }, {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
             is_active: boolean;
             sort_order: number;
         }>, "many">;
     }, "strict", z.ZodTypeAny, {
         values: {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
             is_active: boolean;
             sort_order: number;
@@ -1278,8 +1278,8 @@ export declare const AdminMasterListsResponseSchema: z.ZodObject<{
         is_active: boolean;
     }, {
         values: {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
             is_active: boolean;
             sort_order: number;
@@ -1291,8 +1291,8 @@ export declare const AdminMasterListsResponseSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     lists: {
         values: {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
             is_active: boolean;
             sort_order: number;
@@ -1304,8 +1304,8 @@ export declare const AdminMasterListsResponseSchema: z.ZodObject<{
 }, {
     lists: {
         values: {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
             is_active: boolean;
             sort_order: number;

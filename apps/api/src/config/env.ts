@@ -146,8 +146,17 @@ export function createEnvSchema(isProduction: boolean) {
     SMS_OTP_TEMPLATE_VAR: z.string().default('OTP'),
     // Dialing code prefixed to a bare 10-digit number for the Flow API.
     SMS_COUNTRY_CODE: z.string().default('91'),
+    // Transactional email (client decision GAP-12: MSG91). Adding or moving an
+    // email address is verified by a code sent to it, so the same MSG91 account
+    // that carries SMS also carries this; the email template is a separate id
+    // from the SMS template and has its own variable name.
     EMAIL_PROVIDER_API_KEY: z.string().default(''),
     EMAIL_FROM_ADDRESS: z.string().default(''),
+    EMAIL_FROM_NAME: z.string().default('Networth Matrimony'),
+    EMAIL_TEMPLATE_ID: z.string().default(''),
+    // The template variable that holds the code, as named in the MSG91 email
+    // template. Case-sensitive on their side, hence configurable.
+    EMAIL_OTP_TEMPLATE_VAR: z.string().default('otp'),
 
     // -- rate limiting / OTP (section 6) ----------------------------------
     RATE_LIMIT_TTL: int(1, 3600).default(60),

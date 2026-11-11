@@ -18,18 +18,24 @@ import { TokenService } from './token.service';
 import { PrismaClient } from '../prisma/prisma-client';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
 import { SmsGateway } from '../sms/sms.gateway';
+import { EmailGateway } from '../email/email.gateway';
 import {
+  ChangeEmailSchema,
   ChangeMobileSchema,
   CompleteRegistrationSchema,
+  EMAIL_UNAVAILABLE_CODE,
   RefreshSchema,
+  RequestEmailOtpSchema,
   RequestOtpSchema,
   SMS_UNAVAILABLE_CODE,
   VerifyOtpSchema,
   type AccessTokenClaims,
+  type ChangeEmailInput,
   type ChangeMobileInput,
   type CompleteRegistrationInput,
   type CurrentUser,
   type OtpRequested,
+  type RequestEmailOtpInput,
   type RequestOtpInput,
   type TokenPair,
   type VerifyOtpInput,
@@ -48,6 +54,7 @@ export class AuthController {
     private readonly auth: AuthService,
     private readonly prisma: PrismaClient,
     private readonly sms: SmsGateway,
+    private readonly email: EmailGateway,
   ) {}
 
   /**
@@ -183,6 +190,12 @@ export class AuthController {
       throw new BadRequestException('Complete the change with POST /auth/mobile/change');
     }
 
+    // Same reason as the number change: the address is verified by the endpoint
+    // that changes it, against the code still pending.
+    if (body.purpose === 'CHANGE_EMAIL') {
+      throw new BadRequestException('Complete the change with POST /auth/email/change');
+    }
+
     // Spent here rather than left available, for the same reason as the
     // registration code: a verified code is a session, and it must not be
     // redeemable twice.
@@ -221,6 +234,108 @@ export class AuthController {
    * session for it. Consuming on use turns a verification into a single-use
    * grant for exactly this step.
    */
+  /**
+   * Sends a code to an address the signed-in member wants to add or move to.
+   *
+   * The account comes from the token, never the body: an endpoint that accepted
+   * a user id would let any member attach their own mailbox to somebody else's
+   * account.
+   *
+   * Whether the address is already taken is deliberately not answered here. The
+   * answer would let any signed-in member test addresses against the user base
+   * one at a time; the change endpoint answers it to somebody who has just proved
+   * they can receive mail there, which is the same information registration gives
+   * them.
+   *
+   * Delivery follows the SMS route exactly: MSG91 when configured, a development
+   * echo when it is not, and a 503 in production either way if no message could
+   * be sent.
+   */
+  @Post('email/otp')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async requestEmailOtp(
+    @AuthUser() claims: AccessTokenClaims,
+    @Body(new ZodValidationPipe(RequestEmailOtpSchema)) body: RequestEmailOtpInput,
+  ): Promise<OtpRequested & { dev_code?: string }> {
+    const account = await this.prisma.user.findUnique({
+      where: { id: claims.sub },
+      select: { mobile: true, email: true },
+    });
+    if (account === null) {
+      throw new UnauthorizedException('Sign in again to add an email address');
+    }
+    if (account.email === body.email) {
+      throw new BadRequestException('That is already your email address');
+    }
+
+    await this.otp.assertNotCoolingDown(account.mobile, 'CHANGE_EMAIL', body.email);
+    const issued = await this.otp.issue({
+      mobile: account.mobile,
+      purpose: 'CHANGE_EMAIL',
+      email: body.email,
+    });
+
+    const response: OtpRequested & { dev_code?: string } = {
+      message: 'A verification code has been sent to that address.',
+      resend_after_seconds: this.otp.cooldownSeconds,
+      expires_in_seconds: this.otp.ttlSeconds,
+    };
+
+    const isProduction = process.env.NODE_ENV === 'production';
+
+    if (!this.email.configured) {
+      if (isProduction) {
+        this.logger.error('Email verification code not sent: MSG91 email is not configured');
+        throw new ServiceUnavailableException({
+          statusCode: 503,
+          code: EMAIL_UNAVAILABLE_CODE,
+          message: 'Email verification is temporarily unavailable; please try again shortly.',
+        });
+      }
+      response.dev_code = issued.code;
+      return response;
+    }
+
+    try {
+      await this.email.sendOtp({ email: body.email, code: issued.code });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+
+      if (isProduction) {
+        this.logger.error(`Email verification code not sent: ${detail}`);
+        throw new ServiceUnavailableException({
+          statusCode: 503,
+          code: EMAIL_UNAVAILABLE_CODE,
+          message: 'Email verification is temporarily unavailable; please try again shortly.',
+        });
+      }
+
+      this.logger.warn(`MSG91 email send failed; echoing dev_code instead: ${detail}`);
+      response.dev_code = issued.code;
+      response.delivery_warning = 'No email was sent. Use the development code below.';
+    }
+
+    return response;
+  }
+
+  /**
+   * Completes the change with the code sent to the address.
+   *
+   * Returns the account as the app's `me` route does, so the profile screen can
+   * show the new address without a second round trip.
+   */
+  @Post('email/change')
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  async changeEmail(
+    @AuthUser() claims: AccessTokenClaims,
+    @Body(new ZodValidationPipe(ChangeEmailSchema)) body: ChangeEmailInput,
+  ): Promise<CurrentUser> {
+    await this.auth.changeEmail(claims.sub, body.email, body.code);
+    return this.registration.currentUser(claims.sub);
+  }
+
   @Post('register')
   @HttpCode(201)
   async register(

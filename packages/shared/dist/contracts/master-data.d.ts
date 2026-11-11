@@ -28,12 +28,12 @@ export declare const MasterListValueSchema: z.ZodObject<{
      */
     group: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    id: string;
     value: string;
+    id: string;
     group: string | null;
 }, {
-    id: string;
     value: string;
+    id: string;
     group: string | null;
 }>;
 export type MasterListValue = z.infer<typeof MasterListValueSchema>;
@@ -52,18 +52,18 @@ export declare const MasterListSchema: z.ZodObject<{
          */
         group: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        id: string;
         value: string;
+        id: string;
         group: string | null;
     }, {
-        id: string;
         value: string;
+        id: string;
         group: string | null;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     values: {
-        id: string;
         value: string;
+        id: string;
         group: string | null;
     }[];
     key: string;
@@ -71,8 +71,8 @@ export declare const MasterListSchema: z.ZodObject<{
     is_sensitive: boolean;
 }, {
     values: {
-        id: string;
         value: string;
+        id: string;
         group: string | null;
     }[];
     key: string;
@@ -96,18 +96,18 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
              */
             group: z.ZodNullable<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
         }, {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
         }>, "many">;
     }, "strict", z.ZodTypeAny, {
         values: {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
         }[];
         key: string;
@@ -115,8 +115,8 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
         is_sensitive: boolean;
     }, {
         values: {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
         }[];
         key: string;
@@ -126,8 +126,8 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     lists: {
         values: {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
         }[];
         key: string;
@@ -137,8 +137,8 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
 }, {
     lists: {
         values: {
-            id: string;
             value: string;
+            id: string;
             group: string | null;
         }[];
         key: string;

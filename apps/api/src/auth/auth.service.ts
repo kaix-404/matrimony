@@ -114,6 +114,71 @@ export class AuthService {
    * "unknown number" is not sensitive to that caller, and telling them lets the
    * app route to registration.
    */
+  /**
+   * Adds an email address to the account, or moves it to a different one.
+   *
+   * The proof is a code sent to the address, so this establishes that the member
+   * can receive mail there; the bearer token establishes that it is their
+   * account. Unlike a number change this revokes nothing: the email is not a
+   * login identity in this product, and losing a mailbox must not sign somebody
+   * out of the app they are already using.
+   *
+   * The code is bound to the exact address it was issued for, so a code obtained
+   * for one mailbox cannot be spent on another.
+   */
+  async changeEmail(userId: string, email: string, code: string): Promise<void> {
+    const current = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { mobile: true, email: true, deletedAt: true, isAnonymised: true },
+    });
+
+    if (current.deletedAt !== null || current.isAnonymised) {
+      throw new UnauthorizedException('This account can no longer be changed');
+    }
+
+    if (current.email === email) {
+      throw new BadRequestException('That is already your email address');
+    }
+
+    // Verified before the uniqueness check so an expired or guessed code cannot
+    // be used to probe which addresses are registered.
+    const verified = await this.otp.verify({
+      mobile: current.mobile,
+      purpose: 'CHANGE_EMAIL',
+      email,
+      code,
+    });
+    if (verified === null) {
+      throw new UnauthorizedException('That code is not valid for this address');
+    }
+
+    const owner = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+    if (owner !== null && owner.id !== userId) {
+      // Told plainly: the caller has just proved they can receive mail at the
+      // address, which registration would reveal anyway.
+      throw new ConflictException('That email address is already registered');
+    }
+
+    // Spent only once everything that can refuse the change has passed, so a
+    // refused attempt does not burn the member's code.
+    await this.otp.consumeVerified({
+      mobile: current.mobile,
+      purpose: 'CHANGE_EMAIL',
+      email,
+    });
+
+    try {
+      await this.prisma.user.update({ where: { id: userId }, data: { email } });
+    } catch {
+      // The unique index is the real arbiter: two accounts claiming the same
+      // address at the same moment both pass the check above.
+      throw new ConflictException('That email address is already registered');
+    }
+  }
+
   async signIn(mobile: string): Promise<TokenPair | null> {
     const user = await this.prisma.user.findUnique({
       where: { mobile },

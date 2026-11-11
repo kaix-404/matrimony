@@ -51,6 +51,10 @@ export const OTP_PURPOSES = [
   // Verifying a number the account is moving to. Its own purpose so a code minted
   // to log in cannot be spent on a number change, or the reverse.
   'CHANGE_MOBILE',
+  // Verifying an address the account is adding or moving to. Separate from the
+  // number purposes: a code sent to a mailbox must never be redeemable as a
+  // sign-in, and this deployment's members sign in by number only.
+  'CHANGE_EMAIL',
 ] as const;
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
 
@@ -131,6 +135,66 @@ export const ChangeMobileSchema = z
   .strict();
 
 export type ChangeMobileInput = z.infer<typeof ChangeMobileSchema>;
+
+/**
+ * An email address, normalised the same way the account stores it.
+ *
+ * Lower-cased at the edge because the unique index is case-sensitive: without
+ * this, alice@example.com and Alice@Example.com would be two accounts' worth of
+ * the same mailbox, and a member who typed a capital letter would be refused
+ * their own address.
+ */
+export const EmailAddressSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email('must be a valid email address')
+  .max(254);
+
+export type EmailAddress = z.infer<typeof EmailAddressSchema>;
+
+/**
+ * Adds an email to the account, or moves it to a different address.
+ *
+ * The addressee proves the address by code, the bearer token proves the account.
+ * The email is not a login identity here, so this does not revoke sessions —
+ * losing access to a mailbox must not sign a member out of the app they are
+ * already using.
+ */
+export const ChangeEmailSchema = z
+  .object({
+    email: EmailAddressSchema,
+    code: z
+      .string()
+      .trim()
+      .regex(new RegExp(`^\\d{${OTP_CODE_LENGTH}}$`), `must be exactly ${OTP_CODE_LENGTH} digits`),
+  })
+  .strict();
+
+export type ChangeEmailInput = z.infer<typeof ChangeEmailSchema>;
+
+/**
+ * Requests a code at an email address for the signed-in account.
+ *
+ * The account comes from the token, not the body: an endpoint that accepted a
+ * user id here would let any member attach their own address to somebody else's
+ * account, and would make the reachable address set enumerable.
+ */
+export const RequestEmailOtpSchema = z
+  .object({
+    email: EmailAddressSchema,
+  })
+  .strict();
+
+export type RequestEmailOtpInput = z.infer<typeof RequestEmailOtpSchema>;
+
+/**
+ * The code on a failed email send, mirroring `SMS_UNAVAILABLE_CODE`.
+ *
+ * The app needs to tell "we could not email you" apart from "that address is
+ * invalid" or an outage, and the vendor's wording belongs in the log.
+ */
+export const EMAIL_UNAVAILABLE_CODE = 'EMAIL_UNAVAILABLE';
 
 export const VerifyOtpSchema = z
   .object({

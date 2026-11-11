@@ -54,6 +54,14 @@ export class OtpService {
     mobile: string;
     purpose: OtpPurpose;
     deviceId?: string;
+    /**
+     * The mailbox the code is for, on a `CHANGE_EMAIL` request.
+     *
+     * A code for an address is scoped to that address: without this, a member
+     * could request a code for a mailbox they control and then spend it moving
+     * the account to somebody else's address.
+     */
+    email?: string;
   }): Promise<{ id: string; code: string; resendAfterAt: Date; expiresAt: Date }> {
     const now = this.clock.now();
     const code = this.generateCode();
@@ -64,7 +72,12 @@ export class OtpService {
     // Otherwise the newest code would not be the only one that works, and a user
     // who requested a resend could still have the first code accepted.
     await this.prisma.otpRequest.updateMany({
-      where: { mobile: input.mobile, purpose: input.purpose, status: OtpStatus.PENDING },
+      where: {
+        mobile: input.mobile,
+        purpose: input.purpose,
+        status: OtpStatus.PENDING,
+        ...(input.email === undefined ? {} : { email: input.email }),
+      },
       data: { status: OtpStatus.EXPIRED },
     });
 
@@ -72,6 +85,7 @@ export class OtpService {
       data: {
         codeHash: this.hashCode(code),
         mobile: input.mobile,
+        email: input.email ?? null,
         purpose: input.purpose,
         status: OtpStatus.PENDING,
         maxAttempts: this.env.OTP_MAX_ATTEMPTS,
@@ -106,10 +120,17 @@ export class OtpService {
     mobile: string;
     purpose: OtpPurpose;
     code: string;
+    /** Narrows the lookup to the address a `CHANGE_EMAIL` code was issued for. */
+    email?: string;
   }): Promise<string | null> {
     const now = this.clock.now();
     const request = await this.prisma.otpRequest.findFirst({
-      where: { mobile: input.mobile, purpose: input.purpose, status: OtpStatus.PENDING },
+      where: {
+        mobile: input.mobile,
+        purpose: input.purpose,
+        status: OtpStatus.PENDING,
+        ...(input.email === undefined ? {} : { email: input.email }),
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -187,7 +208,11 @@ export class OtpService {
    * verified in the last hour should not authorise a registration at a later
    * date just because nothing consumed it in between.
    */
-  async consumeVerified(input: { mobile: string; purpose: OtpPurpose }): Promise<boolean> {
+  async consumeVerified(input: {
+    mobile: string;
+    purpose: OtpPurpose;
+    email?: string;
+  }): Promise<boolean> {
     const now = this.clock.now();
     const consumed = await this.prisma.otpRequest.updateMany({
       where: {
@@ -196,6 +221,7 @@ export class OtpService {
         status: OtpStatus.VERIFIED,
         consumedAt: null,
         expiresAt: { gt: now },
+        ...(input.email === undefined ? {} : { email: input.email }),
       },
       // `status` stays VERIFIED on purpose. It records what happened, and an audit
       // of "which numbers completed registration, and when" should still see
@@ -207,9 +233,13 @@ export class OtpService {
   }
 
   /** Remaining resend delay, computed from the newest request. */
-  async remainingResendSeconds(mobile: string, purpose: OtpPurpose): Promise<number> {
+  async remainingResendSeconds(
+    mobile: string,
+    purpose: OtpPurpose,
+    email?: string,
+  ): Promise<number> {
     const newest = await this.prisma.otpRequest.findFirst({
-      where: { mobile, purpose },
+      where: { mobile, purpose, ...(email === undefined ? {} : { email }) },
       orderBy: { createdAt: 'desc' },
       select: { resendAfterAt: true },
     });
@@ -222,8 +252,8 @@ export class OtpService {
     return remaining <= 0 ? 0 : Math.ceil(remaining / 1000);
   }
 
-  async assertNotCoolingDown(mobile: string, purpose: OtpPurpose): Promise<void> {
-    const wait = await this.remainingResendSeconds(mobile, purpose);
+  async assertNotCoolingDown(mobile: string, purpose: OtpPurpose, email?: string): Promise<void> {
+    const wait = await this.remainingResendSeconds(mobile, purpose, email);
     if (wait > 0) {
       // 429 is constructed directly: Nest has no built-in
       // TooManyRequestsException, and an ad-hoc `HttpException('...')` would

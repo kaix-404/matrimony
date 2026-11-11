@@ -22,9 +22,9 @@ import { colors, radii, spacing, typography } from '../theme/tokens';
  *
  * The mobile number is changed through a verified swap (a code to the new number,
  * then every other session revoked) rather than a text field, because it is the
- * login identity. Adding an email is not here yet: it needs a mail provider this
- * deployment does not have configured, and shipping a button that cannot send
- * would be worse than its absence.
+ * login identity. An email is added the same way, but it revokes nothing: it is
+ * not a way to sign in, so losing a mailbox must not sign a member out of the app
+ * they are already using.
  */
 export default function SettingsScreen() {
   const { ready } = useRequireAuth();
@@ -131,6 +131,11 @@ export default function SettingsScreen() {
           variant="outline"
           label="Change mobile number"
           onPress={() => router.push('/change-mobile')}
+        />
+        <PrimaryButton
+          variant="outline"
+          label="Add or change email"
+          onPress={() => router.push('/change-email')}
         />
         <PrimaryButton
           variant="outline"

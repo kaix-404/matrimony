@@ -30,7 +30,7 @@ export declare const OTP_CODE_LENGTH = 6;
  */
 export declare const IndianMobileSchema: z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>;
 export type IndianMobile = z.infer<typeof IndianMobileSchema>;
-export declare const OTP_PURPOSES: readonly ["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE"];
+export declare const OTP_PURPOSES: readonly ["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE", "CHANGE_EMAIL"];
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
 /**
  * Requesting a code never reveals whether the mobile is already registered.
@@ -42,16 +42,16 @@ export type OtpPurpose = (typeof OTP_PURPOSES)[number];
  */
 export declare const RequestOtpSchema: z.ZodObject<{
     mobile: z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>;
-    purpose: z.ZodEnum<["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE"]>;
+    purpose: z.ZodEnum<["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE", "CHANGE_EMAIL"]>;
     /** Free-form device identifier; recorded for rate-limit auditing only. */
     device_id: z.ZodOptional<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     mobile: string;
-    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE";
+    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE" | "CHANGE_EMAIL";
     device_id?: string | undefined;
 }, {
     mobile: string;
-    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE";
+    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE" | "CHANGE_EMAIL";
     device_id?: string | undefined;
 }>;
 export type RequestOtpInput = z.infer<typeof RequestOtpSchema>;
@@ -114,18 +114,69 @@ export declare const ChangeMobileSchema: z.ZodObject<{
     mobile: string;
 }>;
 export type ChangeMobileInput = z.infer<typeof ChangeMobileSchema>;
+/**
+ * An email address, normalised the same way the account stores it.
+ *
+ * Lower-cased at the edge because the unique index is case-sensitive: without
+ * this, alice@example.com and Alice@Example.com would be two accounts' worth of
+ * the same mailbox, and a member who typed a capital letter would be refused
+ * their own address.
+ */
+export declare const EmailAddressSchema: z.ZodString;
+export type EmailAddress = z.infer<typeof EmailAddressSchema>;
+/**
+ * Adds an email to the account, or moves it to a different address.
+ *
+ * The addressee proves the address by code, the bearer token proves the account.
+ * The email is not a login identity here, so this does not revoke sessions —
+ * losing access to a mailbox must not sign a member out of the app they are
+ * already using.
+ */
+export declare const ChangeEmailSchema: z.ZodObject<{
+    email: z.ZodString;
+    code: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    code: string;
+    email: string;
+}, {
+    code: string;
+    email: string;
+}>;
+export type ChangeEmailInput = z.infer<typeof ChangeEmailSchema>;
+/**
+ * Requests a code at an email address for the signed-in account.
+ *
+ * The account comes from the token, not the body: an endpoint that accepted a
+ * user id here would let any member attach their own address to somebody else's
+ * account, and would make the reachable address set enumerable.
+ */
+export declare const RequestEmailOtpSchema: z.ZodObject<{
+    email: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    email: string;
+}, {
+    email: string;
+}>;
+export type RequestEmailOtpInput = z.infer<typeof RequestEmailOtpSchema>;
+/**
+ * The code on a failed email send, mirroring `SMS_UNAVAILABLE_CODE`.
+ *
+ * The app needs to tell "we could not email you" apart from "that address is
+ * invalid" or an outage, and the vendor's wording belongs in the log.
+ */
+export declare const EMAIL_UNAVAILABLE_CODE = "EMAIL_UNAVAILABLE";
 export declare const VerifyOtpSchema: z.ZodObject<{
     mobile: z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>;
-    purpose: z.ZodEnum<["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE"]>;
+    purpose: z.ZodEnum<["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE", "CHANGE_EMAIL"]>;
     code: z.ZodString;
 }, "strict", z.ZodTypeAny, {
     code: string;
     mobile: string;
-    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE";
+    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE" | "CHANGE_EMAIL";
 }, {
     code: string;
     mobile: string;
-    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE";
+    purpose: "REGISTRATION" | "LOGIN" | "DELETE_ACCOUNT" | "CATEGORY_REVIEW" | "CHANGE_MOBILE" | "CHANGE_EMAIL";
 }>;
 export type VerifyOtpInput = z.infer<typeof VerifyOtpSchema>;
 /**

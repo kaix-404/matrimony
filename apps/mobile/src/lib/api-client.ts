@@ -227,6 +227,33 @@ class ApiClient {
    * number is revoked on the server; without adopting this one the member would
    * be signed out by their own account change.
    */
+  /**
+   * Sends a code to an address the member is adding.
+   *
+   * The account comes from the token, so the body carries only the address. The
+   * server normalises and validates it; the screen checks the shape before
+   * enabling the button, which is the only reason the rule exists twice.
+   */
+  async requestEmailOtp(
+    email: string,
+    token: string,
+  ): Promise<OtpRequested & { dev_code?: string }> {
+    return this.fetchJson('auth/email/otp', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+      headers: authHeaders(token),
+    });
+  }
+
+  /** Adds or moves the account's email, after a code sent to the new address. */
+  async changeEmail(input: { email: string; code: string }, token: string): Promise<CurrentUser> {
+    return this.fetchJson('auth/email/change', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: authHeaders(token),
+    });
+  }
+
   async changeMobile(input: ChangeMobileInput, token: string): Promise<TokenPair> {
     return this.fetchJson('auth/mobile/change', {
       method: 'POST',

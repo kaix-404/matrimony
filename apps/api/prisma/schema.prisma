@@ -166,6 +166,8 @@ enum OtpPurpose {
   CATEGORY_REVIEW
   /// A code sent to the number an account is moving to.
   CHANGE_MOBILE
+  /// A code sent to the mailbox an account is adding or moving to.
+  CHANGE_EMAIL
 }
 
 /// Section 40. Amounts are snapshotted at order creation and are thereafter
@@ -271,6 +273,13 @@ model OtpRequest {
   /// Stored as a hash, never in plaintext (section 41).
   codeHash String
   mobile   String
+  /// The mailbox a code was sent to, set only for `CHANGE_EMAIL`.
+  ///
+  /// The row is still keyed by the account's mobile because that is how every
+  /// other purpose finds it and the number is the login identity; this column is
+  /// what binds the code to one address, so a code issued for one mailbox cannot
+  /// move the account to another.
+  email    String?
   purpose  OtpPurpose
   status   OtpStatus  @default(PENDING)
 
@@ -303,6 +312,8 @@ model OtpRequest {
   /// The registration step looks up "a verified, unspent, unexpired code for this
   /// number", so that predicate is a query the database should be able to serve.
   @@index([mobile, purpose, status, consumedAt])
+  /// The address-change flow looks a code up by account and target address.
+  @@index([mobile, purpose, email])
 }
 
 // ===========================================================================
