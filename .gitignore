@@ -66,3 +66,9 @@ packages/*/src/generated/
 
 # Render deployment secrets
 .render-secrets/
+
+# Generated from PROJECT_STATUS_TILL_NOW.md by `npm run report:build`; the
+# markdown is the report, these are outputs (the PDF only when a converter exists).
+docs/reports/PROJECT_STATUS_TILL_NOW.html
+docs/reports/PROJECT_STATUS_TILL_NOW.txt
+docs/reports/PROJECT_STATUS_TILL_NOW.pdf

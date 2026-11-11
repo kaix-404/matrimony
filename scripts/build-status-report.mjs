@@ -18,7 +18,9 @@
  *
  * The HTML is what gets printed, so it carries the A4 stylesheet; the .txt is the
  * same content wrapped to a terminal width, for reading in an editor or a mail
- * client that mangles HTML.
+ * client that mangles HTML. Both are outputs and are ignored by git, so the
+ * markdown is the only copy anyone can edit — the drift this replaced came from
+ * three committed copies competing to be the real one.
  *
  * The PDF is written only when a converter is installed. There is none on the
  * usual development machine, and a silent skip is how the PDF got three weeks

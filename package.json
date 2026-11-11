@@ -30,7 +30,7 @@
     "dev:down": "docker compose -f infra/docker/docker-compose.yml down",
     "dev:logs": "docker compose -f infra/docker/docker-compose.yml logs -f",
     "setup": "npm install && npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed",
-    "verify": "npm run prisma:validate && npm run prisma:generate && npm run typecheck && npm run lint && npm run test && npm run build"
+    "verify": "npm run prisma:validate && npm run prisma:generate && npm run typecheck && npm run lint && npm run test && npm run build && npm run report:build"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
