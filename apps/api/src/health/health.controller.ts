@@ -3,6 +3,9 @@ import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.module';
 import { ClockDriftGuard, ClockService } from '../common/clock/clock.service';
 import { VerificationGateway } from '../verification/verification.gateway';
+import { SmsGateway } from '../sms/sms.gateway';
+import { EmailGateway } from '../email/email.gateway';
+import { PushGateway } from '../push/push.gateway';
 
 interface HealthReport {
   status: 'ok' | 'degraded';
@@ -22,6 +25,9 @@ export class HealthController {
     private readonly clock: ClockService,
     private readonly driftGuard: ClockDriftGuard,
     private readonly verification: VerificationGateway,
+    private readonly sms: SmsGateway,
+    private readonly email: EmailGateway,
+    private readonly push: PushGateway,
   ) {}
 
   /**
@@ -62,6 +68,13 @@ export class HealthController {
         // surface as 503 on `/verification/initiate`, and only this or the
         // boot log tells them apart.
         identityVerification: this.verification.configured ? 'up' : 'down',
+        // The delivery providers, for the same reason and with the same meaning:
+        // a provider with no credentials is not an outage, it is a deployment
+        // still waiting on the client's keys. Read from the gateways rather than
+        // from the environment, so the answer is the one delivery will use.
+        sms: this.sms.configured ? 'up' : 'down',
+        email: this.email.configured ? 'up' : 'down',
+        push: this.push.configured ? 'up' : 'down',
       },
     };
     if (report.status !== 'ok') {
