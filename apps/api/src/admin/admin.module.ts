@@ -5,6 +5,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
+import { AdminMasterDataController } from './master-data.admin.controller';
+import { AdminMasterDataService } from './master-data.admin.service';
 import { AdminAuthController } from './admin-auth.controller';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminTokenService } from './admin-token.service';
@@ -27,13 +29,14 @@ import { PermissionsGuard } from './rbac/permissions.guard';
   imports: [PrismaModule, AuthModule, NotificationsModule, StorageModule],
   providers: [
     AdminService,
+    AdminMasterDataService,
     AdminAuthService,
     AdminTokenService,
     AuditService,
     AdminAuthGuard,
     PermissionsGuard,
   ],
-  controllers: [AdminController, AdminAuthController],
+  controllers: [AdminController, AdminMasterDataController, AdminAuthController],
   exports: [AdminService, AuditService, AdminTokenService],
 })
 export class AdminModule {}

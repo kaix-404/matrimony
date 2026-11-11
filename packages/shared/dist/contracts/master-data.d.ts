@@ -28,12 +28,12 @@ export declare const MasterListValueSchema: z.ZodObject<{
      */
     group: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    value: string;
     id: string;
+    value: string;
     group: string | null;
 }, {
-    value: string;
     id: string;
+    value: string;
     group: string | null;
 }>;
 export type MasterListValue = z.infer<typeof MasterListValueSchema>;
@@ -52,18 +52,18 @@ export declare const MasterListSchema: z.ZodObject<{
          */
         group: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        value: string;
         id: string;
+        value: string;
         group: string | null;
     }, {
-        value: string;
         id: string;
+        value: string;
         group: string | null;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     values: {
-        value: string;
         id: string;
+        value: string;
         group: string | null;
     }[];
     key: string;
@@ -71,8 +71,8 @@ export declare const MasterListSchema: z.ZodObject<{
     is_sensitive: boolean;
 }, {
     values: {
-        value: string;
         id: string;
+        value: string;
         group: string | null;
     }[];
     key: string;
@@ -96,18 +96,18 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
              */
             group: z.ZodNullable<z.ZodString>;
         }, "strict", z.ZodTypeAny, {
-            value: string;
             id: string;
+            value: string;
             group: string | null;
         }, {
-            value: string;
             id: string;
+            value: string;
             group: string | null;
         }>, "many">;
     }, "strict", z.ZodTypeAny, {
         values: {
-            value: string;
             id: string;
+            value: string;
             group: string | null;
         }[];
         key: string;
@@ -115,8 +115,8 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
         is_sensitive: boolean;
     }, {
         values: {
-            value: string;
             id: string;
+            value: string;
             group: string | null;
         }[];
         key: string;
@@ -126,8 +126,8 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     lists: {
         values: {
-            value: string;
             id: string;
+            value: string;
             group: string | null;
         }[];
         key: string;
@@ -137,8 +137,8 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
 }, {
     lists: {
         values: {
-            value: string;
             id: string;
+            value: string;
             group: string | null;
         }[];
         key: string;
@@ -150,6 +150,8 @@ export type MasterListsResponse = z.infer<typeof MasterListsResponseSchema>;
 /** Master-list keys, seeded and referenced by the profile schema. */
 export declare const MASTER_LIST_KEYS: readonly ["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE"];
 export type MasterListKey = (typeof MASTER_LIST_KEYS)[number];
+/** The same keys as a schema, for validating a list key that arrives in a path. */
+export declare const MasterListKeySchema: z.ZodEnum<["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE"]>;
 /**
  * Map a profile field to the list it draws from, so the server can validate ids
  * without a per-field switch at every call site.

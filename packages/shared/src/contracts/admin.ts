@@ -31,6 +31,7 @@ import {
   type ReportActionType,
   type ReportStatus,
 } from '../enums.js';
+import { MasterListKeySchema } from './master-data.js';
 
 export interface AdminPermissionDescriptor {
   /** The noun being acted on, e.g. `user`, `pricing`. */
@@ -183,6 +184,19 @@ export const ADMIN_PERMISSIONS = {
     action: 'review',
     sensitive: true,
     description: 'Approve or reject an identity verification',
+  },
+  'master_data:read': {
+    resource: 'master_data',
+    action: 'read',
+    sensitive: false,
+    description:
+      'View the master lists members pick from (education, occupation, religion, sub-caste, state)',
+  },
+  'master_data:write': {
+    resource: 'master_data',
+    action: 'write',
+    sensitive: true,
+    description: 'Add, rename or retire a master-list value',
   },
   'admin:manage': {
     resource: 'admin',
@@ -909,3 +923,86 @@ export const AdminRejectProfileSchema = z
   })
   .strict();
 export type AdminRejectProfileInput = z.infer<typeof AdminRejectProfileSchema>;
+
+// ---------------------------------------------------------------------------
+// Master lists (D3: admin-managed reference data)
+// ---------------------------------------------------------------------------
+
+/**
+ * One value as the console shows it, retired ones included.
+ *
+ * `is_active` is part of the view because retiring is the only way a value is
+ * ever removed: the row stays for the profiles that already point at it, and an
+ * administrator has to be able to see it again to restore it.
+ */
+export const AdminMasterListValueViewSchema = z
+  .object({
+    id: z.string().min(1),
+    value: z.string().min(1),
+    group: z.string().nullable(),
+    is_active: z.boolean(),
+    sort_order: z.number().int(),
+  })
+  .strict();
+export type AdminMasterListValueView = z.infer<typeof AdminMasterListValueViewSchema>;
+
+export const AdminMasterListViewSchema = z
+  .object({
+    key: MasterListKeySchema,
+    label: z.string().min(1),
+    is_active: z.boolean(),
+    values: z.array(AdminMasterListValueViewSchema),
+  })
+  .strict();
+export type AdminMasterListView = z.infer<typeof AdminMasterListViewSchema>;
+
+export const AdminMasterListsResponseSchema = z
+  .object({ lists: z.array(AdminMasterListViewSchema) })
+  .strict();
+export type AdminMasterListsResponse = z.infer<typeof AdminMasterListsResponseSchema>;
+
+/**
+ * The length limit on a value or a section label.
+ *
+ * Generous compared with what the client's lists actually contain (the longest
+ * occupation is well under half of it) but short enough that a pasted paragraph
+ * is refused rather than rendered into a picker.
+ */
+export const MASTER_LIST_VALUE_MAX_LENGTH = 80;
+
+const MasterListEntrySchema = z.string().trim().min(1).max(MASTER_LIST_VALUE_MAX_LENGTH);
+
+/**
+ * Adding a value.
+ *
+ * `group` is optional here and decided by the service against the list itself:
+ * a list that has sections requires one, a flat list refuses one, and the
+ * sub-caste list only accepts a religion. Encoding those rules in the schema
+ * would mean duplicating the list data into the contract.
+ */
+export const AdminCreateMasterListValueSchema = z
+  .object({
+    value: MasterListEntrySchema,
+    group: MasterListEntrySchema.optional(),
+  })
+  .strict();
+export type AdminCreateMasterListValueInput = z.infer<typeof AdminCreateMasterListValueSchema>;
+
+/**
+ * Renaming a value, or retiring/restoring it.
+ *
+ * Renaming is what fixes a client spelling ("Orissa" to "Odisha"): profiles
+ * reference the row by id, so the new label is what every member sees without a
+ * data migration. A group is deliberately not editable — moving a sub-caste to
+ * another religion is a different fact, not a correction.
+ */
+export const AdminUpdateMasterListValueSchema = z
+  .object({
+    value: MasterListEntrySchema.optional(),
+    is_active: z.boolean().optional(),
+  })
+  .strict()
+  .refine((input) => input.value !== undefined || input.is_active !== undefined, {
+    message: 'Nothing to change',
+  });
+export type AdminUpdateMasterListValueInput = z.infer<typeof AdminUpdateMasterListValueSchema>;

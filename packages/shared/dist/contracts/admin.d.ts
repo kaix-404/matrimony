@@ -169,6 +169,18 @@ export declare const ADMIN_PERMISSIONS: {
         readonly sensitive: true;
         readonly description: "Approve or reject an identity verification";
     };
+    readonly 'master_data:read': {
+        readonly resource: "master_data";
+        readonly action: "read";
+        readonly sensitive: false;
+        readonly description: "View the master lists members pick from (education, occupation, religion, sub-caste, state)";
+    };
+    readonly 'master_data:write': {
+        readonly resource: "master_data";
+        readonly action: "write";
+        readonly sensitive: true;
+        readonly description: "Add, rename or retire a master-list value";
+    };
     readonly 'admin:manage': {
         readonly resource: "admin";
         readonly action: "manage";
@@ -178,7 +190,7 @@ export declare const ADMIN_PERMISSIONS: {
 };
 /** Every valid permission key. A guard can require nothing outside this union. */
 export type AdminPermissionKey = keyof typeof ADMIN_PERMISSIONS;
-export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "admin:manage")[]]>;
+export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "admin:manage")[]]>;
 export declare const AdminRoleSlugSchema: z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>;
 /** The resolved `Permission` rows the seed should create. */
 export declare function permissionCatalogueRows(): Array<{
@@ -887,8 +899,8 @@ export declare const AdminPhotoViewSchema: z.ZodObject<{
     rejection_reason: z.ZodNullable<z.ZodString>;
     reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
     id: string;
+    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
     profile_id: string;
     profile_name: string | null;
     photo_type: "SINGLE" | "FAMILY";
@@ -898,8 +910,8 @@ export declare const AdminPhotoViewSchema: z.ZodObject<{
     rejection_reason: string | null;
     reviewed_by_admin_id: string | null;
 }, {
-    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
     id: string;
+    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
     profile_id: string;
     profile_name: string | null;
     photo_type: "SINGLE" | "FAMILY";
@@ -923,8 +935,8 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
         rejection_reason: z.ZodNullable<z.ZodString>;
         reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         id: string;
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         profile_id: string;
         profile_name: string | null;
         photo_type: "SINGLE" | "FAMILY";
@@ -934,8 +946,8 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
         rejection_reason: string | null;
         reviewed_by_admin_id: string | null;
     }, {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         id: string;
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         profile_id: string;
         profile_name: string | null;
         photo_type: "SINGLE" | "FAMILY";
@@ -949,8 +961,8 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
     hasMore: z.ZodBoolean;
 }, "strict", z.ZodTypeAny, {
     photos: {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         id: string;
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         profile_id: string;
         profile_name: string | null;
         photo_type: "SINGLE" | "FAMILY";
@@ -964,8 +976,8 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
     hasMore: boolean;
 }, {
     photos: {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         id: string;
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         profile_id: string;
         profile_name: string | null;
         photo_type: "SINGLE" | "FAMILY";
@@ -1044,8 +1056,8 @@ export declare const AdminProfileViewSchema: z.ZodObject<{
     reviewed_at: z.ZodNullable<z.ZodString>;
     rejection_reason: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
     id: string;
+    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
     name: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
@@ -1055,8 +1067,8 @@ export declare const AdminProfileViewSchema: z.ZodObject<{
     photo_url: string | null;
     submitted_at: string;
 }, {
-    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
     id: string;
+    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
     name: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
@@ -1080,8 +1092,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
         reviewed_at: z.ZodNullable<z.ZodString>;
         rejection_reason: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
         id: string;
+        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
         name: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1091,8 +1103,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
         photo_url: string | null;
         submitted_at: string;
     }, {
-        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
         id: string;
+        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
         name: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1108,8 +1120,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
     nextCursor: string | null;
     hasMore: boolean;
     profiles: {
-        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
         id: string;
+        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
         name: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1123,8 +1135,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
     nextCursor: string | null;
     hasMore: boolean;
     profiles: {
-        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
         id: string;
+        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
         name: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1155,4 +1167,205 @@ export declare const AdminRejectProfileSchema: z.ZodObject<{
     rejection_reason: string;
 }>;
 export type AdminRejectProfileInput = z.infer<typeof AdminRejectProfileSchema>;
+/**
+ * One value as the console shows it, retired ones included.
+ *
+ * `is_active` is part of the view because retiring is the only way a value is
+ * ever removed: the row stays for the profiles that already point at it, and an
+ * administrator has to be able to see it again to restore it.
+ */
+export declare const AdminMasterListValueViewSchema: z.ZodObject<{
+    id: z.ZodString;
+    value: z.ZodString;
+    group: z.ZodNullable<z.ZodString>;
+    is_active: z.ZodBoolean;
+    sort_order: z.ZodNumber;
+}, "strict", z.ZodTypeAny, {
+    id: string;
+    value: string;
+    group: string | null;
+    is_active: boolean;
+    sort_order: number;
+}, {
+    id: string;
+    value: string;
+    group: string | null;
+    is_active: boolean;
+    sort_order: number;
+}>;
+export type AdminMasterListValueView = z.infer<typeof AdminMasterListValueViewSchema>;
+export declare const AdminMasterListViewSchema: z.ZodObject<{
+    key: z.ZodEnum<["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE"]>;
+    label: z.ZodString;
+    is_active: z.ZodBoolean;
+    values: z.ZodArray<z.ZodObject<{
+        id: z.ZodString;
+        value: z.ZodString;
+        group: z.ZodNullable<z.ZodString>;
+        is_active: z.ZodBoolean;
+        sort_order: z.ZodNumber;
+    }, "strict", z.ZodTypeAny, {
+        id: string;
+        value: string;
+        group: string | null;
+        is_active: boolean;
+        sort_order: number;
+    }, {
+        id: string;
+        value: string;
+        group: string | null;
+        is_active: boolean;
+        sort_order: number;
+    }>, "many">;
+}, "strict", z.ZodTypeAny, {
+    values: {
+        id: string;
+        value: string;
+        group: string | null;
+        is_active: boolean;
+        sort_order: number;
+    }[];
+    key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+    label: string;
+    is_active: boolean;
+}, {
+    values: {
+        id: string;
+        value: string;
+        group: string | null;
+        is_active: boolean;
+        sort_order: number;
+    }[];
+    key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+    label: string;
+    is_active: boolean;
+}>;
+export type AdminMasterListView = z.infer<typeof AdminMasterListViewSchema>;
+export declare const AdminMasterListsResponseSchema: z.ZodObject<{
+    lists: z.ZodArray<z.ZodObject<{
+        key: z.ZodEnum<["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE"]>;
+        label: z.ZodString;
+        is_active: z.ZodBoolean;
+        values: z.ZodArray<z.ZodObject<{
+            id: z.ZodString;
+            value: z.ZodString;
+            group: z.ZodNullable<z.ZodString>;
+            is_active: z.ZodBoolean;
+            sort_order: z.ZodNumber;
+        }, "strict", z.ZodTypeAny, {
+            id: string;
+            value: string;
+            group: string | null;
+            is_active: boolean;
+            sort_order: number;
+        }, {
+            id: string;
+            value: string;
+            group: string | null;
+            is_active: boolean;
+            sort_order: number;
+        }>, "many">;
+    }, "strict", z.ZodTypeAny, {
+        values: {
+            id: string;
+            value: string;
+            group: string | null;
+            is_active: boolean;
+            sort_order: number;
+        }[];
+        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+        label: string;
+        is_active: boolean;
+    }, {
+        values: {
+            id: string;
+            value: string;
+            group: string | null;
+            is_active: boolean;
+            sort_order: number;
+        }[];
+        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+        label: string;
+        is_active: boolean;
+    }>, "many">;
+}, "strict", z.ZodTypeAny, {
+    lists: {
+        values: {
+            id: string;
+            value: string;
+            group: string | null;
+            is_active: boolean;
+            sort_order: number;
+        }[];
+        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+        label: string;
+        is_active: boolean;
+    }[];
+}, {
+    lists: {
+        values: {
+            id: string;
+            value: string;
+            group: string | null;
+            is_active: boolean;
+            sort_order: number;
+        }[];
+        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+        label: string;
+        is_active: boolean;
+    }[];
+}>;
+export type AdminMasterListsResponse = z.infer<typeof AdminMasterListsResponseSchema>;
+/**
+ * The length limit on a value or a section label.
+ *
+ * Generous compared with what the client's lists actually contain (the longest
+ * occupation is well under half of it) but short enough that a pasted paragraph
+ * is refused rather than rendered into a picker.
+ */
+export declare const MASTER_LIST_VALUE_MAX_LENGTH = 80;
+/**
+ * Adding a value.
+ *
+ * `group` is optional here and decided by the service against the list itself:
+ * a list that has sections requires one, a flat list refuses one, and the
+ * sub-caste list only accepts a religion. Encoding those rules in the schema
+ * would mean duplicating the list data into the contract.
+ */
+export declare const AdminCreateMasterListValueSchema: z.ZodObject<{
+    value: z.ZodString;
+    group: z.ZodOptional<z.ZodString>;
+}, "strict", z.ZodTypeAny, {
+    value: string;
+    group?: string | undefined;
+}, {
+    value: string;
+    group?: string | undefined;
+}>;
+export type AdminCreateMasterListValueInput = z.infer<typeof AdminCreateMasterListValueSchema>;
+/**
+ * Renaming a value, or retiring/restoring it.
+ *
+ * Renaming is what fixes a client spelling ("Orissa" to "Odisha"): profiles
+ * reference the row by id, so the new label is what every member sees without a
+ * data migration. A group is deliberately not editable — moving a sub-caste to
+ * another religion is a different fact, not a correction.
+ */
+export declare const AdminUpdateMasterListValueSchema: z.ZodEffects<z.ZodObject<{
+    value: z.ZodOptional<z.ZodString>;
+    is_active: z.ZodOptional<z.ZodBoolean>;
+}, "strict", z.ZodTypeAny, {
+    value?: string | undefined;
+    is_active?: boolean | undefined;
+}, {
+    value?: string | undefined;
+    is_active?: boolean | undefined;
+}>, {
+    value?: string | undefined;
+    is_active?: boolean | undefined;
+}, {
+    value?: string | undefined;
+    is_active?: boolean | undefined;
+}>;
+export type AdminUpdateMasterListValueInput = z.infer<typeof AdminUpdateMasterListValueSchema>;
 //# sourceMappingURL=admin.d.ts.map

@@ -38,6 +38,8 @@ describe('ADMIN_PERMISSIONS catalogue', () => {
       [
         'admin:manage',
         'audit:read',
+        'master_data:read',
+        'master_data:write',
         'data_request:handle',
         'identity_verify:read',
         'identity_verify:review',
@@ -108,7 +110,9 @@ describe('AdminRoleSlugSchema', () => {
 
 describe('AdminLoginSchema', () => {
   it('normalises the email and accepts a valid password', () => {
-    expect(AdminLoginSchema.parse({ email: '  Boss@Example.COM ', password: 'correct horse' })).toEqual({
+    expect(
+      AdminLoginSchema.parse({ email: '  Boss@Example.COM ', password: 'correct horse' }),
+    ).toEqual({
       email: 'boss@example.com',
       password: 'correct horse',
     });
@@ -116,7 +120,9 @@ describe('AdminLoginSchema', () => {
 
   it('rejects a short password and a malformed email', () => {
     expect(AdminLoginSchema.safeParse({ email: 'a@b.com', password: 'short' }).success).toBe(false);
-    expect(AdminLoginSchema.safeParse({ email: 'not-an-email', password: 'longenough' }).success).toBe(false);
+    expect(
+      AdminLoginSchema.safeParse({ email: 'not-an-email', password: 'longenough' }).success,
+    ).toBe(false);
   });
 });
 
@@ -197,16 +203,22 @@ describe('AdminChangeCategorySchema', () => {
 describe('AdminPublishPricingSchema', () => {
   it('accepts a rupee amount and a percentage GST rate', () => {
     expect(
-      AdminPublishPricingSchema.parse({ category: 'BELOW_2CR', baseAmount: '99.00', gstPercent: 18 }),
+      AdminPublishPricingSchema.parse({
+        category: 'BELOW_2CR',
+        baseAmount: '99.00',
+        gstPercent: 18,
+      }),
     ).toEqual({ category: 'BELOW_2CR', baseAmount: '99.00', gstPercent: 18 });
   });
 
   it('rejects a malformed amount and an out-of-range rate', () => {
     expect(
-      AdminPublishPricingSchema.safeParse({ category: 'X', baseAmount: '9.999', gstPercent: 18 }).success,
+      AdminPublishPricingSchema.safeParse({ category: 'X', baseAmount: '9.999', gstPercent: 18 })
+        .success,
     ).toBe(false);
     expect(
-      AdminPublishPricingSchema.safeParse({ category: 'X', baseAmount: '99', gstPercent: 101 }).success,
+      AdminPublishPricingSchema.safeParse({ category: 'X', baseAmount: '99', gstPercent: 101 })
+        .success,
     ).toBe(false);
   });
 });
@@ -224,7 +236,9 @@ describe('AdminGrantUnlockSchema', () => {
 describe('AdminListDataRequestsQuerySchema', () => {
   it('defaults the page size and accepts a status filter', () => {
     expect(AdminListDataRequestsQuerySchema.parse({}).limit).toBe(20);
-    expect(AdminListDataRequestsQuerySchema.parse({ status: 'COMPLETED' }).status).toBe('COMPLETED');
+    expect(AdminListDataRequestsQuerySchema.parse({ status: 'COMPLETED' }).status).toBe(
+      'COMPLETED',
+    );
     expect(AdminListDataRequestsQuerySchema.safeParse({ status: 'NOPE' }).success).toBe(false);
   });
 });
@@ -237,8 +251,10 @@ describe('AdminResolveDataRequestSchema', () => {
   it('requires notes to reject', () => {
     expect(AdminResolveDataRequestSchema.safeParse({ status: 'REJECTED' }).success).toBe(false);
     expect(
-      AdminResolveDataRequestSchema.safeParse({ status: 'REJECTED', resolutionNotes: 'Not eligible' })
-        .success,
+      AdminResolveDataRequestSchema.safeParse({
+        status: 'REJECTED',
+        resolutionNotes: 'Not eligible',
+      }).success,
     ).toBe(true);
   });
 
@@ -258,11 +274,15 @@ describe('AdminListReportsQuerySchema', () => {
 
 describe('AdminReviewReportSchema', () => {
   it('pairs a dismissal with DISMISSED and needs no notes', () => {
-    expect(AdminReviewReportSchema.safeParse({ status: 'DISMISSED', action: 'DISMISS' }).success).toBe(true);
+    expect(
+      AdminReviewReportSchema.safeParse({ status: 'DISMISSED', action: 'DISMISS' }).success,
+    ).toBe(true);
   });
 
   it('requires notes to action', () => {
-    expect(AdminReviewReportSchema.safeParse({ status: 'ACTIONED', action: 'SUSPEND' }).success).toBe(false);
+    expect(
+      AdminReviewReportSchema.safeParse({ status: 'ACTIONED', action: 'SUSPEND' }).success,
+    ).toBe(false);
     expect(
       AdminReviewReportSchema.safeParse({
         status: 'ACTIONED',
@@ -274,15 +294,19 @@ describe('AdminReviewReportSchema', () => {
 
   it('refuses a status and action that disagree', () => {
     expect(
-      AdminReviewReportSchema.safeParse({ status: 'DISMISSED', action: 'SUSPEND', notes: 'x' }).success,
+      AdminReviewReportSchema.safeParse({ status: 'DISMISSED', action: 'SUSPEND', notes: 'x' })
+        .success,
     ).toBe(false);
     expect(
-      AdminReviewReportSchema.safeParse({ status: 'ACTIONED', action: 'DISMISS', notes: 'x' }).success,
+      AdminReviewReportSchema.safeParse({ status: 'ACTIONED', action: 'DISMISS', notes: 'x' })
+        .success,
     ).toBe(false);
   });
 
   it('rejects a non-terminal status and an unknown action', () => {
-    expect(AdminReviewReportSchema.safeParse({ status: 'OPEN', action: 'DISMISS' }).success).toBe(false);
+    expect(AdminReviewReportSchema.safeParse({ status: 'OPEN', action: 'DISMISS' }).success).toBe(
+      false,
+    );
     expect(
       AdminReviewReportSchema.safeParse({ status: 'ACTIONED', action: 'NUKE', notes: 'x' }).success,
     ).toBe(false);
@@ -315,11 +339,13 @@ describe('admin MFA contracts', () => {
   });
 
   it('requires the challenge token and a code to finish a login', () => {
-    expect(
-      AdminMfaVerifySchema.safeParse({ challenge_token: 'c', code: '123456' }).success,
-    ).toBe(true);
+    expect(AdminMfaVerifySchema.safeParse({ challenge_token: 'c', code: '123456' }).success).toBe(
+      true,
+    );
     expect(AdminMfaVerifySchema.safeParse({ code: '123456' }).success).toBe(false);
-    expect(AdminMfaVerifySchema.safeParse({ challenge_token: 'c', code: 'bad' }).success).toBe(false);
+    expect(AdminMfaVerifySchema.safeParse({ challenge_token: 'c', code: 'bad' }).success).toBe(
+      false,
+    );
   });
 
   it('requires the enrollment token and a code to activate', () => {

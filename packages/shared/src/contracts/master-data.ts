@@ -66,6 +66,9 @@ export const MASTER_LIST_KEYS = [
 ] as const;
 export type MasterListKey = (typeof MASTER_LIST_KEYS)[number];
 
+/** The same keys as a schema, for validating a list key that arrives in a path. */
+export const MasterListKeySchema = z.enum(MASTER_LIST_KEYS);
+
 /**
  * Map a profile field to the list it draws from, so the server can validate ids
  * without a per-field switch at every call site.

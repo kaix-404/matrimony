@@ -17,10 +17,11 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminRejectProfileSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const enums_js_1 = require("../enums.js");
+const master_data_js_1 = require("./master-data.js");
 /**
  * Every permission the backend is allowed to check.
  *
@@ -162,6 +163,18 @@ exports.ADMIN_PERMISSIONS = {
         action: 'review',
         sensitive: true,
         description: 'Approve or reject an identity verification',
+    },
+    'master_data:read': {
+        resource: 'master_data',
+        action: 'read',
+        sensitive: false,
+        description: 'View the master lists members pick from (education, occupation, religion, sub-caste, state)',
+    },
+    'master_data:write': {
+        resource: 'master_data',
+        action: 'write',
+        sensitive: true,
+        description: 'Add, rename or retire a master-list value',
     },
     'admin:manage': {
         resource: 'admin',
@@ -595,4 +608,74 @@ exports.AdminRejectProfileSchema = zod_1.z
     rejection_reason: zod_1.z.string().trim().min(1).max(500),
 })
     .strict();
+// ---------------------------------------------------------------------------
+// Master lists (D3: admin-managed reference data)
+// ---------------------------------------------------------------------------
+/**
+ * One value as the console shows it, retired ones included.
+ *
+ * `is_active` is part of the view because retiring is the only way a value is
+ * ever removed: the row stays for the profiles that already point at it, and an
+ * administrator has to be able to see it again to restore it.
+ */
+exports.AdminMasterListValueViewSchema = zod_1.z
+    .object({
+    id: zod_1.z.string().min(1),
+    value: zod_1.z.string().min(1),
+    group: zod_1.z.string().nullable(),
+    is_active: zod_1.z.boolean(),
+    sort_order: zod_1.z.number().int(),
+})
+    .strict();
+exports.AdminMasterListViewSchema = zod_1.z
+    .object({
+    key: master_data_js_1.MasterListKeySchema,
+    label: zod_1.z.string().min(1),
+    is_active: zod_1.z.boolean(),
+    values: zod_1.z.array(exports.AdminMasterListValueViewSchema),
+})
+    .strict();
+exports.AdminMasterListsResponseSchema = zod_1.z
+    .object({ lists: zod_1.z.array(exports.AdminMasterListViewSchema) })
+    .strict();
+/**
+ * The length limit on a value or a section label.
+ *
+ * Generous compared with what the client's lists actually contain (the longest
+ * occupation is well under half of it) but short enough that a pasted paragraph
+ * is refused rather than rendered into a picker.
+ */
+exports.MASTER_LIST_VALUE_MAX_LENGTH = 80;
+const MasterListEntrySchema = zod_1.z.string().trim().min(1).max(exports.MASTER_LIST_VALUE_MAX_LENGTH);
+/**
+ * Adding a value.
+ *
+ * `group` is optional here and decided by the service against the list itself:
+ * a list that has sections requires one, a flat list refuses one, and the
+ * sub-caste list only accepts a religion. Encoding those rules in the schema
+ * would mean duplicating the list data into the contract.
+ */
+exports.AdminCreateMasterListValueSchema = zod_1.z
+    .object({
+    value: MasterListEntrySchema,
+    group: MasterListEntrySchema.optional(),
+})
+    .strict();
+/**
+ * Renaming a value, or retiring/restoring it.
+ *
+ * Renaming is what fixes a client spelling ("Orissa" to "Odisha"): profiles
+ * reference the row by id, so the new label is what every member sees without a
+ * data migration. A group is deliberately not editable — moving a sub-caste to
+ * another religion is a different fact, not a correction.
+ */
+exports.AdminUpdateMasterListValueSchema = zod_1.z
+    .object({
+    value: MasterListEntrySchema.optional(),
+    is_active: zod_1.z.boolean().optional(),
+})
+    .strict()
+    .refine((input) => input.value !== undefined || input.is_active !== undefined, {
+    message: 'Nothing to change',
+});
 //# sourceMappingURL=admin.js.map

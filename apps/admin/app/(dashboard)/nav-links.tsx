@@ -16,6 +16,7 @@ const LINKS = [
   { href: '/data-requests', label: 'Data requests' },
   { href: '/users', label: 'Members' },
   { href: '/pricing', label: 'Pricing' },
+  { href: '/master-lists', label: 'Master lists' },
   { href: '/admins', label: 'Administrators' },
 ];
 

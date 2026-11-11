@@ -18,7 +18,7 @@
  * may see their own value.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.PROFILE_MASTER_LIST_FIELDS = exports.MASTER_LIST_KEYS = exports.MasterListsResponseSchema = exports.MasterListSchema = exports.MasterListValueSchema = void 0;
+exports.PROFILE_MASTER_LIST_FIELDS = exports.MasterListKeySchema = exports.MASTER_LIST_KEYS = exports.MasterListsResponseSchema = exports.MasterListSchema = exports.MasterListValueSchema = void 0;
 const zod_1 = require("zod");
 exports.MasterListValueSchema = zod_1.z
     .object({
@@ -56,6 +56,8 @@ exports.MASTER_LIST_KEYS = [
     'COMMUNITY',
     'STATE',
 ];
+/** The same keys as a schema, for validating a list key that arrives in a path. */
+exports.MasterListKeySchema = zod_1.z.enum(exports.MASTER_LIST_KEYS);
 /**
  * Map a profile field to the list it draws from, so the server can validate ids
  * without a per-field switch at every call site.
