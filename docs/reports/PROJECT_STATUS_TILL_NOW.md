@@ -1,19 +1,19 @@
-﻿# Networth Matrimony - Project Status Report
+# Networth Matrimony - Project Status Report
 
-**Report Date:** October 23, 2026  |  **Branch:** main (2e6cf9a)  |  **Repository:** D:\matrimony
+**Report Date:** November 11, 2026  |  **Branch:** main (b788730)  |  **Repository:** D:\matrimony
 
 ## Executive Summary
 
-The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 888 automated tests passing.
+The platform is feature-complete end to end, and the client's first feedback round (items 1-4) is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, and the admin console can maintain those lists without a release. All gates are green with 1162 automated tests passing.
 
 ## Key Metrics
 
 | Metric | Value |
 |---|---|
-| Automated Tests | 888 (582 API + 29 Admin + 257 Shared + 20 Mobile) |
-| Test Suites | 57 (38 API + 4 Admin + 12 Shared + 3 Mobile) |
-| Admin Permission Keys | 21 |
-| Current Commit | 2e6cf9a |
+| Automated Tests | 1162 (754 API + 81 Admin + 284 Shared + 43 Mobile) |
+| Test Suites | 80 (46 API + 12 Admin + 15 Shared + 7 Mobile) |
+| Admin Permission Keys | 25 |
+| Current Commit | b788730 |
 | Status | All Gates Green |
 
 ## Implementation Status by Phase
@@ -21,17 +21,42 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 | Phase | Module | Status | Key Deliverables |
 |---|---|---|---|
 | 0 | Foundations | Complete | Schema, config, health, security, monorepo |
-| 1 | Identity & Auth | Complete | OTP, JWT, rotating sessions, lockout |
-| 2 | Profile & Master Data | Complete | CRUD, photos, master lists |
+| 1 | Identity & Auth | Complete | OTP, JWT, rotating sessions, 30-day persistence, lockout |
+| 2 | Profile & Master Data | Complete | CRUD, photos, master lists, admin-maintained lists |
 | 3 | Discovery | Complete | Two-way visibility, filters, pagination |
 | 4 | Payments & Unlocks | Complete | Razorpay, webhooks, idempotency, expiry |
 | 5 | Trust & Safety | Complete | Blocking, reporting, account deletion with retention-then-anonymise, report moderation queue |
 | 6 | KYC/Verification | Complete | Contracts, service, controller, module |
 | 7 | Notifications | Complete | Shared contracts, API module, list endpoint, unlock pre-expiry reminder, Firebase push delivery |
-| 8 | Admin API | Complete | RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard |
-| 9 | Mobile App | Complete | Expo SDK 57 app: auth, discovery, checkout, setup fee, profile, notifications, For You |
+| 8 | Admin API | Complete | RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard, master-list console |
+| 9 | Mobile App | Complete | Expo SDK 57 app: auth, discovery, checkout, setup fee, profile, partner preferences, settings, notifications, For You |
 
 ## Recent Accomplishments
+
+### Client Feedback Round (items 1-4)
+
+- **Sign-in persistence.** A member stays signed in for 30 days: the refresh token carries the long lifetime, the access token is refreshed transparently on the first 401, and `expo-secure-store` keeps the pair across restarts, so the app opens on the signed-in screen instead of the login screen.
+- **Registration in the client's order.** Mobile plus OTP, then the net-worth band, then profile setup, then review, then identity verification, then the one-time setup fee. The API enforces the same sequence through `UserStatus`, so a client cannot skip a step by calling the endpoints out of order.
+- **Settings, and only what was asked for.** Partner preferences, discovery and visibility filters, blocked members, data export/deletion requests, change mobile number, identity verification, delete account, pricing and help. Pause/resume lives on the profile screen as the visibility toggle, which is the same control the API exposes.
+- **Partner preferences from the client's lists.** Religion, sub-caste, education and profession are picked from the client's datapoint lists rather than typed. Sub-castes are offered only for the religion the member prefers (a Hindu and a Muslim sub-caste list share not a single value), and changing the religion clears a sub-caste that no longer applies. Education and profession preferences reference the same list ids a profile uses, so "Manager" under two industries stays two distinct choices.
+
+### Master List Console (Admin)
+
+- The lists members pick from were read-only outside the seed, so a missing option needed a code change and a release. The console now lists every value, including retired ones, and can add, rename and retire them (`/master-lists`, `GET /admin/master-lists`, `POST /admin/master-lists/:key/values`, `POST /admin/master-lists/values/:id`).
+- Nothing is deleted. Profiles reference these rows by id and sub-castes by text, so retiring removes a value from the pickers while keeping it on every profile that already chose it; renaming is how a spelling is corrected, and it reaches every profile at once.
+- Structure is read from the data: a list that has sections requires one, a flat list refuses one, and a sub-caste can only be filed under a religion that already exists — a new section there would offer a religion nobody can select. A section typed with different capitalisation is matched to the existing one.
+- Every change is audited with the value before and after; two new permissions (`master_data:read`, `master_data:write`) keep viewing separate from changing.
+
+### Client Datapoints, End to End
+
+- All six lists the client supplied are seeded and live: religion 13, mother tongue 64, education 95 in 17 sections, occupation 140 in 24 sections, sub-caste 835 across the religion blocks plus a shared "Other Sub Cast" section, and states 36.
+- A parity test reads `docs/Data Points list/` directly and compares it with the seeded arrays — every value, the section it belongs to, and the religion block each sub-caste came from — so a dropped or misfiled line fails the build instead of quietly shrinking a picker. It caught one: "Designer" is listed by the client under both Engineering and Media & Entertainment, and the transcription had collapsed it into one.
+- Community is wired but empty because the client has not sent a community list; the profile picker stays hidden while the list has no values rather than opening a sheet whose only row is "Not set".
+
+### Partner Preference Fixes
+
+- The preference read and write paths selected `country`/`state`/`city` instead of `preferredCountry`/`preferredState`/`preferredCity`. Every preference GET/PUT and every discovery search failed with a 500 for signed-in members. The selects are now typed against Prisma's own field list, with a guard test so a renamed column cannot silently return to that state.
+- Education and profession preferences were added as list references (`education_id` / `profession_id`) with their own migration, pickers in a dedicated "Education and career" section, and discovery predicates that filter on them.
 
 ### Biodata Import (Member App + API)
 - A member can upload a biodata (a typed/exported PDF or a plain text file) and have the recognised fields proposed for the profile form, instead of retyping every detail
@@ -47,8 +72,8 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 - Discovery: cursor-paginated infinite feed of locked cards, temporary filters (age, height, city, state, education, profession, verified photos) and sort applied per request, plus a filter/sort bottom sheet; the API now parses nested filter query objects
 - Member previews and payments: locked/unlocked/expired states, Razorpay checkout in a WebView with the order `key_id`, status polling against `GET /payments/:id`, and unlock expiry shown in the matches tab
 - Account setup fee: verified accounts move to `AWAITING_SETUP_FEE`; the home feed gates until payment, with a dedicated screen showing the Rs 15.00 + 18% GST = Rs 17.70 breakdown and a one-time order
-- Profile: own profile with completeness, field editing, direct-to-storage photo upload with primary/delete management, biodata import, and a visibility toggle
-- Settings: net-worth discover/visible-to preference editor, sign out, and OTP-confirmed account deletion
+- Profile: own profile with completeness, field editing from the client's datapoints, direct-to-storage photo upload with primary/delete management, biodata import, and a visibility toggle
+- Settings: partner preferences, discovery/visibility filters, blocks, data requests, change mobile number, verification, delete account, pricing and help
 - Notifications: in-app list with unread badges and push registration through `expo-notifications` -> `POST /devices`; dead tokens are pruned server-side
 - For You: curated interest picker, recommendation cards ranked by shared-interest overlap with the common tags shown, a fifth tab, and a graceful "coming soon" state while `FEATURE_AI_RECOMMENDATIONS` is off
 - Test suite: Jest via the `jest-expo` preset runs the member app's logic (feed view model, interest helpers) and joins the root `npm run verify` gate; CI also bundles the app (`expo export --platform web`) so a broken route or import fails before a device build
@@ -60,7 +85,7 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 - Channel is `PUSH`; the row also remains in the in-app list, which is not filtered by channel
 
 ### Push Delivery over Firebase (Section 42, resolves GAP-12's push half)
-- `PushGateway` seam bound to `FcmPushGateway` in `PushModule`: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on `node:crypto` â€” no legacy server key, no `firebase-admin`; fails closed when unconfigured
+- `PushGateway` seam bound to `FcmPushGateway` in `PushModule`: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on `node:crypto` - no legacy server key, no `firebase-admin`; fails closed when unconfigured
 - `DeviceToken` model + `DevicePlatform` enum; `NotificationStatus` gains `SENDING` for the in-flight claim; migration `20261014140000_device_tokens_push`
 - `POST/GET /devices` and `DELETE /devices/:token` under `JwtAuthGuard`; registration upserts on the token and reassigns its owner, and the token is never echoed back
 - `PushDispatchService` claims a row `PENDING` -> `SENDING` with a conditional update (at-least-once, never twice-per-worker), requeues a stale `SENDING` row, prunes a token FCM reports `UNREGISTERED`, and marks `SENT`/`FAILED`; `PushDispatchSweeper` runs on a 60-second timer
@@ -100,23 +125,25 @@ The platform is feature-complete end to end. Phases 0-8 deliver the backend: aut
 - `apps/admin` (`@matrimony/admin`): Next.js 16 App Router + React 19, talking only to the admin API
 - Backend-for-frontend auth: the token pair lives only in httpOnly cookies; an edge proxy guards every route and refreshes the access token before it expires
 - Password-then-TOTP login; session route handlers re-validate every API response with the shared Zod contracts
-- Pages: overview, the moderation queue (status filter + detail review form), member list, administrator/role list
+- Pages: overview, moderation queue (status filter + detail review form), profile review, photo review, identity checks, data requests, member list and detail, pricing, master lists, administrators/roles
 - Build pinned to webpack (the Next 16 Turbopack default panics writing this app's route chunks on Windows)
 
 ## Quality Assurance
 
-- Tests: 888 passed (582 API + 29 Admin + 257 Shared + 20 Mobile)
+- Tests: 1162 passed (754 API + 81 Admin + 284 Shared + 43 Mobile)
 - Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
+- Parity: the seeded master lists are compared line by line with the client's own files on every test run
 - Full verification: PASS
 
 ## Next Steps
 
+- **Email change.** Settings must offer change-email, and the client has chosen MSG91 for transactional email. The API needs an email gateway, an `CHANGE_EMAIL` purpose and a verified-change endpoint, and the deployment needs `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS` and the MSG91 email template id; the app must also confirm the new address by code before it replaces the old one.
+- **Community values from the client.** The list is wired end to end but has no values because no community list was supplied; once they send one it can be entered in the console without a release.
+- **State spellings.** `Orissa`, `Pondicherry` and `Delhi / NCR` are exactly as the client's file spells them. If they want Odisha/Puducherry, the console can rename them (profiles follow the row) once they confirm.
+- **Feedback item 5 ("User Dashboard").** The client's document is truncated mid-sentence, so the requirement is unknown; everything in items 1-4 is delivered.
 - Device-level QA of the Expo app (dev build) and the pending store identifiers (`bundleIdentifier` / Android `package`)
 - Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS/email; the webhook secret, sender/template/DLT ids and MSG91 email config are still unset
-- Flip `FEATURE_AI_RECOMMENDATIONS` on after a gradual rollout decision; the For You surface is already shipped behind the flag
-- **Done:** AI recommendations enabled at 10% rollout (`FEATURE_AI_RECOMMENDATIONS=10`)
-- Email provider is still open (the remaining half of GAP-12; SMS and push are resolved)
+- Flip `FEATURE_AI_RECOMMENDATIONS` on after a gradual rollout decision; the For You surface is already shipped behind the flag (currently 10% rollout)
 - Client clarifications all closed: GAP-2 (net-worth boundaries) resolved, GAP-11 privacy wording accepted (R2 best-effort APAC), GAP-12 email via MSG91
-- **Done:** Next.js security advisory resolved — admin upgraded from 16.4.0 to 16.4.2
