@@ -11,6 +11,7 @@ import { RegistrationService } from './registration.service';
 interface FakeUser {
   id: string;
   mobile: string;
+  email: string | null;
   networthCategory: string;
   status: string;
   isPhoneVerified: boolean;
@@ -50,6 +51,7 @@ function harness() {
         const row: FakeUser = {
           id: `u${nextId++}`,
           mobile: data.mobile,
+          email: data.email ?? null,
           networthCategory: data.networthCategory,
           status: data.status,
           isPhoneVerified: data.isPhoneVerified,
@@ -270,6 +272,7 @@ describe('RegistrationService.currentUser', () => {
 
     expect(Object.keys(payload).sort()).toEqual([
       'can_discover',
+      'email',
       'has_profile',
       'id',
       'identity_verified',
@@ -280,6 +283,20 @@ describe('RegistrationService.currentUser', () => {
       'setup_fee_paid',
       'status',
     ]);
+  });
+
+  it('carries the address on file, and null when there is none', async () => {
+    const { prisma, users } = harness();
+    const service = await makeService(prisma, new ClockService());
+    await service.complete({ mobile: '9876543210', networth_category: 'ABOVE_10CR' });
+
+    // Settings is the only place a member can see which mailbox is on the
+    // account, so "none" has to be an answer the payload can carry rather than a
+    // field that simply goes missing.
+    expect((await service.currentUser(users[0].id)).email).toBeNull();
+
+    users[0].email = 'me@example.com';
+    expect((await service.currentUser(users[0].id)).email).toBe('me@example.com');
   });
 
   it('throws for an unknown user id', async () => {

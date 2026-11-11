@@ -256,6 +256,14 @@ export declare const RefreshSchema: z.ZodObject<{
 export declare const CurrentUserSchema: z.ZodObject<{
     id: z.ZodString;
     mobile: z.ZodString;
+    /**
+     * The verified address on the account, or null when none is on file.
+     *
+     * It rides here rather than on the profile because it belongs to the account,
+     * not to what other members see: profiles carry no email, and settings needs
+     * to answer "which mailbox will receive mail for me" without a second call.
+     */
+    email: z.ZodNullable<z.ZodString>;
     status: z.ZodEnum<["PENDING_CATEGORY", "PENDING_VERIFICATION", "AWAITING_SETUP_FEE", "ACTIVE", "SUSPENDED", "DELETED"]>;
     networth_category: z.ZodString;
     is_phone_verified: z.ZodBoolean;
@@ -276,6 +284,7 @@ export declare const CurrentUserSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     mobile: string;
     status: "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | "ACTIVE" | "SUSPENDED" | "DELETED";
+    email: string | null;
     networth_category: string;
     id: string;
     is_phone_verified: boolean;
@@ -287,6 +296,7 @@ export declare const CurrentUserSchema: z.ZodObject<{
 }, {
     mobile: string;
     status: "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | "ACTIVE" | "SUSPENDED" | "DELETED";
+    email: string | null;
     networth_category: string;
     id: string;
     is_phone_verified: boolean;

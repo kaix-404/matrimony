@@ -98,6 +98,7 @@ export class RegistrationService {
       select: {
         id: true,
         mobile: true,
+        email: true,
         status: true,
         networthCategory: true,
         isPhoneVerified: true,
@@ -119,6 +120,9 @@ export class RegistrationService {
     return {
       id: user.id,
       mobile: user.mobile,
+      // Read, not derived. This is the only place a member can see which mailbox
+      // is on the account, because the profile document deliberately has no email.
+      email: user.email,
       status: user.status,
       networth_category: user.networthCategory,
       is_phone_verified: user.isPhoneVerified,

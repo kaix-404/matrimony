@@ -218,6 +218,14 @@ exports.CurrentUserSchema = zod_1.z
     .object({
     id: zod_1.z.string().min(1),
     mobile: zod_1.z.string().min(1),
+    /**
+     * The verified address on the account, or null when none is on file.
+     *
+     * It rides here rather than on the profile because it belongs to the account,
+     * not to what other members see: profiles carry no email, and settings needs
+     * to answer "which mailbox will receive mail for me" without a second call.
+     */
+    email: zod_1.z.string().nullable(),
     status: zod_1.z.enum([
         'PENDING_CATEGORY',
         'PENDING_VERIFICATION',

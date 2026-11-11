@@ -28,7 +28,7 @@ import { colors, radii, spacing, typography } from '../theme/tokens';
  */
 export default function SettingsScreen() {
   const { ready } = useRequireAuth();
-  const { token, signOut } = useAuth();
+  const { token, user, signOut } = useAuth();
 
   const [profile, setProfile] = useState<MyProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -137,6 +137,11 @@ export default function SettingsScreen() {
           label="Add or change email"
           onPress={() => router.push('/change-email')}
         />
+        {user === null ? null : (
+          <Text style={styles.hint}>
+            {user.email === null ? 'No email on file yet.' : `On file: ${user.email}`}
+          </Text>
+        )}
         <PrimaryButton
           variant="outline"
           label="Identity verification"
@@ -200,6 +205,10 @@ const styles = StyleSheet.create({
     ...typography.title,
   },
   rowHint: {
+    color: colors.textMuted,
+    ...typography.caption,
+  },
+  hint: {
     color: colors.textMuted,
     ...typography.caption,
   },

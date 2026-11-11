@@ -34,7 +34,7 @@ const LOOKS_LIKE_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export default function ChangeEmailScreen() {
   const { ready } = useRequireAuth();
-  const { token } = useAuth();
+  const { token, refreshUser } = useAuth();
 
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
@@ -73,6 +73,10 @@ export default function ChangeEmailScreen() {
     setError(null);
     try {
       await apiClient.changeEmail({ email: trimmed, code }, token);
+      // Settings shows the address from the account payload, so re-read it before
+      // leaving: without this the screen the member lands on still says "No email
+      // on file yet" immediately after they added one.
+      await refreshUser();
       router.replace('/settings');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save your email address.');

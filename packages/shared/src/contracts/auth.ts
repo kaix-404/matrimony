@@ -279,6 +279,14 @@ export const CurrentUserSchema = z
   .object({
     id: z.string().min(1),
     mobile: z.string().min(1),
+    /**
+     * The verified address on the account, or null when none is on file.
+     *
+     * It rides here rather than on the profile because it belongs to the account,
+     * not to what other members see: profiles carry no email, and settings needs
+     * to answer "which mailbox will receive mail for me" without a second call.
+     */
+    email: z.string().nullable(),
     status: z.enum([
       'PENDING_CATEGORY',
       'PENDING_VERIFICATION',
