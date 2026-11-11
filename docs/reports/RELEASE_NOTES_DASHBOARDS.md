@@ -92,7 +92,7 @@ report instead.
 **Real Aadhaar checks are not live yet.** The integration is built and the
 credentials are in the production environment — the service now reports its own
 status, which confirms this. The deployment is still pointed at Cashfree's
-*sandbox*, which produces test verifications rather than real ones. Going live
+_sandbox_, which produces test verifications rather than real ones. Going live
 needs Cashfree's production approval and a one-line configuration change.
 
 **Approval is only half the gate.** A member must also pay the setup fee before

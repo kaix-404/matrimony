@@ -29,7 +29,7 @@ the last explicit Phase 7 left-over.
   callback can never become an uncaught exception. It needs no new dependency.
 - **The claim stays in `UnlockService`.** `ContactUnlock` is written in exactly one
   place, so the reminder does not reach around the service that owns the table. The
-  scheduler only decides *what to do* with a claim (write a notification), which is
+  scheduler only decides _what to do_ with a claim (write a notification), which is
   a notifications concern.
 
 ## Window rule

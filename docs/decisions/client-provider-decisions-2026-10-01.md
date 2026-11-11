@@ -10,21 +10,23 @@ email on 2026-10-23
 
 ## Decisions
 
-| # | Service | Decision | Change from the brief's recommendation |
-|---|---|---|---|
-| 1 | Payments | **Razorpay** | Confirmed as recommended. No change. |
-| 2 | Identity verification | **Cashfree ID verification suite** | Was a licensed KYC aggregator (IDfy / Signzy / Karza). Cashfree is one. |
-| 3 | SMS + email | **Undecided.** Client is looking for a cheaper alternative to MSG91; MSG91 is the fallback if nothing better is found. | No change yet. |
-| 4 | Object storage | **Cloudflare R2** | Was AWS S3 in `ap-south-1`. See **GAP-11**, this one is not clean. |
-| 5 | Push notifications | **Firebase** | Confirmed as recommended. Needs the HTTP v1 credential, not the legacy key. |
+| #   | Service               | Decision                                                                                                               | Change from the brief's recommendation                                      |
+| --- | --------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 1   | Payments              | **Razorpay**                                                                                                           | Confirmed as recommended. No change.                                        |
+| 2   | Identity verification | **Cashfree ID verification suite**                                                                                     | Was a licensed KYC aggregator (IDfy / Signzy / Karza). Cashfree is one.     |
+| 3   | SMS + email           | **Undecided.** Client is looking for a cheaper alternative to MSG91; MSG91 is the fallback if nothing better is found. | No change yet.                                                              |
+| 4   | Object storage        | **Cloudflare R2**                                                                                                      | Was AWS S3 in `ap-south-1`. See **GAP-11**, this one is not clean.          |
+| 5   | Push notifications    | **Firebase**                                                                                                           | Confirmed as recommended. Needs the HTTP v1 credential, not the legacy key. |
 
 ## What each decision changes in the build
 
 ### Razorpay (unchanged)
+
 `PaymentProvider.RAZORPAY` already exists in the schema and the SDK is installed.
 Only credentials were outstanding.
 
 ### Cashfree ID verification
+
 Cashfree **Secure ID** supports a consent-based **DigiLocker** Aadhaar flow, which is
 UIDAI- and DPDP-compliant, returns an already-masked number (`XXXXXXXX3712`), and does
 not retain the document. That matches D9 and **GAP-9** without loosening the
@@ -32,9 +34,9 @@ not retain the document. That matches D9 and **GAP-9** without loosening the
 
 The supplier and the verification method are recorded separately:
 
-* `IdentityVerificationProvider` stays `DIGILOCKER` / `AADHAAR_UIDAI` — that is the
-  *method* (DigiLocker flow versus direct UIDAI), which is what actually varies.
-* `IdentityVerificationVendor` is new and records `CASHFREE`, for audit: which
+- `IdentityVerificationProvider` stays `DIGILOCKER` / `AADHAAR_UIDAI` — that is the
+  _method_ (DigiLocker flow versus direct UIDAI), which is what actually varies.
+- `IdentityVerificationVendor` is new and records `CASHFREE`, for audit: which
   aggregator performed a given check.
 
 These were kept apart deliberately. Folding the vendor into the existing enum would
@@ -46,6 +48,7 @@ credentials, and confirmation of the pricing model (per check) and the DLT/conse
 position. The recommended flow is DigiLocker, not OCR.
 
 ### Firebase
+
 Confirmed. The existing `FCM_SERVER_KEY` value is the **legacy** key; the supported
 mechanism is the FCM **HTTP v1** API with a service-account credential, now
 `FCM_SERVICE_ACCOUNT_JSON`. The legacy key is removed so no one deploys with it.
@@ -56,6 +59,7 @@ after authenticating. This is a weaker residency story than the rest of the stac
 should be stated in the Privacy Policy.
 
 ### SMS and email (pending)
+
 Configuration stays **provider-agnostic** — a single `SMS_PROVIDER_API_KEY` and
 `EMAIL_PROVIDER_API_KEY` — so swapping the provider is a configuration change, not a
 code change. MSG91 is recorded as the fallback.
@@ -63,14 +67,15 @@ code change. MSG91 is recorded as the fallback.
 The DLT fields are added regardless of provider, because **TRAI DLT registration is
 mandatory for all transactional SMS in India** and the client owns that registration:
 
-* `SMS_SENDER_ID`, `SMS_DLT_ENTITY_ID`, `SMS_DLT_TEMPLATE_ID`
-* `EMAIL_FROM_ADDRESS`, plus SPF/DKIM/DMARC on the sending domain
+- `SMS_SENDER_ID`, `SMS_DLT_ENTITY_ID`, `SMS_DLT_TEMPLATE_ID`
+- `EMAIL_FROM_ADDRESS`, plus SPF/DKIM/DMARC on the sending domain
 
 **GAP-12** — SMS and email provider undecided. Low risk, but DLT registration should
 start now because it is business-side work with lead time, and it is required whichever
 provider is chosen.
 
 ### Cloudflare R2 — see GAP-11
+
 Adopted as instructed. Endpoint becomes `https://<account-id>.r2.cloudflarestorage.com`
 and the region becomes `auto` (R2 is a single global service addressed by account).
 
@@ -82,16 +87,16 @@ is residency, below.
 **GAP-11 — Cloudflare R2 cannot guarantee India-only storage (this is new).**
 
 Answer H3 committed the platform to India-only data residency. R2's hard residency
-controls, called *jurisdictions*, are only:
+controls, called _jurisdictions_, are only:
 
-| Jurisdiction | Meaning |
-|---|---|
-| `eu` | European Union |
-| `us` | United States |
-| `fedramp` | FedRAMP |
-| `default` | none |
+| Jurisdiction | Meaning        |
+| ------------ | -------------- |
+| `eu`         | European Union |
+| `us`         | United States  |
+| `fedramp`    | FedRAMP        |
+| `default`    | none           |
 
-**There is no India jurisdiction.** The only Asia-Pacific control is a *location hint*
+**There is no India jurisdiction.** The only Asia-Pacific control is a _location hint_
 (`apac`), and Cloudflare documents these as best-effort placement, explicitly **not** a
 residency guarantee. Location hints are also honoured only when a bucket is created.
 
@@ -124,12 +129,12 @@ promised to end users as India-only storage. Recorded in
 [`client-answers-2026-10-15.md`](../client/client-answers-2026-10-15.md), answer 1.
 
 **GAP-12 — Resolved (2026-10-14): SMS provider chosen as MSG91.** The client confirmed
-  using MSG91 for OTP delivery. The API now sends OTPs via MSG91's Flow API with a
-  provider seam (`SmsGateway` / `Msg91SmsGateway`) that can be substituted for tests
-  and is fail-closed in production when credentials are missing. DLT registration is the
-  client's to complete and its identifiers remain in configuration. The email half
-  followed on 2026-10-23: transactional email also uses MSG91, delivered through
-  `EmailGateway` / `Msg91EmailGateway` with the same fail-closed behaviour.
+using MSG91 for OTP delivery. The API now sends OTPs via MSG91's Flow API with a
+provider seam (`SmsGateway` / `Msg91SmsGateway`) that can be substituted for tests
+and is fail-closed in production when credentials are missing. DLT registration is the
+client's to complete and its identifiers remain in configuration. The email half
+followed on 2026-10-23: transactional email also uses MSG91, delivered through
+`EmailGateway` / `Msg91EmailGateway` with the same fail-closed behaviour.
 
 ## Effect on the client brief
 

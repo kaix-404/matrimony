@@ -16,17 +16,17 @@ developer document, Networth Matrimony).
 The previous model made net-worth a **partition key**: a user could only ever
 discover profiles in their own band, because both sides of a candidate pair were
 required to share one category. Net worth appeared in no filter and no preference,
-by explicit instruction (B1: *"Net worth must not appear in filters or
-preferences"*).
+by explicit instruction (B1: _"Net worth must not appear in filters or
+preferences"_).
 
 The new document replaces that with **two-way preferences**. A target profile
-appears only when *both* sides allow it:
+appears only when _both_ sides allow it:
 
-| Rule | Statement |
-|---|---|
-| Viewer to target | The viewer's discovery selection includes the target's net-worth category. |
-| Target to viewer | The target's allowed-viewer selection includes the viewer's net-worth category. |
-| Always also | Target is approved and active; neither user has blocked the other; all other access rules pass. |
+| Rule             | Statement                                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------------------- |
+| Viewer to target | The viewer's discovery selection includes the target's net-worth category.                      |
+| Target to viewer | The target's allowed-viewer selection includes the viewer's net-worth category.                 |
+| Always also      | Target is approved and active; neither user has blocked the other; all other access rules pass. |
 
 Net worth is still **not** a filter. It is still not editable by the user. What
 changed is that it is no longer a hard boundary - it became a preference the user
@@ -34,17 +34,17 @@ holds in two directions, both editable at any time.
 
 ### Superseded assertions, and what replaces them
 
-| Was | Now |
-|---|---|
-| B1: *"Discovery is strictly within the user's own category."* | Replaced by the two-way rule above. |
-| B1: *"Net worth must not appear in filters or preferences."* | Replaced. It appears in two preference lists, and in neither a temporary filter nor the query string. |
-| B1: *"both are the same category, so the same price."* | The price is the **target's** category. `PricingConfig.category` always meant the target; the old model just made it invisible because both parties shared a band. No schema change was needed. |
-| E1: *"A user with no partner preference sees everyone in their category."* | The fallback scope becomes the intersection of the two two-way selections. |
-| GAP-5: setup fee treated as a flat ₹15 total, no GST | **Resolved:** the fee is ₹15 **plus 18% GST**, so the payable amount is **₹17.70**. |
+| Was                                                                        | Now                                                                                                                                                                                             |
+| -------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1: _"Discovery is strictly within the user's own category."_              | Replaced by the two-way rule above.                                                                                                                                                             |
+| B1: _"Net worth must not appear in filters or preferences."_               | Replaced. It appears in two preference lists, and in neither a temporary filter nor the query string.                                                                                           |
+| B1: _"both are the same category, so the same price."_                     | The price is the **target's** category. `PricingConfig.category` always meant the target; the old model just made it invisible because both parties shared a band. No schema change was needed. |
+| E1: _"A user with no partner preference sees everyone in their category."_ | The fallback scope becomes the intersection of the two two-way selections.                                                                                                                      |
+| GAP-5: setup fee treated as a flat ₹15 total, no GST                       | **Resolved:** the fee is ₹15 **plus 18% GST**, so the payable amount is **₹17.70**.                                                                                                             |
 
 B1's remaining force is unchanged: the user's own category is server-controlled,
 set once at registration, and only an audited admin action may change it. That is
-now the *one* net-worth rule the user has no control over; the two preference
+now the _one_ net-worth rule the user has no control over; the two preference
 lists are separate rows and cannot widen it.
 
 ## Pricing
@@ -53,11 +53,11 @@ Unlock price comes from the **target's** net-worth category, so the amount is
 knowable before checkout. 18% GST applies on top:
 
 | Target profile | Base | 18% GST | Customer pays |
-|---|---|---|---|
-| Below ₹2 Cr | ₹99 | ₹17.82 | ₹116.82 |
-| ₹2-5 Cr | ₹249 | ₹44.82 | ₹293.82 |
-| ₹5-10 Cr | ₹499 | ₹89.82 | ₹588.82 |
-| Above ₹10 Cr | ₹999 | ₹179.82 | ₹1,178.82 |
+| -------------- | ---- | ------- | ------------- |
+| Below ₹2 Cr    | ₹99  | ₹17.82  | ₹116.82       |
+| ₹2-5 Cr        | ₹249 | ₹44.82  | ₹293.82       |
+| ₹5-10 Cr       | ₹499 | ₹89.82  | ₹588.82       |
+| Above ₹10 Cr   | ₹999 | ₹179.82 | ₹1,178.82     |
 
 The amount actually charged is snapshotted onto the payment row, so a later price
 change never rewrites a historical transaction. An admin change to a user's
@@ -88,7 +88,7 @@ guessed at runtime.
 - Unlock duration 24 hours, starting only after backend-confirmed payment, expiry
   enforced on server time, re-unlockable after expiry, no unlock on a failed or
   cancelled payment.
-- Net worth still never appears as a discovery *filter*. Only the saved
+- Net worth still never appears as a discovery _filter_. Only the saved
   preference drives it, and it cannot be widened per-request.
 - `PENDING_REVIEW` is not selectable in either list. Its `isDiscoverable = false`
   flag means "not offered in the picker" - a property of the band, not a

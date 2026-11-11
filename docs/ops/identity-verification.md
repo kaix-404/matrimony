@@ -24,11 +24,11 @@ Aadhaar number is ever stored — the schema has no column that could hold one.
 
 On Render, service `matrimony-api` → Environment:
 
-| Key | Value |
-| --- | --- |
-| `CASHFREE_CLIENT_ID` | client id from Secure ID |
-| `CASHFREE_CLIENT_SECRET` | client secret |
-| `CASHFREE_ENVIRONMENT` | `sandbox`, then `production` once Cashfree approves it |
+| Key                      | Value                                                  |
+| ------------------------ | ------------------------------------------------------ |
+| `CASHFREE_CLIENT_ID`     | client id from Secure ID                               |
+| `CASHFREE_CLIENT_SECRET` | client secret                                          |
+| `CASHFREE_ENVIRONMENT`   | `sandbox`, then `production` once Cashfree approves it |
 
 They are declared as secrets in `render.yaml`, so a Blueprint sync asks for them
 rather than carrying values in the repository. Leaving them empty is not a crash:

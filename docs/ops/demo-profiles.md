@@ -9,12 +9,12 @@ They are defined in `apps/api/prisma/demo-profiles.ts` and created by
 
 ## What they are
 
-| Band | Profiles |
-| --- | --- |
-| Below 2 Cr | Aarti Sharma (F), Rohan Patel (M), Sneha Iyer (F) |
-| 2–5 Cr | Meera Nair (F), Vikram Reddy (M), Divya Fernandes (F) |
-| 5–10 Cr | Kavya Menon (F), Arjun Chopra (M), Isha Kulkarni (F) |
-| Above 10 Cr | Ananya Rao (F), Siddharth Bajaj (M), Riya Singh (F) |
+| Band        | Profiles                                              |
+| ----------- | ----------------------------------------------------- |
+| Below 2 Cr  | Aarti Sharma (F), Rohan Patel (M), Sneha Iyer (F)     |
+| 2–5 Cr      | Meera Nair (F), Vikram Reddy (M), Divya Fernandes (F) |
+| 5–10 Cr     | Kavya Menon (F), Arjun Chopra (M), Isha Kulkarni (F)  |
+| Above 10 Cr | Ananya Rao (F), Siddharth Bajaj (M), Riya Singh (F)   |
 
 Three per band and both genders, because a test member sees their own band by
 default: whichever band they registered in already has a feed, and widening the
@@ -31,8 +31,8 @@ Each fixture is created as:
 - `UserVisibilityCategory`: all four bands, so a member who widens their own
   discovery finds all twelve rather than three.
 
-Every about-me text opens with *"Demo profile used to test browsing and
-unlocking."* If a real member ever opens one, that sentence is the label. Their
+Every about-me text opens with _"Demo profile used to test browsing and
+unlocking."_ If a real member ever opens one, that sentence is the label. Their
 numbers are fake, so an unlock reveals nothing real.
 
 **No photos.** Photos are object keys in S3/R2 with short-lived presigned URLs,
@@ -45,11 +45,11 @@ fixture set.
 
 Controlled by one environment variable, read by the seed:
 
-| `SEED_DEMO_PROFILES` | Effect on boot |
-| --- | --- |
-| `true` (or `1`) | Create any missing fixtures; refresh their descriptive text |
-| `remove` | Delete every user whose mobile starts `90000000` |
-| unset, `false`, anything else | Nothing |
+| `SEED_DEMO_PROFILES`          | Effect on boot                                              |
+| ----------------------------- | ----------------------------------------------------------- |
+| `true` (or `1`)               | Create any missing fixtures; refresh their descriptive text |
+| `remove`                      | Delete every user whose mobile starts `90000000`            |
+| unset, `false`, anything else | Nothing                                                     |
 
 `render.yaml` sets it to `"true"` for the API service. Because the value is part
 of the service definition, changing it triggers a redeploy, and the boot runs

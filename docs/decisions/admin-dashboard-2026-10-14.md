@@ -2,7 +2,7 @@
 
 Phase 8's last piece: a browser console for the admin API that already exists.
 This records how the dashboard is built and, more importantly, what it is
-deliberately *not* allowed to be.
+deliberately _not_ allowed to be.
 
 ## Decisions
 
@@ -25,7 +25,7 @@ deliberately *not* allowed to be.
   redirects a request with no refresh token to `/login`, and, when the access token
   is spent or within a 60-second skew of expiring, exchanges the refresh token for
   a new pair before the page renders. That is why the 15-minute access token is
-  invisible to an administrator. The token is *decoded, never verified* - the API
+  invisible to an administrator. The token is _decoded, never verified_ - the API
   checks every signature - so the gate is a UX and routing decision, not a security
   boundary. It runs on the Edge runtime and imports nothing from Node or
   `next/headers`.
@@ -34,7 +34,7 @@ deliberately *not* allowed to be.
   route handlers parse what the API returns with the same Zod schemas the API
   enforces (`AdminLoginSchema`, `AdminMfaChallengeSchema`, `AdminTokenPairSchema`,
   the MFA verify schema), and the review form reuses `AdminReviewReportSchema`. The
-  dashboard trusts the *shape* the shared package describes, not an untyped
+  dashboard trusts the _shape_ the shared package describes, not an untyped
   `response.json()`.
 
 - **Login is password, then TOTP, in one form.** Because an MFA-enabled admin's
@@ -62,7 +62,7 @@ deliberately *not* allowed to be.
 - **ESLint is intentionally non-type-aware.** Type-aware rules such as
   `no-misused-promises` fire on ordinary JSX `onClick={asyncFn}` handlers and
   fight the App Router's conventions. Type safety is already enforced by
-  `tsc --noEmit` in `typecheck`, so linting here is about the *shape* of the code,
+  `tsc --noEmit` in `typecheck`, so linting here is about the _shape_ of the code,
   not the types.
 
 ## Interaction with existing decisions

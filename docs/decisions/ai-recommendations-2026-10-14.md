@@ -10,15 +10,15 @@ the feature flag. The **mobile integration** (Phase 9) consumes it.
 
 ## Resolved answers
 
-| Q | Decision | Effect on the build |
-|---|---|---|
-| 1 Interest management | **Curated list** | A seeded `Interest` table is the vocabulary. No free text and no "Other" tag, so there is no user-generated moderation surface. Retiring an interest is `isActive = false`, never a delete — a delete would cascade every user's selection. |
-| 2 AI model | **Hybrid** (start free/local, add embeddings later) | MVP scores by interest overlap (content-based). The scorer is a single seam so an embeddings stage can be added behind it without a contract change. No external API call, no per-request cost. |
-| 3 Placement | **Separate 'For You' tab** | A new `GET /recommendations` endpoint. Discovery (`GET /discovery`) is untouched, so the existing feed cannot regress. |
-| 4 Mobile integration | **Full integration** (Phase 9) | Deferred to the mobile block. The backend returns the shared-interest keys per card so the carousel *can* render reasons; the UI decision is answer 6. |
-| 5 User interactions | **Hybrid** (start with interests, add interactions over time) | MVP uses interests only. Behavioural signals (views/likes/accepts) are not tracked yet; there is no seam that assumes them, so adding them later is additive. |
-| 6 Privacy & transparency | **Just show recommendations** (minimal UI) | No reason string is required in the UI. The card still carries `shared_interests` because it costs nothing and answer 4 wants reasons available — the client may ignore the field. |
-| 7 Feature rollout | **Feature flag + gradual rollout** | `FEATURE_AI_RECOMMENDATIONS`, default **off**. When off the endpoint answers `{ enabled: false, items: [] }` — a 200, so a client hides the tab without a release and no data is produced. |
+| Q                        | Decision                                                      | Effect on the build                                                                                                                                                                                                                         |
+| ------------------------ | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 Interest management    | **Curated list**                                              | A seeded `Interest` table is the vocabulary. No free text and no "Other" tag, so there is no user-generated moderation surface. Retiring an interest is `isActive = false`, never a delete — a delete would cascade every user's selection. |
+| 2 AI model               | **Hybrid** (start free/local, add embeddings later)           | MVP scores by interest overlap (content-based). The scorer is a single seam so an embeddings stage can be added behind it without a contract change. No external API call, no per-request cost.                                             |
+| 3 Placement              | **Separate 'For You' tab**                                    | A new `GET /recommendations` endpoint. Discovery (`GET /discovery`) is untouched, so the existing feed cannot regress.                                                                                                                      |
+| 4 Mobile integration     | **Full integration** (Phase 9)                                | Deferred to the mobile block. The backend returns the shared-interest keys per card so the carousel _can_ render reasons; the UI decision is answer 6.                                                                                      |
+| 5 User interactions      | **Hybrid** (start with interests, add interactions over time) | MVP uses interests only. Behavioural signals (views/likes/accepts) are not tracked yet; there is no seam that assumes them, so adding them later is additive.                                                                               |
+| 6 Privacy & transparency | **Just show recommendations** (minimal UI)                    | No reason string is required in the UI. The card still carries `shared_interests` because it costs nothing and answer 4 wants reasons available — the client may ignore the field.                                                          |
+| 7 Feature rollout        | **Feature flag + gradual rollout**                            | `FEATURE_AI_RECOMMENDATIONS`, default **off**. When off the endpoint answers `{ enabled: false, items: [] }` — a 200, so a client hides the tab without a release and no data is produced.                                                  |
 
 ## Interaction with existing decisions
 
