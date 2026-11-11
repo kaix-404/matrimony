@@ -10,7 +10,7 @@ The platform is feature-complete end to end, and the client's first feedback rou
 
 | Metric | Value |
 |---|---|
-| Automated Tests | 1176 (760 API + 81 Admin + 292 Shared + 43 Mobile) |
+| Automated Tests | 1177 (761 API + 81 Admin + 292 Shared + 43 Mobile) |
 | Test Suites | 82 (47 API + 12 Admin + 16 Shared + 7 Mobile) |
 | Admin Permission Keys | 25 |
 | Current Commit | 88acacf |
@@ -137,7 +137,7 @@ The platform is feature-complete end to end, and the client's first feedback rou
 
 ## Quality Assurance
 
-- Tests: 1176 passed (760 API + 81 Admin + 292 Shared + 43 Mobile)
+- Tests: 1177 passed (761 API + 81 Admin + 292 Shared + 43 Mobile)
 - Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
@@ -149,7 +149,7 @@ The platform is feature-complete end to end, and the client's first feedback rou
 - **Community values from the client.** The list is wired end to end but has no values because no community list was supplied; once they send one it can be entered in the console without a release.
 - **State spellings.** `Orissa`, `Pondicherry` and `Delhi / NCR` are exactly as the client's file spells them. If they want Odisha/Puducherry, the console can rename them (profiles follow the row) once they confirm.
 - **Feedback item 5 ("User Dashboard").** The client's document is truncated mid-sentence, so the requirement is unknown; everything in items 1-4 is delivered.
-- Device-level QA of the Expo app (dev build) and the pending store identifiers (`bundleIdentifier` / Android `package`)
+- Device-level QA of the Expo app (dev build); the store identifiers are already set (`com.networth.matrimony` on both platforms)
 - Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS/email; the webhook secret, sender/template/DLT ids and the MSG91 email key, sender and template id are still unset, so email verification is built and deployed but not yet sending
 - Flip `FEATURE_AI_RECOMMENDATIONS` on after a gradual rollout decision; the For You surface is already shipped behind the flag (currently 10% rollout)
 - Client clarifications all closed: GAP-2 (net-worth boundaries) resolved, GAP-11 privacy wording accepted (R2 best-effort APAC), GAP-12 email via MSG91

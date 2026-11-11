@@ -22,7 +22,7 @@ with 1176 automated tests passing.
 
 KEY METRICS
 
-  Automated tests      1176  (760 API + 81 Admin + 292 Shared + 43 Mobile)
+  Automated tests      1177  (761 API + 81 Admin + 292 Shared + 43 Mobile)
   Test suites            82  (47 API + 12 Admin + 16 Shared + 7 Mobile)
   Admin permission keys  25
   Current commit    88acacf
@@ -168,7 +168,7 @@ PLATFORM WORK (sections 15, 21, 30, 42, admin)
 
 QUALITY ASSURANCE
 
-  Tests     1176 passed (760 API + 81 Admin + 292 Shared + 43 Mobile)
+  Tests     1177 passed (761 API + 81 Admin + 292 Shared + 43 Mobile)
   Typecheck PASS (workspaces + tools, including the seed and the mobile app)
   Lint      PASS
   Build     PASS (shared + API + admin)
@@ -183,7 +183,7 @@ NEXT STEPS
     file spells them. If they want Odisha/Puducherry, the console can rename them.
   - Feedback item 5 ("User Dashboard"): the client's document is truncated mid-
     sentence, so the requirement is unknown; items 1-4 are delivered.
-  - Device-level QA of the Expo app (dev build) and the pending store identifiers.
+  - Device-level QA of the Expo app (dev build); both store identifiers are set.
   - Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a
     real MSG91 SMS/email; the webhook secret, sender/template/DLT ids and MSG91 email
     config are still unset.
