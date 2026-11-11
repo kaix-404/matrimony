@@ -2,7 +2,11 @@
 
 Vendor selections for the integrations listed in the client brief. These sit on top of
 `client-answers-2026-09-29.md`, which remains authoritative for product behaviour; this
-file is authoritative for **which supplier** we use.
+file is authoritative for **which supplier** we use, except for the SMS and email
+rows, which were settled after it was written: MSG91 for SMS on 2026-10-14
+([`sms-msg91-2026-10-14.md`](sms-msg91-2026-10-14.md)) and MSG91 for transactional
+email on 2026-10-23
+([`client-answers-2026-10-15.md`](../client/client-answers-2026-10-15.md)).
 
 ## Decisions
 
@@ -117,18 +121,18 @@ the client's understanding, not a contractual guarantee from Cloudflare (R2 has 
 jurisdiction, only a best-effort `apac` location hint). H3 therefore needs wording as
 "Asia-Pacific, best-effort" in the Privacy Policy, and the placement claim must not be
 promised to end users as India-only storage. Recorded in
-`docs/client/client-answers-2026-10-15.md` (answer 1) and flagged in
-`docs/client/clarifications-needed.md`.
+[`client-answers-2026-10-15.md`](../client/client-answers-2026-10-15.md), answer 1.
 
 **GAP-12 — Resolved (2026-10-14): SMS provider chosen as MSG91.** The client confirmed
   using MSG91 for OTP delivery. The API now sends OTPs via MSG91's Flow API with a
   provider seam (`SmsGateway` / `Msg91SmsGateway`) that can be substituted for tests
   and is fail-closed in production when credentials are missing. DLT registration is the
-  client's to complete and its identifiers remain in configuration. The email provider
-  remains undecided for now.
+  client's to complete and its identifiers remain in configuration. The email half
+  followed on 2026-10-23: transactional email also uses MSG91, delivered through
+  `EmailGateway` / `Msg91EmailGateway` with the same fail-closed behaviour.
 
 ## Effect on the client brief
 
-`docs/client/networth-matrimony-integrations-and-api.pdf` is v1.1 and reflects all five
+The integrations brief (v1.1, held outside this repository) reflects all five
 decisions, with GAP-11 called out in the storage section, the compliance section, and
 the "what we need from you" table.
