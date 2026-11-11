@@ -7,6 +7,7 @@ import { SmsModule } from '../sms/sms.module';
 import { EmailModule } from '../email/email.module';
 import { PushModule } from '../push/push.module';
 import { HealthController } from './health.controller';
+import { ProviderReadinessReporter } from './provider-readiness.reporter';
 
 /**
  * Readiness reports whether identity verification and the three delivery
@@ -25,6 +26,7 @@ import { HealthController } from './health.controller';
   imports: [SmsModule, EmailModule, PushModule],
   controllers: [HealthController],
   providers: [
+    ProviderReadinessReporter,
     {
       provide: VerificationGateway,
       inject: ['ENV'],
