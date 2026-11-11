@@ -19,6 +19,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "report:build": "node scripts/build-status-report.mjs",
+    "smoke:api": "node scripts/smoke-api.mjs",
+    "smoke:api:local": "node scripts/smoke-api.mjs --base http://localhost:4000/api/v1",
     "prisma:generate": "npm run prisma:generate -w @matrimony/api",
     "prisma:validate": "npm run prisma:validate -w @matrimony/api",
     "prisma:migrate": "npm run prisma:migrate -w @matrimony/api",
