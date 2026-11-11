@@ -3,6 +3,7 @@ import { VerificationGateway } from '../verification/verification.gateway';
 import { SmsGateway } from '../sms/sms.gateway';
 import { EmailGateway } from '../email/email.gateway';
 import { PushGateway } from '../push/push.gateway';
+import { FeatureFlagsService } from '../common/features/feature-flags.service';
 
 /** Which integrations are switched on, as the gateways themselves see it. */
 export interface ProviderReadiness {
@@ -41,16 +42,17 @@ export function describeProviderReadiness(readiness: ProviderReadiness): string 
 }
 
 /**
- * Writes that line once at boot.
+ * Writes what this deployment is actually switched on for, once at boot: the
+ * providers, then the feature flags.
  *
- * The readiness route answers the same question, but only if someone is watching
- * at the right moment: a deploy is up for seconds before it is inspected, and the
- * question "was email on when that container started?" is asked days later, from
- * a Render log. This is the record it is asked against.
+ * The readiness route answers the same question about providers, but only while
+ * someone is watching — "was email on when that build went out?" is usually asked
+ * days later, from a Render log. The flag line exists for the same reason and
+ * closed a real gap: the recommendations flag was claimed as a 10% rollout while
+ * the deployment declared nothing at all, and no surface anywhere could settle it.
  *
- * Boot-time is enough because a gateway's `configured` flag is read from the
- * environment and cannot change while the process lives — a credential going in
- * is a redeploy, and a redeploy writes a new line.
+ * Boot-time is enough because both come from the environment: a credential or a
+ * flag change is a redeploy, and every redeploy writes fresh lines.
  */
 @Injectable()
 export class ProviderReadinessReporter implements OnApplicationBootstrap {
@@ -61,6 +63,7 @@ export class ProviderReadinessReporter implements OnApplicationBootstrap {
     private readonly sms: SmsGateway,
     private readonly email: EmailGateway,
     private readonly push: PushGateway,
+    private readonly flags: FeatureFlagsService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -72,5 +75,6 @@ export class ProviderReadinessReporter implements OnApplicationBootstrap {
         push: this.push.configured,
       }),
     );
+    this.logger.log(`Feature flags: recommendations ${this.flags.describe('aiRecommendations')}.`);
   }
 }

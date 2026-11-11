@@ -8,6 +8,7 @@ import { EmailModule } from '../email/email.module';
 import { PushModule } from '../push/push.module';
 import { HealthController } from './health.controller';
 import { ProviderReadinessReporter } from './provider-readiness.reporter';
+import { FeatureFlagsModule } from '../common/features/feature-flags.service';
 
 /**
  * Readiness reports whether identity verification and the three delivery
@@ -23,7 +24,7 @@ import { ProviderReadinessReporter } from './provider-readiness.reporter';
  * that slice small and still uses one definition of how the vendor is built.
  */
 @Module({
-  imports: [SmsModule, EmailModule, PushModule],
+  imports: [SmsModule, EmailModule, PushModule, FeatureFlagsModule],
   controllers: [HealthController],
   providers: [
     ProviderReadinessReporter,

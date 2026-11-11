@@ -19,7 +19,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: API_PORT
-        value: "4000"
+        value: '4000'
       - key: API_GLOBAL_PREFIX
         value: api/v1
       - key: TZ
@@ -45,13 +45,13 @@ services:
       - key: S3_SECRET_KEY
         sync: false
       - key: S3_FORCE_PATH_STYLE
-        value: "true"
+        value: 'true'
       - key: S3_SIGNED_URL_TTL
-        value: "300"
+        value: '300'
       - key: ADMIN_API_BASE_URL
-        value: "https://matrimony-api-2bmy.onrender.com/api/v1"
+        value: 'https://matrimony-api-2bmy.onrender.com/api/v1'
       - key: API_CORS_ORIGINS
-        value: "https://matrimony-admin-o9o2.onrender.com"
+        value: 'https://matrimony-admin-o9o2.onrender.com'
       # Payment & notification secrets — add when ready
       # - key: RAZORPAY_KEY_ID
       #   sync: false
@@ -93,7 +93,7 @@ services:
       - key: SMS_OTP_TEMPLATE_VAR
         value: var1
       - key: SMS_COUNTRY_CODE
-        value: "91"
+        value: '91'
       # Transactional email (client decision GAP-12). The key and the verified
       # sender live in the dashboard, never in this repository; until they are set
       # the API answers 503 to an email-verification request rather than pretending
@@ -109,6 +109,15 @@ services:
         value: otp
       - key: EMAIL_FROM_NAME
         value: Networth Matrimony
+      # AI recommendations (client answer 7): `false`, `true`, or a percentage
+      # 0-100. Declared here rather than left to the code default, so the
+      # blueprint and the running service cannot disagree about whether For You
+      # is live: the flag existed only as a default in `env.ts`, and a value set
+      # in the dashboard alone would vanish on the next blueprint rebuild.
+      # Turning it on is this value plus a redeploy, which is the gradual
+      # rollout the client asked for.
+      - key: FEATURE_AI_RECOMMENDATIONS
+        value: 'false'
       # Fixture profiles, so discovery and the unlock flow have something in them
       # in a database otherwise holding only the client's test accounts: twelve
       # invented members, three in each net-worth band, each one labelled a demo
@@ -120,7 +129,7 @@ services:
       # `remove` once — before the product is shown to real members. See
       # docs/ops/demo-profiles.md.
       - key: SEED_DEMO_PROFILES
-        value: "true"
+        value: 'true'
     healthCheckPath: /api/v1/health/ready
     healthCheckPort: 4000
     autoDeploy: true
@@ -145,8 +154,8 @@ services:
         # has to redeploy, or the blueprint and the running service disagree.
         - render.yaml
       ignoredPaths:
-        - "**/*.test.ts"
-        - "**/*.md"
+        - '**/*.test.ts'
+        - '**/*.md'
 
   # --- Admin Dashboard (Next.js, Node runtime) -------------------------------
   # @matrimony/shared resolves to packages/shared/dist, so it is built first.
@@ -164,7 +173,7 @@ services:
       - key: NODE_ENV
         value: production
       - key: ADMIN_API_BASE_URL
-        value: "https://matrimony-api-2bmy.onrender.com/api/v1"
+        value: 'https://matrimony-api-2bmy.onrender.com/api/v1'
     healthCheckPath: /login
     autoDeploy: true
     rootDirectory: .
@@ -179,8 +188,8 @@ services:
         - tsconfig*.json
         - render.yaml
       ignoredPaths:
-        - "**/*.test.ts"
-        - "**/*.md"
+        - '**/*.test.ts'
+        - '**/*.md'
 
   # --- Landing Page ---------------------------------------------------------
   - type: web

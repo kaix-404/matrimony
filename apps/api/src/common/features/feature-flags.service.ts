@@ -34,6 +34,20 @@ export class FeatureFlagsService {
     this.flags = { aiRecommendations: env.FEATURE_AI_RECOMMENDATIONS };
   }
 
+  /**
+   * The flag's configured value, worded for a log line: `off`, `on` or `10%`.
+   *
+   * `isEnabled` answers "may this user see it", which erases the difference
+   * between a flag that is off and a rollout that simply excludes them. A deploy
+   * log has to record the configured value itself.
+   */
+  describe(flag: FeatureFlag): string {
+    const value = this.flags[flag];
+    if (value === true) return 'on';
+    if (value === false) return 'off';
+    return `${value}%`;
+  }
+
   isEnabled(flag: FeatureFlag): boolean {
     return this.flags[flag] === true;
   }
