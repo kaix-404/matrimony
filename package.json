@@ -18,6 +18,7 @@
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",
+    "report:build": "node scripts/build-status-report.mjs",
     "prisma:generate": "npm run prisma:generate -w @matrimony/api",
     "prisma:validate": "npm run prisma:validate -w @matrimony/api",
     "prisma:migrate": "npm run prisma:migrate -w @matrimony/api",
