@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
@@ -27,9 +27,9 @@
 </head>
 <body>
 <h1>Networth Matrimony - Project Status Report</h1>
-<p><strong>Report Date:</strong> October 23, 2026  |  <strong>Branch:</strong> main (2e6cf9a)  |  <strong>Repository:</strong> D:\matrimony</p>
+<p class="meta"><strong>Report Date:</strong> November 11, 2026  |  <strong>Branch:</strong> main (7f69a92)  |  <strong>Repository:</strong> D:\matrimony</p>
 <h2>Executive Summary</h2>
-<p>The platform is feature-complete end to end. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: OTP sign-in and registration, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, and the feature-flagged For You feed. All gates are green with 888 automated tests passing.</p>
+<p>The platform is feature-complete end to end, and the client's first feedback round (items 1-4) is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, the admin console can maintain those lists without a release, and an email address can be added or moved once the client supplies the MSG91 email credentials. All gates are green with 1177 automated tests passing.</p>
 <h2>Key Metrics</h2>
 <table>
 <thead>
@@ -38,27 +38,29 @@
 <th>Value</th>
 </tr>
 </thead>
-<tbody><tr>
+<tbody>
+<tr>
 <td>Automated Tests</td>
-<td>888 (582 API + 29 Admin + 257 Shared + 20 Mobile)</td>
+<td>1177 (761 API + 81 Admin + 292 Shared + 43 Mobile)</td>
 </tr>
 <tr>
 <td>Test Suites</td>
-<td>57 (38 API + 4 Admin + 12 Shared + 3 Mobile)</td>
+<td>82 (47 API + 12 Admin + 16 Shared + 7 Mobile)</td>
 </tr>
 <tr>
 <td>Admin Permission Keys</td>
-<td>21</td>
+<td>25</td>
 </tr>
 <tr>
 <td>Current Commit</td>
-<td>2e6cf9a</td>
+<td>88acacf</td>
 </tr>
 <tr>
 <td>Status</td>
 <td>All Gates Green</td>
 </tr>
-</tbody></table>
+</tbody>
+</table>
 <h2>Implementation Status by Phase</h2>
 <table>
 <thead>
@@ -69,7 +71,8 @@
 <th>Key Deliverables</th>
 </tr>
 </thead>
-<tbody><tr>
+<tbody>
+<tr>
 <td>0</td>
 <td>Foundations</td>
 <td>Complete</td>
@@ -79,13 +82,13 @@
 <td>1</td>
 <td>Identity &amp; Auth</td>
 <td>Complete</td>
-<td>OTP, JWT, rotating sessions, lockout</td>
+<td>OTP, JWT, rotating sessions, 30-day persistence, lockout</td>
 </tr>
 <tr>
 <td>2</td>
 <td>Profile &amp; Master Data</td>
 <td>Complete</td>
-<td>CRUD, photos, master lists</td>
+<td>CRUD, photos, master lists, admin-maintained lists</td>
 </tr>
 <tr>
 <td>3</td>
@@ -121,22 +124,55 @@
 <td>8</td>
 <td>Admin API</td>
 <td>Complete</td>
-<td>RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard</td>
+<td>RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard, master-list console</td>
 </tr>
 <tr>
 <td>9</td>
 <td>Mobile App</td>
 <td>Complete</td>
-<td>Expo SDK 57 app: auth, discovery, checkout, setup fee, profile, notifications, For You</td>
+<td>Expo SDK 57 app: auth, discovery, checkout, setup fee, profile, partner preferences, settings, notifications, For You</td>
 </tr>
-</tbody></table>
+</tbody>
+</table>
 <h2>Recent Accomplishments</h2>
+<h3>Client Feedback Round (items 1-4)</h3>
+<ul>
+<li><strong>Sign-in persistence.</strong> A member stays signed in for 30 days: the refresh token carries the long lifetime, the access token is refreshed transparently on the first 401, and <code>expo-secure-store</code> keeps the pair across restarts, so the app opens on the signed-in screen instead of the login screen.</li>
+<li><strong>Registration in the client's order.</strong> Mobile plus OTP, then the net-worth band, then profile setup, then review, then identity verification, then the one-time setup fee. The API enforces the same sequence through <code>UserStatus</code>, so a client cannot skip a step by calling the endpoints out of order.</li>
+<li><strong>Settings, and only what was asked for.</strong> Partner preferences, discovery and visibility filters, blocked members, data export/deletion requests, change mobile number, identity verification, delete account, pricing and help. Pause/resume lives on the profile screen as the visibility toggle, which is the same control the API exposes.</li>
+<li><strong>Partner preferences from the client's lists.</strong> Religion, sub-caste, education and profession are picked from the client's datapoint lists rather than typed. Sub-castes are offered only for the religion the member prefers (a Hindu and a Muslim sub-caste list share not a single value), and changing the religion clears a sub-caste that no longer applies. Education and profession preferences reference the same list ids a profile uses, so "Manager" under two industries stays two distinct choices.</li>
+</ul>
+<h3>Email Address Change (MSG91 Email)</h3>
+<ul>
+<li>Settings now has "Add or change email", and the address is verified by a code sent to it: the address is not stored until the code is typed back, so a typo cannot silently put account mail somewhere unreachable.</li>
+<li>The code is bound to the exact mailbox it was issued for, so a code obtained for one address cannot be spent moving the account to another. It carries its own OTP purpose, so a mailbox code is never redeemable as a sign-in or as a mobile-number change.</li>
+<li>No sessions are revoked. Email is not a login identity here, and losing a mailbox must not sign a member out of the app they are already using.</li>
+<li>Delivery goes through MSG91's email API behind an <code>EmailGateway</code> seam, mirroring SMS: configured in production, or answered with a coded 503 (<code>EMAIL_UNAVAILABLE</code>); locally an unconfigured gateway echoes a development code. The deployment needs <code>EMAIL_PROVIDER_API_KEY</code>, <code>EMAIL_FROM_ADDRESS</code> and <code>EMAIL_TEMPLATE_ID</code>; until they are set the endpoint fails closed rather than claiming a send.</li>
+</ul>
+<h3>Master List Console (Admin)</h3>
+<ul>
+<li>The lists members pick from were read-only outside the seed, so a missing option needed a code change and a release. The console now lists every value, including retired ones, and can add, rename and retire them (<code>/master-lists</code>, <code>GET /admin/master-lists</code>, <code>POST /admin/master-lists/:key/values</code>, <code>POST /admin/master-lists/values/:id</code>).</li>
+<li>Nothing is deleted. Profiles reference these rows by id and sub-castes by text, so retiring removes a value from the pickers while keeping it on every profile that already chose it; renaming is how a spelling is corrected, and it reaches every profile at once.</li>
+<li>Structure is read from the data: a list that has sections requires one, a flat list refuses one, and a sub-caste can only be filed under a religion that already exists — a new section there would offer a religion nobody can select. A section typed with different capitalisation is matched to the existing one.</li>
+<li>Every change is audited with the value before and after; two new permissions (<code>master_data:read</code>, <code>master_data:write</code>) keep viewing separate from changing.</li>
+</ul>
+<h3>Client Datapoints, End to End</h3>
+<ul>
+<li>All six lists the client supplied are seeded and live: religion 13, mother tongue 64, education 95 in 17 sections, occupation 140 in 24 sections, sub-caste 835 across the religion blocks plus a shared "Other Sub Cast" section, and states 36.</li>
+<li>A parity test reads <code>docs/Data Points list/</code> directly and compares it with the seeded arrays — every value, the section it belongs to, and the religion block each sub-caste came from — so a dropped or misfiled line fails the build instead of quietly shrinking a picker. It caught one: "Designer" is listed by the client under both Engineering and Media &amp; Entertainment, and the transcription had collapsed it into one.</li>
+<li>Community is wired but empty because the client has not sent a community list; the profile picker stays hidden while the list has no values rather than opening a sheet whose only row is "Not set".</li>
+</ul>
+<h3>Partner Preference Fixes</h3>
+<ul>
+<li>The preference read and write paths selected <code>country</code>/<code>state</code>/<code>city</code> instead of <code>preferredCountry</code>/<code>preferredState</code>/<code>preferredCity</code>. Every preference GET/PUT and every discovery search failed with a 500 for signed-in members. The selects are now typed against Prisma's own field list, with a guard test so a renamed column cannot silently return to that state.</li>
+<li>Education and profession preferences were added as list references (<code>education_id</code> / <code>profession_id</code>) with their own migration, pickers in a dedicated "Education and career" section, and discovery predicates that filter on them.</li>
+</ul>
 <h3>Biodata Import (Member App + API)</h3>
 <ul>
 <li>A member can upload a biodata (a typed/exported PDF or a plain text file) and have the recognised fields proposed for the profile form, instead of retyping every detail</li>
 <li>Extraction is a deterministic text parser (no OCR/LLM provider is configured) and runs server-side, so the client ships no parser; <code>packages/shared/src/biodata-parse.ts</code> is pure and unit-tested, and <code>apps/api/src/profile/pdf-text.ts</code> extracts PDF text on <code>node:zlib</code> alone (no new API dependency)</li>
 <li>Same three-step upload shape as photos: the API mints a presigned PUT, the client sends the bytes straight to storage, then posts the object key to <code>POST /profile/biodata/parse</code></li>
-<li>The API reads the document itself and accepts only a key under the caller&#39;s own <code>biodata/</code> prefix, so it cannot be pointed at another profile&#39;s upload or an arbitrary URL; the response is a proposal, never a save</li>
+<li>The API reads the document itself and accepts only a key under the caller's own <code>biodata/</code> prefix, so it cannot be pointed at another profile's upload or an arbitrary URL; the response is a proposal, never a save</li>
 <li>Education, profession and community are matched against the master lists for a value id; an unmatched one is reported as still needed rather than offered as fillable text</li>
 <li>The member app shows each extracted value with its confidence for review and confirm, the user unticks what is wrong, and the save goes through the ordinary PATCH with the same validators</li>
 </ul>
@@ -147,11 +183,11 @@
 <li>Discovery: cursor-paginated infinite feed of locked cards, temporary filters (age, height, city, state, education, profession, verified photos) and sort applied per request, plus a filter/sort bottom sheet; the API now parses nested filter query objects</li>
 <li>Member previews and payments: locked/unlocked/expired states, Razorpay checkout in a WebView with the order <code>key_id</code>, status polling against <code>GET /payments/:id</code>, and unlock expiry shown in the matches tab</li>
 <li>Account setup fee: verified accounts move to <code>AWAITING_SETUP_FEE</code>; the home feed gates until payment, with a dedicated screen showing the Rs 15.00 + 18% GST = Rs 17.70 breakdown and a one-time order</li>
-<li>Profile: own profile with completeness, field editing, direct-to-storage photo upload with primary/delete management, biodata import, and a visibility toggle</li>
-<li>Settings: net-worth discover/visible-to preference editor, sign out, and OTP-confirmed account deletion</li>
+<li>Profile: own profile with completeness, field editing from the client's datapoints, direct-to-storage photo upload with primary/delete management, biodata import, and a visibility toggle</li>
+<li>Settings: partner preferences, discovery/visibility filters, blocks, data requests, change mobile number, verification, delete account, pricing and help</li>
 <li>Notifications: in-app list with unread badges and push registration through <code>expo-notifications</code> -&gt; <code>POST /devices</code>; dead tokens are pruned server-side</li>
-<li>For You: curated interest picker, recommendation cards ranked by shared-interest overlap with the common tags shown, a fifth tab, and a graceful &quot;coming soon&quot; state while <code>FEATURE_AI_RECOMMENDATIONS</code> is off</li>
-<li>Test suite: Jest via the <code>jest-expo</code> preset runs the member app&#39;s logic (feed view model, interest helpers) and joins the root <code>npm run verify</code> gate; CI also bundles the app (<code>expo export --platform web</code>) so a broken route or import fails before a device build</li>
+<li>For You: curated interest picker, recommendation cards ranked by shared-interest overlap with the common tags shown, a fifth tab, and a graceful "coming soon" state while <code>FEATURE_AI_RECOMMENDATIONS</code> is off</li>
+<li>Test suite: Jest via the <code>jest-expo</code> preset runs the member app's logic (feed view model, interest helpers) and joins the root <code>npm run verify</code> gate; CI also bundles the app (<code>expo export --platform web</code>) so a broken route or import fails before a device build</li>
 </ul>
 <h3>Unlock Pre-Expiry Reminder (Section 15 / C3)</h3>
 <ul>
@@ -160,9 +196,9 @@
 <li><code>UnlockExpiryReminder</code> follows the existing sweeper/<code>ClockDriftGuard</code> timer shape (5-minute interval, <code>unref</code>, boot sweep, failures logged not thrown)</li>
 <li>Channel is <code>PUSH</code>; the row also remains in the in-app list, which is not filtered by channel</li>
 </ul>
-<h3>Push Delivery over Firebase (Section 42, resolves GAP-12&#39;s push half)</h3>
+<h3>Push Delivery over Firebase (Section 42, resolves GAP-12's push half)</h3>
 <ul>
-<li><code>PushGateway</code> seam bound to <code>FcmPushGateway</code> in <code>PushModule</code>: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on <code>node:crypto</code> ??? no legacy server key, no <code>firebase-admin</code>; fails closed when unconfigured</li>
+<li><code>PushGateway</code> seam bound to <code>FcmPushGateway</code> in <code>PushModule</code>: FCM HTTP v1 with a service-account assertion (RS256 JWT exchanged for a cached OAuth2 token) on <code>node:crypto</code> - no legacy server key, no <code>firebase-admin</code>; fails closed when unconfigured</li>
 <li><code>DeviceToken</code> model + <code>DevicePlatform</code> enum; <code>NotificationStatus</code> gains <code>SENDING</code> for the in-flight claim; migration <code>20261014140000_device_tokens_push</code></li>
 <li><code>POST/GET /devices</code> and <code>DELETE /devices/:token</code> under <code>JwtAuthGuard</code>; registration upserts on the token and reassigns its owner, and the token is never echoed back</li>
 <li><code>PushDispatchService</code> claims a row <code>PENDING</code> -&gt; <code>SENDING</code> with a conditional update (at-least-once, never twice-per-worker), requeues a stale <code>SENDING</code> row, prunes a token FCM reports <code>UNREGISTERED</code>, and marks <code>SENT</code>/<code>FAILED</code>; <code>PushDispatchSweeper</code> runs on a 60-second timer</li>
@@ -170,9 +206,9 @@
 </ul>
 <h3>SMS OTP Delivery (MSG91, resolves GAP-12)</h3>
 <ul>
-<li><code>SmsGateway</code> seam (abstract class) with a <code>Msg91SmsGateway</code> on MSG91&#39;s Flow API, bound like the payment gateway so tests substitute it without the network; a small <code>SmsModule</code> keeps the module graph acyclic</li>
+<li><code>SmsGateway</code> seam (abstract class) with a <code>Msg91SmsGateway</code> on MSG91's Flow API, bound like the payment gateway so tests substitute it without the network; a small <code>SmsModule</code> keeps the module graph acyclic</li>
 <li><code>AuthController.requestOtp</code> sends the code via MSG91 in production and fails closed (401) when MSG91 is unconfigured; outside production it still echoes <code>dev_code</code> so the flow stays testable without a provider account</li>
-<li>Flow API rather than MSG91&#39;s SendOTP API, because the platform owns OTP state (hashed, attempt-counted, expired, consumed at later steps); the code travels as a template variable and MSG91 only delivers it</li>
+<li>Flow API rather than MSG91's SendOTP API, because the platform owns OTP state (hashed, attempt-counted, expired, consumed at later steps); the code travels as a template variable and MSG91 only delivers it</li>
 <li>New config <code>SMS_TEMPLATE_ID</code> / <code>SMS_OTP_TEMPLATE_VAR</code> / <code>SMS_COUNTRY_CODE</code>; 9 gateway tests</li>
 </ul>
 <h3>Admin MFA (TOTP)</h3>
@@ -185,7 +221,7 @@
 <h3>Account Retention Purge (Section 21)</h3>
 <ul>
 <li><code>deleteAccount</code> set <code>purgeAfter</code> but nothing read it; a new <code>AccountRetentionSweeper</code> now anonymises an account once its retention window closes</li>
-<li><code>AccountDeletionService.purgeDue</code> overwrites the mobile with a per-account tombstone (<code>purged:&lt;id&gt;</code>, so the real number can register again), clears email, blanks the profile&#39;s PII and demographics, and deletes photos and interests</li>
+<li><code>AccountDeletionService.purgeDue</code> overwrites the mobile with a per-account tombstone (<code>purged:&lt;id&gt;</code>, so the real number can register again), clears email, blanks the profile's PII and demographics, and deletes photos and interests</li>
 <li>Payment and ContactUnlock records are kept, because section 21 retains the accounting for a person who is erased; the <code>User</code>/<code>Profile</code> rows survive anonymised, so their foreign keys stay intact</li>
 <li>Idempotent by construction: the query matches only <code>isAnonymised: false</code> rows past <code>purgeAfter</code>, so a re-run or a second instance is a no-op</li>
 </ul>
@@ -208,29 +244,27 @@
 <li><code>apps/admin</code> (<code>@matrimony/admin</code>): Next.js 16 App Router + React 19, talking only to the admin API</li>
 <li>Backend-for-frontend auth: the token pair lives only in httpOnly cookies; an edge proxy guards every route and refreshes the access token before it expires</li>
 <li>Password-then-TOTP login; session route handlers re-validate every API response with the shared Zod contracts</li>
-<li>Pages: overview, the moderation queue (status filter + detail review form), member list, administrator/role list</li>
-<li>Build pinned to webpack (the Next 16 Turbopack default panics writing this app&#39;s route chunks on Windows)</li>
+<li>Pages: overview, moderation queue (status filter + detail review form), profile review, photo review, identity checks, data requests, member list and detail, pricing, master lists, administrators/roles</li>
+<li>Build pinned to webpack (the Next 16 Turbopack default panics writing this app's route chunks on Windows)</li>
 </ul>
 <h2>Quality Assurance</h2>
 <ul>
-<li>Tests: 888 passed (582 API + 29 Admin + 257 Shared + 20 Mobile)</li>
+<li>Tests: 1177 passed (761 API + 81 Admin + 292 Shared + 43 Mobile)</li>
 <li>Typecheck: PASS (workspaces + tools, including the seed and the mobile app)</li>
 <li>Lint: PASS</li>
 <li>Build: PASS (shared + API + admin)</li>
+<li>Parity: the seeded master lists are compared line by line with the client's own files on every test run</li>
 <li>Full verification: PASS</li>
 </ul>
 <h2>Next Steps</h2>
 <ul>
-<li>Device-level QA of the Expo app (dev build) and the pending store identifiers (<code>bundleIdentifier</code> / Android <code>package</code>)</li>
-<li>Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS/email; the webhook secret, sender/template/DLT ids and MSG91 email config are still unset</li>
-<li>Flip <code>FEATURE_AI_RECOMMENDATIONS</code> on after a gradual rollout decision; the For You surface is already shipped behind the flag</li>
-<li><strong>Done:</strong> AI recommendations enabled at 10% rollout (<code>FEATURE_AI_RECOMMENDATIONS=10</code>)</li>
-<li>Email provider is still open (the remaining half of GAP-12; SMS and push are resolved)</li>
+<li><strong>Community values from the client.</strong> The list is wired end to end but has no values because no community list was supplied; once they send one it can be entered in the console without a release.</li>
+<li><strong>State spellings.</strong> <code>Orissa</code>, <code>Pondicherry</code> and <code>Delhi / NCR</code> are exactly as the client's file spells them. If they want Odisha/Puducherry, the console can rename them (profiles follow the row) once they confirm.</li>
+<li><strong>Feedback item 5 ("User Dashboard").</strong> The client's document is truncated mid-sentence, so the requirement is unknown; everything in items 1-4 is delivered.</li>
+<li>Device-level QA of the Expo app (dev build); the store identifiers are already set (<code>com.networth.matrimony</code> on both platforms)</li>
+<li>Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS/email; the webhook secret, sender/template/DLT ids and the MSG91 email key, sender and template id are still unset, so email verification is built and deployed but not yet sending</li>
+<li>Flip <code>FEATURE_AI_RECOMMENDATIONS</code> on after a gradual rollout decision; the For You surface is already shipped behind the flag (currently 10% rollout)</li>
 <li>Client clarifications all closed: GAP-2 (net-worth boundaries) resolved, GAP-11 privacy wording accepted (R2 best-effort APAC), GAP-12 email via MSG91</li>
-<li><strong>Done:</strong> Next.js security advisory resolved ? admin upgraded from 16.4.0 to 16.4.2</li>
 </ul>
-
-
 </body>
 </html>
-
