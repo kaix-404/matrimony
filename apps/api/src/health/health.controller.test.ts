@@ -7,6 +7,8 @@ import { SmsGateway } from '../sms/sms.gateway';
 import { EmailGateway } from '../email/email.gateway';
 import { PushGateway } from '../push/push.gateway';
 import { HealthController } from './health.controller';
+import { FeatureFlagsService } from '../common/features/feature-flags.service';
+import type { Env } from '../config/env';
 
 /**
  * Readiness has to answer two different questions without confusing them: is this
@@ -40,6 +42,12 @@ async function build(
       { provide: SmsGateway, useValue: { configured: options.sms ?? false } },
       { provide: EmailGateway, useValue: { configured: options.email ?? false } },
       { provide: PushGateway, useValue: { configured: options.push ?? false } },
+      {
+        provide: FeatureFlagsService,
+        useValue: new FeatureFlagsService({
+          FEATURE_AI_RECOMMENDATIONS: options.recommendations ?? false,
+        } as unknown as Env),
+      },
     ],
   }).compile();
   return moduleRef.get(HealthController);
@@ -73,6 +81,16 @@ describe('HealthController (section 46 readiness)', () => {
     expect(report.checks.sms).toBe('down');
     expect(report.checks.email).toBe('down');
     expect(report.checks.push).toBe('down');
+  });
+
+  it('reports the flag value so a console can show it', async () => {
+    const controller = await build({ recommendations: 10 });
+
+    const report = await controller.ready();
+
+    // A percentage is reported as such, not as "on": support answering "is For
+    // You live?" needs to see the rollout, not a boolean.
+    expect(report.flags).toEqual({ aiRecommendations: '10%' });
   });
 
   it('reports the server clock, and the process uptime', async () => {

@@ -6,6 +6,7 @@ import { VerificationGateway } from '../verification/verification.gateway';
 import { SmsGateway } from '../sms/sms.gateway';
 import { EmailGateway } from '../email/email.gateway';
 import { PushGateway } from '../push/push.gateway';
+import { FeatureFlagsService } from '../common/features/feature-flags.service';
 
 interface HealthReport {
   status: 'ok' | 'degraded';
@@ -14,6 +15,13 @@ interface HealthReport {
   serverTime: string;
   uptimeSeconds: number;
   checks: Record<string, 'up' | 'down'>;
+  /**
+   * Feature flags as configured on this instance, e.g. `{ aiRecommendations: 'off' }`.
+   *
+   * Named values rather than booleans: a rollout is a percentage, and "off" and
+   * "10%" mean different things to whoever is reading the console.
+   */
+  flags: Record<string, string>;
 }
 
 @Controller('health')
@@ -28,6 +36,7 @@ export class HealthController {
     private readonly sms: SmsGateway,
     private readonly email: EmailGateway,
     private readonly push: PushGateway,
+    private readonly flags: FeatureFlagsService,
   ) {}
 
   /**
@@ -76,6 +85,7 @@ export class HealthController {
         email: this.email.configured ? 'up' : 'down',
         push: this.push.configured ? 'up' : 'down',
       },
+      flags: { aiRecommendations: this.flags.describe('aiRecommendations') },
     };
     if (report.status !== 'ok') {
       throw new ServiceUnavailableException(report);
