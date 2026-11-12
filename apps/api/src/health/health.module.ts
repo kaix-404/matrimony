@@ -7,6 +7,7 @@ import { SmsModule } from '../sms/sms.module';
 import { EmailModule } from '../email/email.module';
 import { PushModule } from '../push/push.module';
 import { HealthController } from './health.controller';
+import { HealthService } from './health.service';
 import { ProviderReadinessReporter } from './provider-readiness.reporter';
 import { FeatureFlagsModule } from '../common/features/feature-flags.service';
 
@@ -26,7 +27,12 @@ import { FeatureFlagsModule } from '../common/features/feature-flags.service';
 @Module({
   imports: [SmsModule, EmailModule, PushModule, FeatureFlagsModule],
   controllers: [HealthController],
+  // `HealthService` is exported so the admin surface can serve the same report
+  // behind `system:read`. One implementation, so the public readiness route and
+  // the console cannot describe the deployment differently.
+  exports: [HealthService],
   providers: [
+    HealthService,
     ProviderReadinessReporter,
     {
       provide: VerificationGateway,

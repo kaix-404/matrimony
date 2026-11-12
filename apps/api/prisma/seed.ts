@@ -352,6 +352,12 @@ const SUPER_ADMIN_ONLY = [
   'user:delete',
   // F6: undoing a deletion is the same kind of decision as making one.
   'user:restore',
+  // Which providers and flags this deployment is configured for is
+  // infrastructure state, not day-to-day operations, so it is not handed to the
+  // ADMIN role implicitly by the `ALL_PERMISSION_KEYS` filter below. A read-only
+  // page still names every missing credential and every flag value, which is
+  // enough to describe a deployment to somebody who should not have it.
+  'system:read',
 ];
 
 const ROLE_GRANTS = {

@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import {
   NOTIFICATION_EVENTS,
@@ -25,6 +26,7 @@ import type {
   AdminPhotoListResponse,
   AdminPhotoView,
   AdminPricingView,
+  AdminPrincipal,
   AdminProfileListResponse,
   AdminProfileView,
   AdminRejectProfileInput,
@@ -37,6 +39,7 @@ import type {
   AdminReviewReportInput,
   AdminRoleSlug,
   AdminRoleView,
+  AdminSessionView,
   AdminUserDetailView,
   AdminUserStatus,
   AdminUserView,
@@ -59,6 +62,7 @@ import { ClockService } from '../common/clock/clock.service';
 import { StorageService } from '../storage/s3.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditService } from './audit.service';
+import { resolvePermissionsForRoles } from './rbac/resolve-permissions';
 import { hashPassword } from '../common/crypto/password';
 
 /** The row shape every administrator read selects, so one mapper covers them all. */
@@ -540,6 +544,36 @@ export class AdminService {
    * of this screen is to show what is *actually* granted right now — which can
    * differ from the code catalogue between a deploy and a seed.
    */
+  /**
+   * The signed-in administrator, with the permissions they actually hold.
+   *
+   * The console draws its sidebar from this, so the set is resolved from the
+   * database on every call — the same function the guard uses, for the same
+   * reason: a grant revoked a moment ago must not still be offered as a link.
+   *
+   * A token can outlive its administrator by up to fifteen minutes; that case
+   * answers 401 rather than a session with no name, which is what the console
+   * already does with an expired session.
+   */
+  async getSession(principal: AdminPrincipal): Promise<AdminSessionView> {
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: principal.id },
+      select: { id: true, email: true, name: true },
+    });
+    if (admin === null) {
+      throw new UnauthorizedException('Administrator account no longer exists');
+    }
+
+    const permissions = await resolvePermissionsForRoles(this.prisma, principal.roles);
+    return {
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      roles: principal.roles as AdminRoleSlug[],
+      permissions: [...permissions].sort(),
+    };
+  }
+
   async listRoles(): Promise<AdminRoleView[]> {
     const roles = await this.prisma.adminRole.findMany({
       orderBy: { slug: 'asc' },

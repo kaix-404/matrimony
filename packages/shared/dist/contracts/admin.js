@@ -17,7 +17,7 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminSessionViewSchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const enums_js_1 = require("../enums.js");
@@ -176,6 +176,12 @@ exports.ADMIN_PERMISSIONS = {
         sensitive: true,
         description: 'Add, rename or retire a master-list value',
     },
+    'system:read': {
+        resource: 'system',
+        action: 'read',
+        sensitive: false,
+        description: 'View which integrations and feature flags this deployment is configured for (System status)',
+    },
     'admin:manage': {
         resource: 'admin',
         action: 'manage',
@@ -277,6 +283,23 @@ exports.AdminPrincipalSchema = zod_1.z
     .object({
     id: zod_1.z.string().min(1),
     roles: zod_1.z.array(exports.AdminRoleSlugSchema),
+})
+    .strict();
+/**
+ * The signed-in administrator as the console reads them (`GET /admin/me`).
+ *
+ * `roles` come from the token, `permissions` from the database at request time —
+ * the same resolution the guard performs. The console needs the resolved set
+ * because it draws its sidebar from it, and a link the API would refuse is a
+ * promise the console cannot keep.
+ */
+exports.AdminSessionViewSchema = zod_1.z
+    .object({
+    id: zod_1.z.string().min(1),
+    email: zod_1.z.string().email(),
+    name: zod_1.z.string().min(1),
+    roles: zod_1.z.array(exports.AdminRoleSlugSchema),
+    permissions: zod_1.z.array(exports.AdminPermissionKeySchema),
 })
     .strict();
 /**

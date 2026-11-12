@@ -1,6 +1,7 @@
 import { adminFetch } from '@/lib/api';
 import { describeError } from '@/lib/errors';
 import { formatDateTime } from '@/lib/format';
+import { currentAdmin, holdsPermission } from '@/lib/me';
 
 /**
  * What this deployment is switched on for, in one screen.
@@ -10,6 +11,10 @@ import { formatDateTime } from '@/lib/format';
  * tab live?". Every one of those was previously a code question — the answer lived
  * in environment variables nobody could read, and the only symptom was a 503 the
  * first time a member tried the feature.
+ *
+ * Behind `system:read`, which the API enforces: naming every missing credential is
+ * a description of the deployment's infrastructure, and that is not something every
+ * administrator needs. The check below only spares a role the page it cannot load.
  *
  * Read-only by design. Configuration is a deploy-time decision, and a console
  * button that flipped a provider on would be a way to break production without a
@@ -59,13 +64,29 @@ function uptime(seconds: number): string {
 }
 
 export default async function StatusPage() {
+  const session = await currentAdmin();
+  if (!holdsPermission(session, 'system:read')) {
+    return (
+      <>
+        <h1>System status</h1>
+        <div className="card">
+          <p className="notice">
+            This page reports which integrations and feature flags the deployment is configured for,
+            which needs the <code>system:read</code> permission. Ask a Super Admin if you need it.
+          </p>
+        </div>
+      </>
+    );
+  }
+
   let report: HealthReport | null = null;
   let error: string | null = null;
   try {
-    report = await adminFetch<HealthReport>('/health/ready');
+    // The permission-checked mirror of `/health/ready`. The public route stays
+    // public for the deploy check and the smoke test; this one is the API's
+    // decision about who may read the report.
+    report = await adminFetch<HealthReport>('/admin/system/health');
   } catch (caught) {
-    // A degraded instance answers 503 with the report attached, which the api
-    // helper surfaces as an error; the panel below still explains what is missing.
     error = describeError(caught);
   }
 

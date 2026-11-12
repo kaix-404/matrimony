@@ -12,7 +12,7 @@
     "typecheck": "node --max-old-space-size=4096 ../../node_modules/typescript/bin/tsc --noEmit -p tsconfig.json",
     "typecheck:tools": "tsc --noEmit -p tsconfig.tools.json",
     "typecheck:all": "npm run typecheck && npm run typecheck:tools",
-    "test": "jest --passWithNoTests",
+    "test": "jest --passWithNoTests --json --outputFile=.jest-results.json",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "lint": "eslint \"src/**/*.ts\"",

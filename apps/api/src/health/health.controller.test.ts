@@ -7,6 +7,7 @@ import { SmsGateway } from '../sms/sms.gateway';
 import { EmailGateway } from '../email/email.gateway';
 import { PushGateway } from '../push/push.gateway';
 import { HealthController } from './health.controller';
+import { HealthService } from './health.service';
 import { FeatureFlagsService } from '../common/features/feature-flags.service';
 import type { Env } from '../config/env';
 
@@ -32,6 +33,7 @@ async function build(
   const moduleRef = await Test.createTestingModule({
     controllers: [HealthController],
     providers: [
+      HealthService,
       { provide: PrismaService, useValue: { isHealthy: async () => options.database ?? true } },
       {
         provide: ClockService,
@@ -50,12 +52,14 @@ async function build(
       },
     ],
   }).compile();
-  return moduleRef.get(HealthController);
+  return moduleRef;
 }
 
 describe('HealthController (section 46 readiness)', () => {
   it('reports each provider as configured or not, alongside the real checks', async () => {
-    const controller = await build({ sms: true, identity: true });
+    const controller = await build({ sms: true, identity: true }).then((ref) =>
+      ref.get(HealthController),
+    );
 
     const report = await controller.ready();
 
@@ -71,7 +75,7 @@ describe('HealthController (section 46 readiness)', () => {
   });
 
   it('stays ready when no delivery provider is configured', async () => {
-    const controller = await build();
+    const controller = await build().then((ref) => ref.get(HealthController));
 
     const report = await controller.ready();
 
@@ -84,7 +88,9 @@ describe('HealthController (section 46 readiness)', () => {
   });
 
   it('reports the flag value so a console can show it', async () => {
-    const controller = await build({ recommendations: 10 });
+    const controller = await build({ recommendations: 10 }).then((ref) =>
+      ref.get(HealthController),
+    );
 
     const report = await controller.ready();
 
@@ -94,7 +100,7 @@ describe('HealthController (section 46 readiness)', () => {
   });
 
   it('reports the server clock, and the process uptime', async () => {
-    const controller = await build();
+    const controller = await build().then((ref) => ref.get(HealthController));
 
     const report = await controller.ready();
 
@@ -103,7 +109,9 @@ describe('HealthController (section 46 readiness)', () => {
   });
 
   it('fails with the report attached when the database is not usable', async () => {
-    const controller = await build({ database: false, sms: true });
+    const controller = await build({ database: false, sms: true }).then((ref) =>
+      ref.get(HealthController),
+    );
 
     await expect(controller.ready()).rejects.toBeInstanceOf(ServiceUnavailableException);
     await expect(controller.ready()).rejects.toMatchObject({
@@ -115,10 +123,21 @@ describe('HealthController (section 46 readiness)', () => {
   });
 
   it('fails when the clock jumped, because expiry is priced against it', async () => {
-    const controller = await build({ clock: false });
+    const controller = await build({ clock: false }).then((ref) => ref.get(HealthController));
 
     await expect(controller.ready()).rejects.toMatchObject({
       response: { status: 'degraded', checks: { database: 'up', clock: 'down' } },
+    });
+  });
+
+  it('hands the console the degraded report rather than an error', async () => {
+    const health = (await build({ database: false })).get(HealthService);
+
+    // The System status page is read to find out *what* is down, so the same
+    // facts that make readiness fail have to survive as a 200 for it.
+    await expect(health.report()).resolves.toMatchObject({
+      status: 'degraded',
+      checks: { database: 'down' },
     });
   });
 });

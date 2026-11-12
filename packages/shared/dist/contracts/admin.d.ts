@@ -181,6 +181,12 @@ export declare const ADMIN_PERMISSIONS: {
         readonly sensitive: true;
         readonly description: "Add, rename or retire a master-list value";
     };
+    readonly 'system:read': {
+        readonly resource: "system";
+        readonly action: "read";
+        readonly sensitive: false;
+        readonly description: "View which integrations and feature flags this deployment is configured for (System status)";
+    };
     readonly 'admin:manage': {
         readonly resource: "admin";
         readonly action: "manage";
@@ -190,7 +196,7 @@ export declare const ADMIN_PERMISSIONS: {
 };
 /** Every valid permission key. A guard can require nothing outside this union. */
 export type AdminPermissionKey = keyof typeof ADMIN_PERMISSIONS;
-export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "admin:manage")[]]>;
+export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[]]>;
 export declare const AdminRoleSlugSchema: z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>;
 /** The resolved `Permission` rows the seed should create. */
 export declare function permissionCatalogueRows(): Array<{
@@ -404,6 +410,34 @@ export declare const AdminPrincipalSchema: z.ZodObject<{
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
 }>;
 export type AdminPrincipalShape = z.infer<typeof AdminPrincipalSchema>;
+/**
+ * The signed-in administrator as the console reads them (`GET /admin/me`).
+ *
+ * `roles` come from the token, `permissions` from the database at request time —
+ * the same resolution the guard performs. The console needs the resolved set
+ * because it draws its sidebar from it, and a link the API would refuse is a
+ * promise the console cannot keep.
+ */
+export declare const AdminSessionViewSchema: z.ZodObject<{
+    id: z.ZodString;
+    email: z.ZodString;
+    name: z.ZodString;
+    roles: z.ZodArray<z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>, "many">;
+    permissions: z.ZodArray<z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[]]>, "many">;
+}, "strict", z.ZodTypeAny, {
+    email: string;
+    id: string;
+    roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
+    name: string;
+    permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
+}, {
+    email: string;
+    id: string;
+    roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
+    name: string;
+    permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
+}>;
+export type AdminSessionView = z.infer<typeof AdminSessionViewSchema>;
 /**
  * One member account, as an administrator opens it.
  *
@@ -1225,9 +1259,9 @@ export declare const AdminMasterListViewSchema: z.ZodObject<{
         is_active: boolean;
         sort_order: number;
     }[];
+    is_active: boolean;
     key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
     label: string;
-    is_active: boolean;
 }, {
     values: {
         value: string;
@@ -1236,9 +1270,9 @@ export declare const AdminMasterListViewSchema: z.ZodObject<{
         is_active: boolean;
         sort_order: number;
     }[];
+    is_active: boolean;
     key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
     label: string;
-    is_active: boolean;
 }>;
 export type AdminMasterListView = z.infer<typeof AdminMasterListViewSchema>;
 export declare const AdminMasterListsResponseSchema: z.ZodObject<{
@@ -1273,9 +1307,9 @@ export declare const AdminMasterListsResponseSchema: z.ZodObject<{
             is_active: boolean;
             sort_order: number;
         }[];
+        is_active: boolean;
         key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
         label: string;
-        is_active: boolean;
     }, {
         values: {
             value: string;
@@ -1284,9 +1318,9 @@ export declare const AdminMasterListsResponseSchema: z.ZodObject<{
             is_active: boolean;
             sort_order: number;
         }[];
+        is_active: boolean;
         key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
         label: string;
-        is_active: boolean;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     lists: {
@@ -1297,9 +1331,9 @@ export declare const AdminMasterListsResponseSchema: z.ZodObject<{
             is_active: boolean;
             sort_order: number;
         }[];
+        is_active: boolean;
         key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
         label: string;
-        is_active: boolean;
     }[];
 }, {
     lists: {
@@ -1310,9 +1344,9 @@ export declare const AdminMasterListsResponseSchema: z.ZodObject<{
             is_active: boolean;
             sort_order: number;
         }[];
+        is_active: boolean;
         key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
         label: string;
-        is_active: boolean;
     }[];
 }>;
 export type AdminMasterListsResponse = z.infer<typeof AdminMasterListsResponseSchema>;

@@ -1,43 +1,16 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get } from '@nestjs/common';
 import { SkipThrottle } from '@nestjs/throttler';
-import { PrismaService } from '../prisma/prisma.module';
-import { ClockDriftGuard, ClockService } from '../common/clock/clock.service';
-import { VerificationGateway } from '../verification/verification.gateway';
-import { SmsGateway } from '../sms/sms.gateway';
-import { EmailGateway } from '../email/email.gateway';
-import { PushGateway } from '../push/push.gateway';
-import { FeatureFlagsService } from '../common/features/feature-flags.service';
+import { HealthService, type HealthReport } from './health.service';
 
-interface HealthReport {
-  status: 'ok' | 'degraded';
-  service: string;
-  /** Server time, ISO-8601 UTC. Clients must never use their own clock for expiry. */
-  serverTime: string;
-  uptimeSeconds: number;
-  checks: Record<string, 'up' | 'down'>;
-  /**
-   * Feature flags as configured on this instance, e.g. `{ aiRecommendations: 'off' }`.
-   *
-   * Named values rather than booleans: a rollout is a percentage, and "off" and
-   * "10%" mean different things to whoever is reading the console.
-   */
-  flags: Record<string, string>;
-}
-
+/**
+ * Public health endpoints.
+ *
+ * The report itself lives in `HealthService`, so the console's `system:read`
+ * route renders the identical facts rather than a second copy of this logic.
+ */
 @Controller('health')
 export class HealthController {
-  private readonly bootedAt = Date.now();
-
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly clock: ClockService,
-    private readonly driftGuard: ClockDriftGuard,
-    private readonly verification: VerificationGateway,
-    private readonly sms: SmsGateway,
-    private readonly email: EmailGateway,
-    private readonly push: PushGateway,
-    private readonly flags: FeatureFlagsService,
-  ) {}
+  constructor(private readonly health: HealthService) {}
 
   /**
    * Liveness. Answers only if the process is running, so an orchestrator does
@@ -60,36 +33,6 @@ export class HealthController {
   @SkipThrottle()
   @Get('ready')
   async ready(): Promise<HealthReport> {
-    const database = await this.prisma.isHealthy();
-    const clock = this.driftGuard.isHealthy();
-    const report: HealthReport = {
-      status: database && clock ? 'ok' : 'degraded',
-      service: 'matrimony-api',
-      serverTime: this.clock.now().toISOString(),
-      uptimeSeconds: Math.floor((Date.now() - this.bootedAt) / 1000),
-      checks: {
-        database: database ? 'up' : 'down',
-        clock: clock ? 'up' : 'down',
-        // Informational, and deliberately not part of `status`: the API is
-        // ready to serve even when KYC is switched off (every other surface
-        // works). It is reported so a deploy can be checked from outside —
-        // "unconfigured" and "the vendor rejected our credentials" both
-        // surface as 503 on `/verification/initiate`, and only this or the
-        // boot log tells them apart.
-        identityVerification: this.verification.configured ? 'up' : 'down',
-        // The delivery providers, for the same reason and with the same meaning:
-        // a provider with no credentials is not an outage, it is a deployment
-        // still waiting on the client's keys. Read from the gateways rather than
-        // from the environment, so the answer is the one delivery will use.
-        sms: this.sms.configured ? 'up' : 'down',
-        email: this.email.configured ? 'up' : 'down',
-        push: this.push.configured ? 'up' : 'down',
-      },
-      flags: { aiRecommendations: this.flags.describe('aiRecommendations') },
-    };
-    if (report.status !== 'ok') {
-      throw new ServiceUnavailableException(report);
-    }
-    return report;
+    return this.health.ready();
   }
 }

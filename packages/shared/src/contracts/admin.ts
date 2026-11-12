@@ -198,6 +198,13 @@ export const ADMIN_PERMISSIONS = {
     sensitive: true,
     description: 'Add, rename or retire a master-list value',
   },
+  'system:read': {
+    resource: 'system',
+    action: 'read',
+    sensitive: false,
+    description:
+      'View which integrations and feature flags this deployment is configured for (System status)',
+  },
   'admin:manage': {
     resource: 'admin',
     action: 'manage',
@@ -366,6 +373,25 @@ export const AdminPrincipalSchema = z
   })
   .strict();
 export type AdminPrincipalShape = z.infer<typeof AdminPrincipalSchema>;
+
+/**
+ * The signed-in administrator as the console reads them (`GET /admin/me`).
+ *
+ * `roles` come from the token, `permissions` from the database at request time —
+ * the same resolution the guard performs. The console needs the resolved set
+ * because it draws its sidebar from it, and a link the API would refuse is a
+ * promise the console cannot keep.
+ */
+export const AdminSessionViewSchema = z
+  .object({
+    id: z.string().min(1),
+    email: z.string().email(),
+    name: z.string().min(1),
+    roles: z.array(AdminRoleSlugSchema),
+    permissions: z.array(AdminPermissionKeySchema),
+  })
+  .strict();
+export type AdminSessionView = z.infer<typeof AdminSessionViewSchema>;
 
 // ---------------------------------------------------------------------------
 // Admin list queries

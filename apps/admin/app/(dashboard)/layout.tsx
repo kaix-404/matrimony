@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { readAdminClaims } from '@/lib/jwt';
+import { currentAdmin } from '@/lib/me';
 import { ACCESS_COOKIE, EMAIL_COOKIE } from '@/lib/session';
 import { LogoutButton } from './logout-button';
 import { NavLinks } from './nav-links';
@@ -24,12 +25,16 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   }
 
   const email = store.get(EMAIL_COOKIE)?.value ?? 'administrator';
+  // Resolved by the API, not from the token: a grant revoked a moment ago has
+  // to disappear from the sidebar on the next page, and the token lives for
+  // fifteen minutes. A null answer draws the ungated links only.
+  const session = await currentAdmin();
 
   return (
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">Networth Matrimony</div>
-        <NavLinks />
+        <NavLinks permissions={session?.permissions ?? []} />
       </aside>
       <div className="content">
         <header className="topbar">

@@ -54,6 +54,7 @@ describe('ADMIN_PERMISSIONS catalogue', () => {
         'profile:reject',
         'profile:suspend',
         'report:review',
+        'system:read',
         'unlock:grant',
         'unlock:read',
         'user:change_category',

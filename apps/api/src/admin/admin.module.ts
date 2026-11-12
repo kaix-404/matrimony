@@ -3,6 +3,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
+import { HealthModule } from '../health/health.module';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { AdminMasterDataController } from './master-data.admin.controller';
@@ -26,7 +27,10 @@ import { PermissionsGuard } from './rbac/permissions.guard';
  * importing the whole module.
  */
 @Module({
-  imports: [PrismaModule, AuthModule, NotificationsModule, StorageModule],
+  // `HealthModule` supplies the readiness report the System status page reads;
+  // it is exported for that one route. It imports nothing from here, so the
+  // dependency stays one-way.
+  imports: [PrismaModule, AuthModule, NotificationsModule, StorageModule, HealthModule],
   providers: [
     AdminService,
     AdminMasterDataService,

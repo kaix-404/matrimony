@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { NOTIFICATION_EVENTS } from '@matrimony/shared';
 import { AdminService } from './admin.service';
 import { FrozenClock } from '../common/clock/clock.service';
@@ -470,6 +475,12 @@ function setup() {
       findUnique: async ({ where }: { where: { slug?: string; id?: string } }) =>
         roles.find((r) => r.slug === where.slug || r.id === where.id) ?? null,
     },
+    adminRolePermission: {
+      findMany: async ({ where }: { where: { role: { slug: { in: string[] } } } }) =>
+        roles
+          .filter((role) => where.role.slug.in.includes(role.slug))
+          .flatMap((role) => role.permissions.map((grant) => ({ permission: grant.permission }))),
+    },
     adminUser: {
       findMany: async () => admins,
       findUnique: async ({ where }: { where: { id: string } }) =>
@@ -574,6 +585,42 @@ function setup() {
     verifications,
   };
 }
+
+describe('AdminService.getSession', () => {
+  it('returns the administrator with the permissions their roles actually grant', async () => {
+    const { service } = setup();
+
+    const session = await service.getSession({ id: 'admin_actor', roles: ['SUPER_ADMIN'] });
+
+    // The console draws its sidebar from this set, so it has to be the resolved
+    // grants rather than the roles: a link the API would refuse must not appear.
+    expect(session).toEqual({
+      id: 'admin_actor',
+      email: 'actor@example.com',
+      name: 'Actor',
+      roles: ['SUPER_ADMIN'],
+      permissions: ['user:read'],
+    });
+  });
+
+  it('resolves nothing for a role that grants nothing', async () => {
+    const { service } = setup();
+
+    const session = await service.getSession({ id: 'admin_target', roles: ['FINANCE_ADMIN'] });
+
+    expect(session.permissions).toEqual([]);
+  });
+
+  it('refuses a token whose administrator no longer exists', async () => {
+    const { service } = setup();
+
+    // A deleted administrator's access token stays valid for up to fifteen
+    // minutes; answering 401 is what makes the console sign them out.
+    await expect(
+      service.getSession({ id: 'admin_gone', roles: ['SUPER_ADMIN'] }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+});
 
 describe('AdminService.listRoles', () => {
   it('projects each role with the permission keys it grants', async () => {

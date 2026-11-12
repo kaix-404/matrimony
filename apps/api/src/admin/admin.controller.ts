@@ -58,10 +58,12 @@ import {
   type AdminReviewReportInput,
   type AdminRoleSlug,
   type AdminRoleView,
+  type AdminSessionView,
   type AdminUserDetailView,
   type AdminUserView,
 } from '@matrimony/shared';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
+import { HealthService, type HealthReport } from '../health/health.service';
 import { AdminService } from './admin.service';
 import { AdminAuthGuard, AdminUser } from './rbac/admin-auth.guard';
 import { PermissionsGuard } from './rbac/permissions.guard';
@@ -82,7 +84,39 @@ import { RequirePermission } from './rbac/require-permission.decorator';
 @Controller('admin')
 @UseGuards(AdminAuthGuard, PermissionsGuard)
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly healthService: HealthService,
+  ) {}
+
+  /**
+   * The signed-in administrator and the permissions they hold.
+   *
+   * Deliberately without `@RequirePermission`: reading your own grants is what
+   * lets the console draw a sidebar that matches the API, and it discloses
+   * nothing beyond the caller's own access. Any other admin read would be a way
+   * for one administrator to learn another's grants.
+   */
+  @Get('me')
+  async me(@AdminUser() principal: AdminPrincipal): Promise<AdminSessionView> {
+    return this.adminService.getSession(principal);
+  }
+
+  /**
+   * The readiness report for the console's System status page.
+   *
+   * `/health/ready` stays public because an orchestrator and the smoke test poll
+   * it without a session. This route is the same report behind `system:read`, so
+   * the page's permission is enforced by the API rather than by hiding a link.
+   *
+   * It answers 200 even when the deployment is degraded: the page exists to say
+   * *what* is switched off, which a 503 turned into a generic error cannot.
+   */
+  @Get('system/health')
+  @RequirePermission('system:read')
+  async systemHealth(): Promise<HealthReport> {
+    return this.healthService.report();
+  }
 
   @Get('users')
   @RequirePermission('user:read')

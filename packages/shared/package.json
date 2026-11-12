@@ -9,7 +9,7 @@
   "scripts": {
     "build": "tsc --build",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "jest --passWithNoTests",
+    "test": "jest --passWithNoTests --json --outputFile=.jest-results.json",
     "lint": "eslint \"src/**/*.ts\""
   },
   "dependencies": {

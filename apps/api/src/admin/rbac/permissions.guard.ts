@@ -7,8 +7,9 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { AdminPermissionKey } from '@matrimony/shared';
-import { PrismaClient, type AdminRoleSlug } from '../../prisma/prisma-client';
+import { PrismaClient } from '../../prisma/prisma-client';
 import { PERMISSIONS_METADATA_KEY } from './require-permission.decorator';
+import { resolvePermissionsForRoles } from './resolve-permissions';
 import type { AdminRequest } from './admin-request';
 
 /**
@@ -46,31 +47,12 @@ export class PermissionsGuard implements CanActivate {
       throw new UnauthorizedException('Not authenticated as an administrator');
     }
 
-    const held = await this.resolvePermissions(admin.roles);
+    const held = await resolvePermissionsForRoles(this.prisma, admin.roles);
     const missing = required.filter((permission) => !held.has(permission));
     if (missing.length > 0) {
       throw new ForbiddenException(`Missing permission: ${missing.join(', ')}`);
     }
 
     return true;
-  }
-
-  /**
-   * Loads the set of permission keys held by any of the given roles.
-   *
-   * Roles are OR-ed: holding a permission through any one role is enough, which
-   * matches how a super-admin seeded with every role is expected to behave.
-   */
-  private async resolvePermissions(roles: string[]): Promise<Set<AdminPermissionKey>> {
-    if (roles.length === 0) {
-      return new Set();
-    }
-
-    const grants = await this.prisma.adminRolePermission.findMany({
-      where: { role: { slug: { in: roles as AdminRoleSlug[] } } },
-      select: { permission: { select: { key: true } } },
-    });
-
-    return new Set(grants.map((grant) => grant.permission.key as AdminPermissionKey));
   }
 }

@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
-    "test": "jest --passWithNoTests",
+    "test": "jest --passWithNoTests --json --outputFile=.jest-results.json",
     "build:android": "eas build --platform android --profile preview",
     "build:ios": "eas build --platform ios --profile preview"
   },

@@ -11,7 +11,7 @@
     "start": "next start",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint \"app/**/*.ts\" \"app/**/*.tsx\" \"lib/**/*.ts\" \"proxy.ts\"",
-    "test": "jest --passWithNoTests"
+    "test": "jest --passWithNoTests --json --outputFile=.jest-results.json"
   },
   "dependencies": {
     "@matrimony/shared": "*",

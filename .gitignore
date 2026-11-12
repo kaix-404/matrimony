@@ -67,6 +67,11 @@ packages/*/src/generated/
 # Render deployment secrets
 .render-secrets/
 
+# Jest's own machine-readable result per workspace, written by each `npm test`
+# because `npm run report:build` measures the report's counts from it rather than
+# trusting numbers typed into the markdown.
+.jest-results.json
+
 # Generated from PROJECT_STATUS_TILL_NOW.md by `npm run report:build`; the
 # markdown is the report, these are outputs (the PDF only when a converter exists).
 docs/reports/PROJECT_STATUS_TILL_NOW.html
