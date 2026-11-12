@@ -1,19 +1,19 @@
 # Networth Matrimony - Project Status Report
 
-**Report Date:** November 11, 2026 | **Branch:** main (f1ee5d5) | **Repository:** D:\matrimony
+**Report Date:** November 11, 2026 | **Branch:** main (cf936e9) | **Repository:** D:\matrimony
 
 ## Executive Summary
 
-The platform is feature-complete end to end, and the client's first feedback round is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, the admin console can maintain those lists without a release, and an email address can be added or moved once the client supplies the MSG91 email credentials. All gates are green with 1188 automated tests passing.
+The platform is feature-complete end to end, and the client's first feedback round is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, the admin console can maintain those lists without a release, and an email address can be added or moved once the client supplies the MSG91 email credentials. All gates are green with 1189 automated tests passing.
 
 ## Key Metrics
 
 | Metric                | Value                                              |
 | --------------------- | -------------------------------------------------- |
-| Automated Tests       | 1188 (772 API + 81 Admin + 292 Shared + 43 Mobile) |
+| Automated Tests       | 1189 (773 API + 81 Admin + 292 Shared + 43 Mobile) |
 | Test Suites           | 84 (49 API + 12 Admin + 16 Shared + 7 Mobile)      |
 | Admin Permission Keys | 25                                                 |
-| Current Commit        | f1ee5d5                                            |
+| Current Commit        | cf936e9                                            |
 | Status                | All Gates Green                                    |
 
 ## Implementation Status by Phase
@@ -142,12 +142,12 @@ The platform is feature-complete end to end, and the client's first feedback rou
 - `apps/admin` (`@matrimony/admin`): Next.js 16 App Router + React 19, talking only to the admin API
 - Backend-for-frontend auth: the token pair lives only in httpOnly cookies; an edge proxy guards every route and refreshes the access token before it expires
 - Password-then-TOTP login; session route handlers re-validate every API response with the shared Zod contracts
-- Pages: overview, moderation queue (status filter + detail review form), profile review, photo review, identity checks, data requests, member list and detail, pricing, master lists, administrators/roles
+- Pages: overview, moderation queue (status filter + detail review form), profile review, photo review, identity checks, data requests, member list and detail, pricing, master lists, administrators/roles, and a read-only system status page reporting each integration as configured or awaiting credentials
 - Build pinned to webpack (the Next 16 Turbopack default panics writing this app's route chunks on Windows)
 
 ## Quality Assurance
 
-- Tests: 1188 passed (772 API + 81 Admin + 292 Shared + 43 Mobile)
+- Tests: 1189 passed (773 API + 81 Admin + 292 Shared + 43 Mobile)
 - Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
