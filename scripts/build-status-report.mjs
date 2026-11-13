@@ -34,14 +34,18 @@
  * markdown is the only copy anyone can edit — the drift this replaced came from
  * three committed copies competing to be the real one.
  *
- * The PDF is written only when a converter is installed. There is none on the
- * usual development machine, and a silent skip is how the PDF got three weeks
- * stale in the first place — so the skip is printed, not swallowed.
+ * The PDF is written only when a converter is available. A silent skip is how the
+ * PDF got three weeks stale in the first place, so the skip is printed rather
+ * than swallowed. Pandoc and wkhtmltopdf are preferred when installed; otherwise
+ * any Chromium browser will do, because it can print the styled HTML it already
+ * has — which is the case on the development machine, where neither converter is
+ * on PATH but Edge is.
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const reportDir = join(root, 'docs/reports');
@@ -547,12 +551,33 @@ function assertNothingLost(markdown, html, text, blocks) {
 // Output
 // ---------------------------------------------------------------------------
 
+/**
+ * Browsers that can print the HTML to PDF, in the order worth trying.
+ *
+ * Absolute paths on Windows, where neither `msedge` nor `chrome` is on PATH;
+ * names elsewhere, where the launcher script is what gets installed.
+ */
+const BROWSER_CANDIDATES =
+  process.platform === 'win32'
+    ? [
+        'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+        'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
+        'C:/Program Files/Google/Chrome/Application/chrome.exe',
+        'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
+      ]
+    : ['google-chrome', 'chromium', 'chromium-browser', 'microsoft-edge'];
+
+function isPathLike(command) {
+  return command.includes('/') || command.includes('\\');
+}
+
 function findConverter() {
-  for (const [command, args] of [
-    ['pandoc', ['--version']],
-    ['wkhtmltopdf', ['--version']],
-  ]) {
-    const probe = spawnSync(command, args, {
+  for (const command of ['pandoc', 'wkhtmltopdf', ...BROWSER_CANDIDATES]) {
+    if (isPathLike(command)) {
+      if (existsSync(command)) return command;
+      continue;
+    }
+    const probe = spawnSync(command, ['--version'], {
       stdio: 'ignore',
       shell: process.platform === 'win32',
     });
@@ -563,19 +588,43 @@ function findConverter() {
 
 function writePdf(command) {
   const pdfPath = join(reportDir, 'PROJECT_STATUS_TILL_NOW.pdf');
-  const [name, ...args] =
-    command === 'pandoc'
-      ? [
-          'pandoc',
-          markdownPath,
-          '-o',
-          pdfPath,
-          '--metadata',
-          'title=Networth Matrimony - Project Status Report',
-        ]
-      : ['wkhtmltopdf', '--print-media-type', htmlPath, pdfPath];
-  const result = spawnSync(name, args, { stdio: 'inherit', shell: process.platform === 'win32' });
-  if (result.status !== 0) throw new Error(`${command} failed to produce the PDF`);
+
+  if (command === 'pandoc' || command === 'wkhtmltopdf') {
+    const [name, ...args] =
+      command === 'pandoc'
+        ? [
+            'pandoc',
+            markdownPath,
+            '-o',
+            pdfPath,
+            '--metadata',
+            'title=Networth Matrimony - Project Status Report',
+          ]
+        : ['wkhtmltopdf', '--print-media-type', htmlPath, pdfPath];
+    const result = spawnSync(name, args, { stdio: 'inherit', shell: process.platform === 'win32' });
+    if (result.status !== 0) throw new Error(`${command} failed to produce the PDF`);
+    return pdfPath;
+  }
+
+  // A Chromium browser prints the HTML it is handed, so the PDF carries the same
+  // A4 stylesheet the printed copy always did. The throwaway profile stops it
+  // attaching to a browser the user already has open, and `shell` stays off so a
+  // path containing spaces is passed through intact.
+  const result = spawnSync(
+    command,
+    [
+      '--headless=new',
+      '--disable-gpu',
+      '--no-pdf-header-footer',
+      `--user-data-dir=${join(tmpdir(), 'matrimony-report-pdf')}`,
+      `--print-to-pdf=${pdfPath}`,
+      pathToFileURL(htmlPath).href,
+    ],
+    { stdio: 'inherit' },
+  );
+  if (result.status !== 0 || !existsSync(pdfPath)) {
+    throw new Error(`${command} failed to produce the PDF`);
+  }
   return pdfPath;
 }
 
@@ -607,7 +656,7 @@ console.log(
 const converter = findConverter();
 if (converter === null) {
   console.log(
-    'PDF skipped: no pandoc or wkhtmltopdf on PATH. The .pdf beside the other copies is stale until one is installed or the HTML is printed from a browser.',
+    'PDF skipped: no pandoc, wkhtmltopdf or Chromium browser found. The .pdf beside the other copies is stale until one is available or the HTML is printed from a browser.',
   );
 } else {
   console.log(`Wrote ${writePdf(converter)}.`);
