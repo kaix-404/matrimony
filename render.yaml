@@ -52,13 +52,21 @@ services:
         value: 'https://matrimony-api-2bmy.onrender.com/api/v1'
       - key: API_CORS_ORIGINS
         value: 'https://matrimony-admin-o9o2.onrender.com'
-      # Payment & notification secrets — add when ready
-      # - key: RAZORPAY_KEY_ID
-      #   sync: false
-      # - key: RAZORPAY_KEY_SECRET
-      #   sync: false
-      # - key: RAZORPAY_WEBHOOK_SECRET
-      #   sync: false
+      # Payments (section 14). These were left commented out until the account
+      # existed, and the live readiness report showed both halves configured —
+      # which meant the only record of them was the dashboard. Declared here with
+      # `sync: false` for the same reason as every other secret: the blueprint
+      # says the setting is required, the value stays out of the repository, and
+      # a service recreated from this file still knows they exist.
+      #
+      # `paymentWebhooks` in `/health/ready` reports the third separately, because
+      # keys without a webhook secret means charges that are never confirmed.
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
       # Identity verification (D9). Without these the API boots and answers 503
       # to every attempt to start a DigiLocker session, which is why production
       # shows "Verify your identity" and cannot complete it. See
