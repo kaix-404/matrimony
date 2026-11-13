@@ -33,7 +33,12 @@ const role = (slug, name, keys) => ({
 });
 
 const roles = [
-  role('SUPER_ADMIN', 'Super Admin', ['admin:manage', 'user:read', 'report:review']),
+  role('SUPER_ADMIN', 'Super Admin', [
+    'admin:manage',
+    'user:read',
+    'report:review',
+    'system:read',
+  ]),
   role('ADMIN', 'Admin', ['admin:manage', 'user:read']),
   role('MODERATION_ADMIN', 'Moderation Admin', ['report:review', 'identity_verify:read']),
   role('FINANCE_ADMIN', 'Finance Admin', ['payment:read', 'data_request:handle']),
@@ -44,7 +49,10 @@ const self = {
   email: 'ops@example.com',
   name: 'Ops',
   status: 'ACTIVE',
-  roles: ['MODERATION_ADMIN'],
+  // Super Admin so every page, including the permission-gated System status,
+  // is reachable while clicking through. The roles screen still shows the other
+  // roles and the permissions each grants.
+  roles: ['SUPER_ADMIN'],
   mfaEnabled: true,
   lastLoginAt: '2026-11-07T09:12:00.000Z',
   createdAt: '2026-09-01T04:00:00.000Z',
@@ -288,7 +296,45 @@ const categories = [
   },
 ];
 
+/**
+ * The permission keys a set of roles grants.
+ *
+ * Mirrors the API's rule that roles are OR-ed, because `GET /admin/me` is what
+ * the console draws its sidebar from: a stub that answered with fewer grants
+ * would hide links the real service shows.
+ */
+const permissionsFor = (slugs) => [
+  ...new Set(
+    roles
+      .filter((row) => slugs.includes(row.slug))
+      .flatMap((row) => row.permissions.map((grant) => grant.key)),
+  ),
+];
+
 const routes = {
+  '/api/v1/admin/me': {
+    id: self.id,
+    email: self.email,
+    name: self.name,
+    roles: self.roles,
+    permissions: permissionsFor(self.roles),
+  },
+  // The permission-checked readiness mirror the System status page reads. The
+  // public `/health/ready` is not stubbed: this is the route the console calls.
+  '/api/v1/admin/system/health': {
+    status: 'ok',
+    serverTime: '2026-11-12T12:00:00.000Z',
+    uptimeSeconds: 3600,
+    checks: {
+      database: 'up',
+      clock: 'up',
+      identityVerification: 'up',
+      sms: 'up',
+      email: 'down',
+      push: 'up',
+    },
+    flags: { aiRecommendations: 'off' },
+  },
   '/api/v1/master-data/net-worth-categories': categories,
   '/api/v1/admin/admins': { admins: [self, other], nextCursor: null, hasMore: false },
   '/api/v1/admin/roles': roles,
