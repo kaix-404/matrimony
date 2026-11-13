@@ -5,6 +5,7 @@ import { VerificationGateway } from '../verification/verification.gateway';
 import { SmsGateway } from '../sms/sms.gateway';
 import { EmailGateway } from '../email/email.gateway';
 import { PushGateway } from '../push/push.gateway';
+import { PaymentGateway } from '../payments/payment.gateway';
 import { FeatureFlagsService } from '../common/features/feature-flags.service';
 
 /**
@@ -45,6 +46,7 @@ export class HealthService {
     private readonly sms: SmsGateway,
     private readonly email: EmailGateway,
     private readonly push: PushGateway,
+    private readonly payments: PaymentGateway,
     private readonly flags: FeatureFlagsService,
   ) {}
 
@@ -80,6 +82,12 @@ export class HealthService {
         sms: this.sms.configured ? 'up' : 'down',
         email: this.email.configured ? 'up' : 'down',
         push: this.push.configured ? 'up' : 'down',
+        // Payments is two answers, because the two failures are different: no
+        // key pair means checkout cannot start, while no webhook secret means a
+        // charge can succeed and never be confirmed. Reporting one boolean would
+        // call a deployment that takes money and grants nothing "configured".
+        payments: this.payments.configured ? 'up' : 'down',
+        paymentWebhooks: this.payments.webhookConfigured ? 'up' : 'down',
       },
       flags: { aiRecommendations: this.flags.describe('aiRecommendations') },
     };

@@ -6,6 +6,7 @@ import { VerificationGateway } from '../verification/verification.gateway';
 import { SmsGateway } from '../sms/sms.gateway';
 import { EmailGateway } from '../email/email.gateway';
 import { PushGateway } from '../push/push.gateway';
+import { PaymentGateway } from '../payments/payment.gateway';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { FeatureFlagsService } from '../common/features/feature-flags.service';
@@ -28,6 +29,8 @@ async function build(
     email?: boolean;
     push?: boolean;
     identity?: boolean;
+    payments?: boolean;
+    paymentWebhooks?: boolean;
   } = {},
 ) {
   const moduleRef = await Test.createTestingModule({
@@ -44,6 +47,13 @@ async function build(
       { provide: SmsGateway, useValue: { configured: options.sms ?? false } },
       { provide: EmailGateway, useValue: { configured: options.email ?? false } },
       { provide: PushGateway, useValue: { configured: options.push ?? false } },
+      {
+        provide: PaymentGateway,
+        useValue: {
+          configured: options.payments ?? false,
+          webhookConfigured: options.paymentWebhooks ?? false,
+        },
+      },
       {
         provide: FeatureFlagsService,
         useValue: new FeatureFlagsService({
@@ -71,7 +81,22 @@ describe('HealthController (section 46 readiness)', () => {
       sms: 'up',
       email: 'down',
       push: 'down',
+      payments: 'down',
+      paymentWebhooks: 'down',
     });
+  });
+
+  it('reports a charge that cannot be confirmed as its own state', async () => {
+    const controller = await build({ payments: true, paymentWebhooks: false }).then((ref) =>
+      ref.get(HealthController),
+    );
+
+    // Checkout works and the webhook does not: money can be taken and no unlock
+    // granted. That is not "payments down", and reporting it as one bool would
+    // hide it until a member complains.
+    const report = await controller.ready();
+    expect(report.checks.payments).toBe('up');
+    expect(report.checks.paymentWebhooks).toBe('down');
   });
 
   it('stays ready when no delivery provider is configured', async () => {

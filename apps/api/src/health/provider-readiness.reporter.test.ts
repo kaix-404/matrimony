@@ -9,6 +9,7 @@ import type { VerificationGateway } from '../verification/verification.gateway';
 import type { SmsGateway } from '../sms/sms.gateway';
 import type { EmailGateway } from '../email/email.gateway';
 import type { PushGateway } from '../push/push.gateway';
+import type { PaymentGateway } from '../payments/payment.gateway';
 
 /**
  * The boot lines are how a deploy is checked after the fact, so they have to name
@@ -26,6 +27,8 @@ interface GatewayState {
   sms: boolean;
   email: boolean;
   push: boolean;
+  payments: boolean;
+  paymentWebhooks: boolean;
 }
 
 function makeReporter(state: GatewayState, flags: FeatureFlagsService): ProviderReadinessReporter {
@@ -34,35 +37,54 @@ function makeReporter(state: GatewayState, flags: FeatureFlagsService): Provider
     { configured: state.sms } as SmsGateway,
     { configured: state.email } as EmailGateway,
     { configured: state.push } as PushGateway,
+    { configured: state.payments, webhookConfigured: state.paymentWebhooks } as PaymentGateway,
     flags,
   );
 }
 
-const MIXED: GatewayState = { identityVerification: true, sms: true, email: false, push: true };
-const ALL_ON: GatewayState = { identityVerification: true, sms: true, email: true, push: true };
+const MIXED: GatewayState = {
+  identityVerification: true,
+  sms: true,
+  email: false,
+  push: true,
+  payments: true,
+  paymentWebhooks: false,
+};
+const ALL_ON: GatewayState = {
+  identityVerification: true,
+  sms: true,
+  email: true,
+  push: true,
+  payments: true,
+  paymentWebhooks: true,
+};
 const ALL_OFF: GatewayState = {
   identityVerification: false,
   sms: false,
   email: false,
   push: false,
+  payments: false,
+  paymentWebhooks: false,
 };
 
 describe('describeProviderReadiness', () => {
   it('lists the providers that are on and the ones still waiting', () => {
+    // A charge that cannot be confirmed is called out separately: it is the one
+    // state where a deployment takes money and grants nothing.
     expect(describeProviderReadiness(MIXED)).toBe(
-      'Providers configured: identity verification, sms, push. Awaiting credentials: email.',
+      'Providers configured: identity verification, sms, push, payments. Awaiting credentials: email, payment webhooks.',
     );
   });
 
   it('says so plainly when everything is configured', () => {
     expect(describeProviderReadiness(ALL_ON)).toBe(
-      'Providers all configured: identity verification, sms, email, push.',
+      'Providers all configured: identity verification, sms, email, push, payments, payment webhooks.',
     );
   });
 
   it('says so plainly when nothing is configured', () => {
     expect(describeProviderReadiness(ALL_OFF)).toBe(
-      'Providers awaiting credentials: identity verification, sms, email, push.',
+      'Providers awaiting credentials: identity verification, sms, email, push, payments, payment webhooks.',
     );
   });
 });
@@ -72,14 +94,21 @@ describe('ProviderReadinessReporter', () => {
     const log = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 
     makeReporter(
-      { identityVerification: true, sms: false, email: false, push: true },
+      {
+        identityVerification: true,
+        sms: false,
+        email: false,
+        push: true,
+        payments: false,
+        paymentWebhooks: false,
+      },
       flagService(false),
     ).onApplicationBootstrap();
 
     expect(log).toHaveBeenCalledTimes(2);
     expect(log).toHaveBeenNthCalledWith(
       1,
-      'Providers configured: identity verification, push. Awaiting credentials: sms, email.',
+      'Providers configured: identity verification, push. Awaiting credentials: sms, email, payments, payment webhooks.',
     );
     expect(log).toHaveBeenNthCalledWith(2, 'Feature flags: recommendations off.');
     log.mockRestore();

@@ -6,10 +6,12 @@ import {
 import { SmsModule } from '../sms/sms.module';
 import { EmailModule } from '../email/email.module';
 import { PushModule } from '../push/push.module';
+import { PaymentGateway, RazorpayPaymentGateway } from '../payments/payment.gateway';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { ProviderReadinessReporter } from './provider-readiness.reporter';
 import { FeatureFlagsModule } from '../common/features/feature-flags.service';
+import type { Env } from '../config/env';
 
 /**
  * Readiness reports whether identity verification and the three delivery
@@ -38,6 +40,20 @@ import { FeatureFlagsModule } from '../common/features/feature-flags.service';
       provide: VerificationGateway,
       inject: ['ENV'],
       useFactory: createVerificationGateway,
+    },
+    {
+      // Built from a factory for the same reason as the verification gateway:
+      // importing `PaymentsModule` would drag auth, discovery and notifications
+      // into every bootstrap that only wanted to report readiness. This instance
+      // exists to answer whether the credentials are present; it never charges.
+      provide: PaymentGateway,
+      inject: ['ENV'],
+      useFactory: (env: Env): PaymentGateway =>
+        new RazorpayPaymentGateway(
+          env.RAZORPAY_KEY_ID,
+          env.RAZORPAY_KEY_SECRET,
+          env.RAZORPAY_WEBHOOK_SECRET,
+        ),
     },
   ],
 })

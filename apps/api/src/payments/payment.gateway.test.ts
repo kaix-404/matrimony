@@ -33,6 +33,26 @@ describe('rupeesToMinor', () => {
   });
 });
 
+describe('RazorpayPaymentGateway.configured', () => {
+  it('is configured only with both halves of the key pair', () => {
+    expect(new RazorpayPaymentGateway('key_id', 'key_secret', SECRET).configured).toBe(true);
+    expect(new RazorpayPaymentGateway('key_id', '', SECRET).configured).toBe(false);
+    expect(new RazorpayPaymentGateway('', 'key_secret', SECRET).configured).toBe(false);
+    expect(new RazorpayPaymentGateway('   ', 'key_secret', SECRET).configured).toBe(false);
+  });
+
+  it('tracks the webhook secret separately from the key pair', () => {
+    // Readiness reports these as two answers, because a deployment with keys and
+    // no webhook secret can charge a member and never grant the unlock.
+    const noWebhook = new RazorpayPaymentGateway('key_id', 'key_secret', '');
+    expect(noWebhook.configured).toBe(true);
+    expect(noWebhook.webhookConfigured).toBe(false);
+
+    const complete = new RazorpayPaymentGateway('key_id', 'key_secret', SECRET);
+    expect(complete.webhookConfigured).toBe(true);
+  });
+});
+
 describe('RazorpayPaymentGateway.verifyWebhookSignature', () => {
   const gateway = new RazorpayPaymentGateway('key_id', 'key_secret', SECRET);
 

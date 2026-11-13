@@ -49,6 +49,20 @@ export const GATEWAY_EVENTS = {
 
 export abstract class PaymentGateway {
   /**
+   * Whether an order can be created: the key pair is present.
+   *
+   * Reported separately from `webhookConfigured` because the two fail
+   * differently and only one of them is visible to a member. Without the key
+   * pair nothing can be charged, and checkout says so. Without the webhook
+   * secret a charge can succeed and never be confirmed — money taken, nothing
+   * granted — which a single "is payments on?" boolean would hide.
+   */
+  abstract readonly configured: boolean;
+
+  /** Whether a captured payment can be proven genuine before an unlock is granted. */
+  abstract readonly webhookConfigured: boolean;
+
+  /**
    * HMAC-SHA256 of the *raw* request body, keyed with the webhook secret, in
    * `<body>|<secret>` form. Implemented per provider.
    *
@@ -99,6 +113,8 @@ export function rupeesToMinor(rupees: Parameters<typeof toDecimal>[0]): number {
 export class RazorpayPaymentGateway extends PaymentGateway {
   private readonly logger = new Logger(RazorpayPaymentGateway.name);
   private readonly client: Razorpay | null;
+  readonly configured: boolean;
+  readonly webhookConfigured: boolean;
 
   constructor(
     private readonly keyId: string,
@@ -114,6 +130,8 @@ export class RazorpayPaymentGateway extends PaymentGateway {
       this.keyId.trim() !== '' &&
       typeof this.keySecret === 'string' &&
       this.keySecret.trim() !== '';
+    this.configured = configured;
+    this.webhookConfigured = typeof this.webhookSecret === 'string' && this.webhookSecret !== '';
     if (!configured) {
       // Loud, but not fatal: the API has to boot without payment credentials so
       // registration, discovery and photo flows can be developed. Any attempt

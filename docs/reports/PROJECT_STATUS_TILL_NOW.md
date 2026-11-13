@@ -4,13 +4,13 @@
 
 ## Executive Summary
 
-The platform is feature-complete end to end, and the client's first feedback round is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, the admin console can maintain those lists without a release, and an email address can be added or moved once the client supplies the MSG91 email credentials. All gates are green with 1193 automated tests passing.
+The platform is feature-complete end to end, and the client's first feedback round is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, the admin console can maintain those lists without a release, and an email address can be added or moved once the client supplies the MSG91 email credentials. All gates are green with 1196 automated tests passing.
 
 ## Key Metrics
 
 | Metric                | Value                                              |
 | --------------------- | -------------------------------------------------- |
-| Automated Tests       | 1193 (777 API + 81 Admin + 292 Shared + 43 Mobile) |
+| Automated Tests       | 1196 (780 API + 81 Admin + 292 Shared + 43 Mobile) |
 | Test Suites           | 84 (49 API + 12 Admin + 16 Shared + 7 Mobile)      |
 | Admin Permission Keys | 26                                                 |
 | Current Commit        | 9351ddf                                            |
@@ -59,6 +59,8 @@ The platform is feature-complete end to end, and the client's first feedback rou
 - "Is email working?" and "is For You live?" were code questions: the answers lived in environment variables nobody could read, and the first symptom was a 503 on a member's screen. The console now has a read-only page showing each integration as configured or awaiting credentials, with what that means for a member, plus every feature flag's value.
 - The data comes from `GET /admin/system/health`, a `system:read` mirror of the public readiness route. The public route stays public because the deploy check and the smoke test poll it without a session; the mirror is what makes the page's permission the API's decision rather than a hidden link.
 - `system:read` is a Super Admin grant: naming every missing credential describes the deployment's infrastructure, which is not the same job as day-to-day moderation.
+- Payments is two rows, not one: `payments` (the Razorpay key pair, without which checkout cannot start) and `paymentWebhooks` (the webhook secret, without which a charge can succeed and never be confirmed). Collapsing them into one "payments on/off" would report the worst deployment as healthy — money taken, nothing granted.
+- Object storage is deliberately not a row: its four settings are required by the API's environment schema, so an instance that boots at all has them, and a permanently green line would prove nothing.
 - Nothing on the page can change anything. A provider is switched on by a deployment, and a console button that flipped one would be a way to change production with no record of who did it.
 
 ### Client Datapoints, End to End
@@ -154,7 +156,7 @@ The platform is feature-complete end to end, and the client's first feedback rou
 
 ## Quality Assurance
 
-- Tests: 1193 passed (777 API + 81 Admin + 292 Shared + 43 Mobile)
+- Tests: 1196 passed (780 API + 81 Admin + 292 Shared + 43 Mobile)
 - Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)
@@ -166,6 +168,6 @@ The platform is feature-complete end to end, and the client's first feedback rou
 - **Community values from the client.** The list is wired end to end but has no values because no community list was supplied; once they send one it can be entered in the console without a release.
 - **State spellings.** `Orissa`, `Pondicherry` and `Delhi / NCR` are exactly as the client's file spells them. If they want Odisha/Puducherry, the console can rename them (profiles follow the row) once they confirm.
 - Device-level QA of the Expo app (dev build); the store identifiers are already set (`com.networth.matrimony` on both platforms)
-- Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS/email; the webhook secret, sender/template/DLT ids and the MSG91 email key, sender and template id are still unset, so email verification is built and deployed but not yet sending
+- Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS/email round trip. SMS is fully configured — key, sender and template — so what is missing there is a delivery test, not a credential; the DLT entity ids sit outside the gateway's check, which is why an SMS can report configured and still be dropped by the operator. Email is not configured and answers 503 until `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS` and `EMAIL_TEMPLATE_ID` are set
 - Flip `FEATURE_AI_RECOMMENDATIONS` on after a gradual rollout decision. It is declared `false` in `render.yaml`, so For You is off in production and the endpoint answers `{ enabled: false }` rather than erroring; a rollout is that value set to a percentage (for example `"10"`) plus a redeploy, which is why it lives in the blueprint instead of in a dashboard-only setting.
 - Client clarifications all closed: GAP-2 (net-worth boundaries) resolved, GAP-11 privacy wording accepted (R2 best-effort APAC), GAP-12 email via MSG91

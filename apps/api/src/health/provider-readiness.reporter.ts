@@ -3,6 +3,7 @@ import { VerificationGateway } from '../verification/verification.gateway';
 import { SmsGateway } from '../sms/sms.gateway';
 import { EmailGateway } from '../email/email.gateway';
 import { PushGateway } from '../push/push.gateway';
+import { PaymentGateway } from '../payments/payment.gateway';
 import { FeatureFlagsService } from '../common/features/feature-flags.service';
 
 /** Which integrations are switched on, as the gateways themselves see it. */
@@ -11,6 +12,9 @@ export interface ProviderReadiness {
   sms: boolean;
   email: boolean;
   push: boolean;
+  payments: boolean;
+  /** Listed separately: a charge that cannot be confirmed grants nothing. */
+  paymentWebhooks: boolean;
 }
 
 const PROVIDERS: { name: string; key: keyof ProviderReadiness }[] = [
@@ -18,6 +22,8 @@ const PROVIDERS: { name: string; key: keyof ProviderReadiness }[] = [
   { name: 'sms', key: 'sms' },
   { name: 'email', key: 'email' },
   { name: 'push', key: 'push' },
+  { name: 'payments', key: 'payments' },
+  { name: 'payment webhooks', key: 'paymentWebhooks' },
 ];
 
 /**
@@ -63,6 +69,7 @@ export class ProviderReadinessReporter implements OnApplicationBootstrap {
     private readonly sms: SmsGateway,
     private readonly email: EmailGateway,
     private readonly push: PushGateway,
+    private readonly payments: PaymentGateway,
     private readonly flags: FeatureFlagsService,
   ) {}
 
@@ -73,6 +80,8 @@ export class ProviderReadinessReporter implements OnApplicationBootstrap {
         sms: this.sms.configured,
         email: this.email.configured,
         push: this.push.configured,
+        payments: this.payments.configured,
+        paymentWebhooks: this.payments.webhookConfigured,
       }),
     );
     this.logger.log(`Feature flags: recommendations ${this.flags.describe('aiRecommendations')}.`);

@@ -50,6 +50,17 @@ const INTEGRATIONS: { key: string; label: string; consequence: string }[] = [
     label: 'Push (Firebase)',
     consequence: 'notifications still appear in the app list, but nothing is pushed to a device',
   },
+  {
+    key: 'payments',
+    label: 'Payments (Razorpay)',
+    consequence: 'no member can pay the setup fee or buy a contact unlock',
+  },
+  {
+    key: 'paymentWebhooks',
+    label: 'Payment webhooks (Razorpay)',
+    consequence:
+      'a payment can be taken and its unlock never granted - reconcile by hand until the secret is set',
+  },
 ];
 
 const FLAGS: { key: string; label: string }[] = [

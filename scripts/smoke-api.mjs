@@ -163,7 +163,7 @@ for (const check of checks) {
 // Readiness detail that a person actually wants: which vendors are on.
 const ready = await request('/health/ready');
 const providers = Object.entries(ready.body?.checks ?? {}).filter(([key]) =>
-  ['identityVerification', 'sms', 'email', 'push'].includes(key),
+  ['identityVerification', 'sms', 'email', 'push', 'payments', 'paymentWebhooks'].includes(key),
 );
 const awaiting = providers.filter(([, value]) => value === 'down').map(([key]) => key);
 
