@@ -1,22 +1,25 @@
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { HomeFeedScreen } from '../screens/HomeFeedScreen';
-import { useRequireAuth } from '../lib/use-require-auth';
+import { WelcomeScreen } from '../screens/WelcomeScreen';
+import { useAuth } from '../lib/auth-context';
 import { colors, spacing } from '../theme/tokens';
 
 /**
  * The app's entry point, and the only place that decides what a launch shows.
  *
- * A signed-out launch goes straight to sign-in, the way a consumer app does:
- * the previous placeholder feed with a "sign in to see real profiles" banner
- * was the first thing a new install showed, which reads as a half-built app.
- * Reading the stored session is asynchronous, so the loading state renders a
- * spinner rather than the sign-in screen — otherwise a returning member would
- * see it flash on every cold start before being dropped into the feed.
+ * A signed-out launch lands on the welcome screen rather than the sign-in form:
+ * the first thing a new install shows should say what the app is before it asks
+ * for a mobile number. The sign-in form is one button away, and it handles
+ * account creation on the same screen.
+ *
+ * Reading the stored session is asynchronous, so `loading` renders a spinner
+ * rather than the welcome screen — otherwise a returning member would see it
+ * flash on every cold start before being dropped into the feed.
  */
 export default function Index() {
-  const { ready } = useRequireAuth();
+  const { status } = useAuth();
 
-  if (!ready) {
+  if (status === 'loading') {
     return (
       <View style={styles.startup}>
         <ActivityIndicator color={colors.primary} />
@@ -24,7 +27,7 @@ export default function Index() {
     );
   }
 
-  return <HomeFeedScreen />;
+  return status === 'signedIn' ? <HomeFeedScreen /> : <WelcomeScreen />;
 }
 
 const styles = StyleSheet.create({
