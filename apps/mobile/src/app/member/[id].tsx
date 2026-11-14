@@ -7,6 +7,7 @@ import { PrimaryButton } from '../../components/PrimaryButton';
 import { Screen } from '../../components/Screen';
 import { apiClient, type ViewedProfile } from '../../lib/api-client';
 import { useAuth } from '../../lib/auth-context';
+import { shareProfile } from '../../lib/share-profile';
 import { useRequireAuth } from '../../lib/use-require-auth';
 import { colors, radii, spacing, typography } from '../../theme/tokens';
 
@@ -43,16 +44,55 @@ export default function MemberScreen() {
   const [error, setError] = useState<string | null>(null);
   const [unlocking, setUnlocking] = useState(false);
   const [blocking, setBlocking] = useState(false);
+  const [shortlisted, setShortlisted] = useState(false);
+  const [savingShortlist, setSavingShortlist] = useState(false);
+  // Separate from `error`: a failed bookmark must not replace the profile with
+  // an error screen, which is what the load failure is for.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!token || !id) return;
     setError(null);
     try {
-      setProfile(await apiClient.viewProfile(id, token));
+      // The saved state comes from the Matches list, which is the only place the
+      // server reports it. A failure there is not a failure to load the profile,
+      // so it degrades to "not shortlisted" rather than blanking the screen.
+      const [view, matches] = await Promise.all([
+        apiClient.viewProfile(id, token),
+        apiClient.getMatches(token).catch(() => null),
+      ]);
+      setProfile(view);
+      setShortlisted(matches?.items.some((item) => item.profile_id === id) ?? false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load this profile.');
     }
   }, [token, id]);
+
+  /**
+   * Bookmarks or un-bookmarks this profile.
+   *
+   * A shortlist is free and private: it reveals nothing, it is never shown to
+   * the profile it names, and it does not expire. That is also why it is offered
+   * before payment — it is the only way to keep a profile without buying it.
+   */
+  const toggleShortlist = useCallback(async () => {
+    if (!token || !id) return;
+    setSavingShortlist(true);
+    setActionError(null);
+    try {
+      if (shortlisted) {
+        await apiClient.removeFromShortlist(id, token);
+        setShortlisted(false);
+      } else {
+        await apiClient.addToShortlist(id, token);
+        setShortlisted(true);
+      }
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Could not update your shortlist.');
+    } finally {
+      setSavingShortlist(false);
+    }
+  }, [token, id, shortlisted]);
 
   // Reloads on focus so returning from checkout shows the freshly unlocked
   // contact without the user pulling to refresh.
@@ -204,6 +244,28 @@ export default function MemberScreen() {
 
       {token ? (
         <>
+          <PrimaryButton
+            variant="outline"
+            label={shortlisted ? 'Remove from shortlist' : 'Shortlist this profile'}
+            onPress={() => void toggleShortlist()}
+            loading={savingShortlist}
+          />
+          {/*
+            The name is passed only when it is known. A locked preview has none,
+            and a share sheet that filled one in would redistribute exactly what
+            section 13 withholds until payment.
+          */}
+          <PrimaryButton
+            variant="outline"
+            label="Share this profile"
+            onPress={() =>
+              void shareProfile({
+                profileId: id,
+                name: profile.profile_locked ? null : profile.full_profile.first_name,
+              })
+            }
+          />
+          {actionError !== null ? <Text style={styles.error}>{actionError}</Text> : null}
           <PrimaryButton
             variant="outline"
             label="Block this profile"

@@ -933,23 +933,23 @@ export declare const AdminPhotoViewSchema: z.ZodObject<{
     rejection_reason: z.ZodNullable<z.ZodString>;
     reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-    id: string;
     profile_id: string;
-    profile_name: string | null;
-    photo_type: "SINGLE" | "FAMILY";
+    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
     url: string;
+    photo_type: "SINGLE" | "FAMILY";
+    id: string;
+    profile_name: string | null;
     uploaded_at: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
     reviewed_by_admin_id: string | null;
 }, {
-    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-    id: string;
     profile_id: string;
-    profile_name: string | null;
-    photo_type: "SINGLE" | "FAMILY";
+    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
     url: string;
+    photo_type: "SINGLE" | "FAMILY";
+    id: string;
+    profile_name: string | null;
     uploaded_at: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
@@ -969,23 +969,23 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
         rejection_reason: z.ZodNullable<z.ZodString>;
         reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        id: string;
         profile_id: string;
-        profile_name: string | null;
-        photo_type: "SINGLE" | "FAMILY";
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         url: string;
+        photo_type: "SINGLE" | "FAMILY";
+        id: string;
+        profile_name: string | null;
         uploaded_at: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
         reviewed_by_admin_id: string | null;
     }, {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        id: string;
         profile_id: string;
-        profile_name: string | null;
-        photo_type: "SINGLE" | "FAMILY";
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         url: string;
+        photo_type: "SINGLE" | "FAMILY";
+        id: string;
+        profile_name: string | null;
         uploaded_at: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -995,12 +995,12 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
     hasMore: z.ZodBoolean;
 }, "strict", z.ZodTypeAny, {
     photos: {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        id: string;
         profile_id: string;
-        profile_name: string | null;
-        photo_type: "SINGLE" | "FAMILY";
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         url: string;
+        photo_type: "SINGLE" | "FAMILY";
+        id: string;
+        profile_name: string | null;
         uploaded_at: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1010,12 +1010,12 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
     hasMore: boolean;
 }, {
     photos: {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        id: string;
         profile_id: string;
-        profile_name: string | null;
-        photo_type: "SINGLE" | "FAMILY";
+        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
         url: string;
+        photo_type: "SINGLE" | "FAMILY";
+        id: string;
+        profile_name: string | null;
         uploaded_at: string;
         reviewed_at: string | null;
         rejection_reason: string | null;

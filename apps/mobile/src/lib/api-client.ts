@@ -18,7 +18,9 @@ import type {
   ListNotificationsResponse,
   LockedProfileResponse,
   MasterListsResponse,
+  MatchesResponse,
   MyProfile,
+  ShortlistResult,
   NetWorthCategoryOption,
   NetWorthVisibilityPreference,
   NetWorthVisibilityPreferenceState,
@@ -41,6 +43,7 @@ import type {
 } from '@matrimony/shared';
 import {
   BlockProfileSchema,
+  ShortlistProfileSchema,
   CompleteRegistrationSchema,
   CreateDataRequestSchema,
   CreateProfileSchema,
@@ -570,6 +573,31 @@ class ApiClient {
       method: 'DELETE',
       headers: authHeaders(token),
     });
+  }
+
+  // -- shortlist and matches ------------------------------------------------
+
+  /** Bookmarks a profile. Idempotent: a repeat answers with the original time. */
+  async addToShortlist(profileId: string, token: string): Promise<ShortlistResult> {
+    const body = ShortlistProfileSchema.parse({ profile_id: profileId });
+    return this.fetchJson('shortlist', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  /** Removes a bookmark. 204, including for one that was never there. */
+  async removeFromShortlist(profileId: string, token: string): Promise<void> {
+    await this.fetchJson('shortlist/' + encodeURIComponent(profileId), {
+      method: 'DELETE',
+      headers: authHeaders(token),
+    });
+  }
+
+  /** The Matches list: unlocked and shortlisted profiles, newest activity first. */
+  async getMatches(token: string): Promise<MatchesResponse> {
+    return this.fetchJson('matches', { headers: authHeaders(token) });
   }
 
   // -- trust and safety -----------------------------------------------------

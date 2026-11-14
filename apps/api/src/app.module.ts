@@ -15,6 +15,7 @@ import { RecommendationModule } from './recommendations/recommendation.module';
 import { PaymentsModule } from './payments/payments.module';
 import { UnlockModule } from './unlock/unlock.module';
 import { ModerationModule } from './moderation/moderation.module';
+import { ShortlistModule } from './shortlist/shortlist.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
 import { VerificationModule } from './verification/verification.module';
@@ -47,6 +48,8 @@ import type { Env } from './config/env';
     PaymentsModule,
     UnlockModule,
     ModerationModule,
+    // Shortlists and the Matches list (member request: bookmark, share, match).
+    ShortlistModule,
     NotificationsModule,
     // D9: identity verification. Without this import the controller existed but
     // was never registered, so /verification/* answered 404 in production while

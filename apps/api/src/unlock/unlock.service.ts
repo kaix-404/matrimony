@@ -332,6 +332,22 @@ export class UnlockService {
     return claimed;
   }
 
+  /**
+   * Confirms the viewer may act on this profile at all.
+   *
+   * Shortlisting needs exactly the check a profile view runs — existence,
+   * approved and visible, no block either way, and inside the two-way discovery
+   * scope — so it asks for it here rather than repeating the query. A second
+   * copy would be the way a bookmark ends up confirming the existence of a
+   * profile the feed deliberately hides.
+   *
+   * Throws the same 404 as every other rejection path; see `loadTarget`.
+   */
+  async assertViewable(viewerId: string, profileId: string): Promise<{ id: string }> {
+    const target = await this.loadTarget(viewerId, profileId);
+    return { id: target.id };
+  }
+
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------

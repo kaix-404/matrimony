@@ -585,6 +585,8 @@ model User {
   unlocksBought     ContactUnlock[]        @relation("UnlockBuyer")
   blocksInitiated   BlockedUser[]          @relation("Blocker")
   blockedBy         BlockedUser[]          @relation("Blocked")
+  /// The member's own bookmarks. Private: never shown to the profile they name.
+  shortlisted       Shortlist[]            @relation("ShortlistOwner")
   reportsFiled      Report[]               @relation("Reporter")
   reportsAgainst    Report[]               @relation("ReportedUser")
   notifications     Notification[]
@@ -702,6 +704,9 @@ model Profile {
   // -- moderation ----------------------------------------------------------
   status     ProfileStatus     @default(DRAFT)
   visibility ProfileVisibility @default(ACTIVE)
+
+  /// Rows here are other members' bookmarks of this profile.
+  shortlistedBy Shortlist[] @relation("ShortlistTarget")
 
   approvedAt        DateTime?
   approvedByAdminId String?
@@ -1191,6 +1196,32 @@ model ContactUnlock {
   @@index([userId, status, unlockExpiresAt])
   @@index([profileId, unlockExpiresAt])
   @@index([unlockExpiresAt])
+}
+
+// ===========================================================================
+// SHORTLIST  (member request: "Users can ... shortlist any profile")
+// ===========================================================================
+
+/// A member's private bookmark of a profile.
+///
+/// Separate from `ContactUnlock` on purpose. An unlock is a purchase with a
+/// 24-hour window over contact details; a shortlist is a free, permanent "come
+/// back to this one", and sharing a table would let a bookmark read as an
+/// entitlement. The unique pair is what makes re-tapping idempotent.
+model Shortlist {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation("ShortlistOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  profileId String
+  profile   Profile @relation("ShortlistTarget", fields: [profileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, profileId])
+  /// The Matches list reads by owner, newest first.
+  @@index([userId, createdAt(sort: Desc)])
 }
 
 // ===========================================================================

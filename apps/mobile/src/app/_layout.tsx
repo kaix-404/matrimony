@@ -29,7 +29,7 @@ export default function RootLayout() {
           <Stack.Screen name="discovery-settings" />
           <Stack.Screen name="change-mobile" />
           <Stack.Screen name="delete-account" />
-          <Stack.Screen name="unlocks" />
+          <Stack.Screen name="matches" />
           <Stack.Screen name="blocks" />
           <Stack.Screen name="data-request" />
           <Stack.Screen name="report" />

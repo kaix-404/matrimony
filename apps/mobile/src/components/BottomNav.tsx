@@ -8,16 +8,23 @@ type IconName = keyof typeof Ionicons.glyphMap;
 
 interface NavItem {
   key: string;
-  href: '/' | '/for-you' | '/unlocks' | '/notifications' | '/profile';
+  href: '/' | '/for-you' | '/matches' | '/profile';
   icon: IconName;
   label: string;
 }
 
+/**
+ * Four destinations.
+ *
+ * The fifth was "Messages", which opened the notifications list: there is no
+ * messaging feature, so the tab promised a conversation the app cannot have.
+ * Notifications keep their bell in the header, which is where a list of events
+ * belongs.
+ */
 const ITEMS: NavItem[] = [
   { key: 'home', href: '/', icon: 'home', label: 'Home' },
   { key: 'for-you', href: '/for-you', icon: 'sparkles-outline', label: 'For You' },
-  { key: 'matches', href: '/unlocks', icon: 'heart-outline', label: 'Matches' },
-  { key: 'messages', href: '/notifications', icon: 'chatbubble-outline', label: 'Messages' },
+  { key: 'matches', href: '/matches', icon: 'heart-outline', label: 'Matches' },
   { key: 'profile', href: '/profile', icon: 'person-outline', label: 'Profile' },
 ];
 

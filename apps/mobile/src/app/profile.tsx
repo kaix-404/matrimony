@@ -7,6 +7,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { apiClient } from '../lib/api-client';
 import { ApiError } from '../lib/api-errors';
+import { shareProfile } from '../lib/share-profile';
 import { useAuth } from '../lib/auth-context';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { colors, radii, spacing, typography } from '../theme/tokens';
@@ -257,6 +258,25 @@ export default function ProfileScreen() {
       ) : null}
 
       <PrimaryButton label="Edit profile" onPress={() => router.push('/profile-edit')} />
+      {/*
+        Sharing your own profile opens the same member route the feed uses, and
+        the recipient sees the locked preview until they unlock — which is what
+        section 13 asks for, and it means sharing never reveals more than the
+        feed already does.
+      */}
+      {profile !== null ? (
+        <PrimaryButton
+          variant="outline"
+          label="Share my profile"
+          onPress={() =>
+            void shareProfile({
+              profileId: profile.profile_id,
+              name: profile.first_name,
+              own: true,
+            })
+          }
+        />
+      ) : null}
       <PrimaryButton
         variant="outline"
         label="Manage photos"

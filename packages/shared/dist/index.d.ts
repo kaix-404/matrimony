@@ -12,6 +12,7 @@ export * from './contracts/partner-preferences.js';
 export * from './contracts/pricing.js';
 export * from './contracts/payments.js';
 export * from './contracts/trust-safety.js';
+export * from './contracts/matches.js';
 export * from './contracts/data-requests.js';
 export * from './contracts/verification.js';
 export * from './contracts/notifications.js';
