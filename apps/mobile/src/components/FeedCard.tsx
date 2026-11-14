@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ImageBackground, StyleSheet, Text, View } from 'react-native';
+import { ImageBackground, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { FeedCardModel } from '../lib/feed-model';
 import { colors, gradients, radii, spacing, typography } from '../theme/tokens';
 
@@ -13,12 +13,43 @@ import { colors, gradients, radii, spacing, typography } from '../theme/tokens';
  * price instead of identity, and falls back to a placeholder when there is no
  * preview photo at all.
  */
-export function FeedCard({ item }: { item: FeedCardModel }) {
+export function FeedCard({
+  item,
+  onToggleShortlist,
+}: {
+  item: FeedCardModel;
+  /** Omitted on the signed-out preview, where there is nobody to save it for. */
+  onToggleShortlist?: (profileId: string) => void;
+}) {
   const title = item.title ?? (item.locked ? 'Unlock to view' : null);
   const badgeLabel = item.badge ?? item.priceLabel;
 
   const body = (
     <>
+      {/*
+        Above the card's own press target, and it stops the event: without that,
+        tapping the bookmark on the web build also followed the card's link and
+        opened the profile it had just saved.
+      */}
+      {onToggleShortlist ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={item.shortlisted ? 'Remove from shortlist' : 'Shortlist'}
+          accessibilityState={{ selected: item.shortlisted }}
+          hitSlop={8}
+          style={styles.bookmark}
+          onPress={(event) => {
+            event.stopPropagation();
+            onToggleShortlist(item.id);
+          }}
+        >
+          <Ionicons
+            name={item.shortlisted ? 'bookmark' : 'bookmark-outline'}
+            size={19}
+            color={item.shortlisted ? colors.primary : colors.white}
+          />
+        </Pressable>
+      ) : null}
       <LinearGradient
         colors={gradients.scrim}
         locations={gradients.scrimStops}
@@ -73,6 +104,18 @@ export function FeedCard({ item }: { item: FeedCardModel }) {
 }
 
 const styles = StyleSheet.create({
+  bookmark: {
+    position: 'absolute',
+    top: spacing.md,
+    right: spacing.md,
+    zIndex: 2,
+    width: 38,
+    height: 38,
+    borderRadius: radii.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 10, 30, 0.45)',
+  },
   card: {
     aspectRatio: 16 / 11,
     borderRadius: radii.card,

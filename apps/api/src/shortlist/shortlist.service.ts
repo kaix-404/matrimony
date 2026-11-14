@@ -3,6 +3,7 @@ import {
   type MatchCard,
   type MatchesResponse,
   type PreviewPhoto,
+  type ShortlistIndex,
   type ShortlistResult,
   type ShortlistState,
 } from '@matrimony/shared';
@@ -89,6 +90,29 @@ export class ShortlistService {
     });
 
     return { shortlisted: true, shortlisted_at: row.createdAt.toISOString() };
+  }
+
+  /**
+   * The caller's saved profile ids, newest first.
+   *
+   * Ids and timestamps only. The feed loads this once so each card can draw its
+   * bookmark correctly, and it must not turn into a second copy of the Matches
+   * list: that one presigns photos and reveals names for open unlocks, neither
+   * of which a feed card needs or has any business carrying.
+   */
+  async index(viewerId: string): Promise<ShortlistIndex> {
+    const rows = await this.prisma.shortlist.findMany({
+      where: { userId: viewerId },
+      orderBy: { createdAt: 'desc' },
+      select: { profileId: true, createdAt: true },
+    });
+
+    return {
+      items: rows.map((row) => ({
+        profile_id: row.profileId,
+        shortlisted_at: row.createdAt.toISOString(),
+      })),
+    };
   }
 
   /**

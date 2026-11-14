@@ -18,6 +18,14 @@ export interface FeedCardModel {
   locked: boolean;
   priceLabel: string | null;
   photoCount: number;
+  /**
+   * Whether this card is in the member's shortlist.
+   *
+   * Filled by the feed hook from the shortlist index, not by discovery: the
+   * discovery card's field set is pinned by a test so no profile field can leak
+   * into it, and "did I save this" is the caller's state, not the profile's.
+   */
+  shortlisted: boolean;
 }
 
 /** Formats a decimal-string money amount as an Indian-rupee label. */
@@ -45,6 +53,7 @@ export function fromSample(item: FeedItem): FeedCardModel {
     locked: false,
     priceLabel: null,
     photoCount: 1,
+    shortlisted: false,
   };
 }
 
@@ -64,5 +73,6 @@ export function fromDiscoveryCard(card: DiscoveryCard): FeedCardModel {
     locked: card.profile_locked,
     priceLabel: formatUnlockPrice(card.unlock_price),
     photoCount: card.photos.length,
+    shortlisted: false,
   };
 }

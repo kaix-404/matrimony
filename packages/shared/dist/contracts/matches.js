@@ -14,7 +14,7 @@
  * quietly grows a field is how a locked profile's name leaks into a list.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MatchesResponseSchema = exports.MatchCardSchema = exports.ShortlistStateSchema = exports.ShortlistResultSchema = exports.ShortlistProfileSchema = void 0;
+exports.MatchesResponseSchema = exports.MatchCardSchema = exports.ShortlistIndexSchema = exports.ShortlistEntrySchema = exports.ShortlistStateSchema = exports.ShortlistResultSchema = exports.ShortlistProfileSchema = void 0;
 const zod_1 = require("zod");
 const profile_js_1 = require("./profile.js");
 /** Bookmarks one profile. The id, not the owner's user id — see `BlockProfileSchema`. */
@@ -51,6 +51,31 @@ exports.ShortlistStateSchema = zod_1.z
     profile_id: zod_1.z.string().min(1),
     shortlisted: zod_1.z.boolean(),
     shortlisted_at: zod_1.z.string().datetime().nullable(),
+})
+    .strict();
+/**
+ * One saved profile, with nothing about the profile itself.
+ *
+ * Deliberately not a card: the feed already has its cards and only needs to know
+ * which of them are bookmarked, so this carries ids and timestamps and nothing
+ * that would have to be presigned.
+ */
+exports.ShortlistEntrySchema = zod_1.z
+    .object({
+    profile_id: zod_1.z.string().min(1),
+    shortlisted_at: zod_1.z.string().datetime(),
+})
+    .strict();
+/**
+ * The caller's whole shortlist, newest first.
+ *
+ * Bounded by effort — a member saves profiles one deliberate tap at a time — so
+ * there is no cursor. The feed reads it once per load to fill its bookmark icons,
+ * which is why it stays this small.
+ */
+exports.ShortlistIndexSchema = zod_1.z
+    .object({
+    items: zod_1.z.array(exports.ShortlistEntrySchema),
 })
     .strict();
 /**

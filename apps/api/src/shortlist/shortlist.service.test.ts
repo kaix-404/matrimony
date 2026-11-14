@@ -1,5 +1,6 @@
 import {
   MatchesResponseSchema,
+  ShortlistIndexSchema,
   ShortlistResultSchema,
   ShortlistStateSchema,
 } from '@matrimony/shared';
@@ -152,6 +153,26 @@ describe('ShortlistService', () => {
         where: { userId_profileId: { userId: VIEWER, profileId: 'profile_a' } },
         select: { createdAt: true },
       });
+    });
+  });
+
+  describe('index', () => {
+    it('answers ids and timestamps, and nothing about the profiles', async () => {
+      // The feed reads this once per load to fill its bookmark icons. Anything
+      // more — photos, names — would make it a second Matches list.
+      const { service, prisma } = harness();
+      prisma.shortlist.findMany.mockResolvedValue([
+        { profileId: 'profile_b', createdAt: new Date('2026-11-14T11:00:00.000Z') },
+        { profileId: 'profile_a', createdAt: new Date('2026-11-14T09:00:00.000Z') },
+      ]);
+
+      const index = ShortlistIndexSchema.parse(await service.index(VIEWER));
+
+      expect(index.items).toEqual([
+        { profile_id: 'profile_b', shortlisted_at: '2026-11-14T11:00:00.000Z' },
+        { profile_id: 'profile_a', shortlisted_at: '2026-11-14T09:00:00.000Z' },
+      ]);
+      expect(prisma.profile.findMany).not.toHaveBeenCalled();
     });
   });
 

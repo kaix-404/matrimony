@@ -4,6 +4,7 @@ import {
   type AccessTokenClaims,
   type MatchesResponse,
   type ShortlistProfileRequest,
+  type ShortlistIndex,
   type ShortlistResult,
   type ShortlistState,
 } from '@matrimony/shared';
@@ -32,6 +33,12 @@ export class ShortlistController {
     @Body(new ZodValidationPipe(ShortlistProfileSchema)) body: ShortlistProfileRequest,
   ): Promise<ShortlistResult> {
     return this.shortlist.add(claims.sub, body.profile_id);
+  }
+
+  /** The saved profile ids, for the feed's bookmark icons. */
+  @Get()
+  index(@AuthUser() claims: AccessTokenClaims): Promise<ShortlistIndex> {
+    return this.shortlist.index(claims.sub);
   }
 
   /** Whether this one profile is bookmarked — the profile page's button state. */

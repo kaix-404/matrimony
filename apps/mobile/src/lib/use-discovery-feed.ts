@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DISCOVERY_PAGE_SIZE,
   type DiscoverySort,
@@ -25,6 +25,13 @@ export interface DiscoveryFeed {
   error: string | null;
   refresh: () => void;
   loadMore: () => void;
+  /**
+   * Saves or unsaves a card, optimistically.
+   *
+   * Owned here rather than per card so the icon, the Matches list and the
+   * profile page all mean the same thing: one set of ids, one server write.
+   */
+  toggleShortlist: (profileId: string) => void;
 }
 
 /**
@@ -54,6 +61,15 @@ export function useDiscoveryFeed(options: DiscoveryFeedOptions = {}): DiscoveryF
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * The saved profile ids, as a set for O(1) lookups while rendering cards.
+   *
+   * Read once per session from `GET /shortlist`, which carries ids and
+   * timestamps only. The alternative — discovery reporting it per card — would
+   * mean widening a payload whose field set is pinned by a test, and asking the
+   * Matches list would presign a photo for every saved profile.
+   */
+  const [shortlistedIds, setShortlistedIds] = useState<ReadonlySet<string>>(() => new Set());
 
   /** Drops stale responses when the token changes or a newer request starts. */
   const requestId = useRef(0);
@@ -118,6 +134,63 @@ export function useDiscoveryFeed(options: DiscoveryFeedOptions = {}): DiscoveryF
     // first page rather than appending profiles that no longer match.
   }, [token, filterKey, sort, fetchPage]);
 
+  useEffect(() => {
+    if (!token) {
+      setShortlistedIds(new Set());
+      return;
+    }
+    let cancelled = false;
+    void apiClient
+      .listShortlist(token)
+      .then((index) => {
+        if (cancelled) return;
+        setShortlistedIds(new Set(index.items.map((item) => item.profile_id)));
+      })
+      .catch(() => {
+        // A failed read leaves every icon unsaved. The write is idempotent and
+        // the toggle sets its own state, so the feature still works and the
+        // next load corrects the icons.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  /**
+   * Flips the icon immediately, then writes.
+   *
+   * A bookmark is a one-bit decision, so waiting on a round trip to fill the
+   * icon reads as a dropped tap. A failure puts the icon back, which is the only
+   * case where the server's answer matters more than the tap.
+   */
+  const toggleShortlist = useCallback(
+    (profileId: string) => {
+      if (!token) return;
+      const wasSaved = shortlistedIds.has(profileId);
+
+      setShortlistedIds((prev) => {
+        const next = new Set(prev);
+        if (wasSaved) next.delete(profileId);
+        else next.add(profileId);
+        return next;
+      });
+
+      const request = wasSaved
+        ? apiClient.removeFromShortlist(profileId, token)
+        : apiClient.addToShortlist(profileId, token);
+
+      void request.catch(() => {
+        setShortlistedIds((prev) => {
+          const next = new Set(prev);
+          if (wasSaved) next.add(profileId);
+          else next.delete(profileId);
+          return next;
+        });
+      });
+    },
+    [token, shortlistedIds],
+  );
+
   const refresh = useCallback(() => {
     if (!token) return;
     setRefreshing(true);
@@ -131,8 +204,20 @@ export function useDiscoveryFeed(options: DiscoveryFeedOptions = {}): DiscoveryF
     fetchPage(cursor, false).finally(() => setLoadingMore(false));
   }, [token, cursor, hasMore, loading, refreshing, loadingMore, fetchPage]);
 
+  /**
+   * The cards, with the bookmark state merged in.
+   *
+   * Merged at the boundary so a saved card cannot be rendered from a model that
+   * never knew about shortlists. Sample content has no ids in the set, so the
+   * signed-out preview simply renders without a filled icon.
+   */
+  const viewItems = useMemo(
+    () => items.map((item) => ({ ...item, shortlisted: shortlistedIds.has(item.id) })),
+    [items, shortlistedIds],
+  );
+
   return {
-    items,
+    items: viewItems,
     isLive,
     loading,
     refreshing,
@@ -140,5 +225,6 @@ export function useDiscoveryFeed(options: DiscoveryFeedOptions = {}): DiscoveryF
     error,
     refresh,
     loadMore,
+    toggleShortlist,
   };
 }

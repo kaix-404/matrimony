@@ -65,6 +65,54 @@ export declare const ShortlistStateSchema: z.ZodObject<{
 }>;
 export type ShortlistState = z.infer<typeof ShortlistStateSchema>;
 /**
+ * One saved profile, with nothing about the profile itself.
+ *
+ * Deliberately not a card: the feed already has its cards and only needs to know
+ * which of them are bookmarked, so this carries ids and timestamps and nothing
+ * that would have to be presigned.
+ */
+export declare const ShortlistEntrySchema: z.ZodObject<{
+    profile_id: z.ZodString;
+    shortlisted_at: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    profile_id: string;
+    shortlisted_at: string;
+}, {
+    profile_id: string;
+    shortlisted_at: string;
+}>;
+export type ShortlistEntry = z.infer<typeof ShortlistEntrySchema>;
+/**
+ * The caller's whole shortlist, newest first.
+ *
+ * Bounded by effort — a member saves profiles one deliberate tap at a time — so
+ * there is no cursor. The feed reads it once per load to fill its bookmark icons,
+ * which is why it stays this small.
+ */
+export declare const ShortlistIndexSchema: z.ZodObject<{
+    items: z.ZodArray<z.ZodObject<{
+        profile_id: z.ZodString;
+        shortlisted_at: z.ZodString;
+    }, "strict", z.ZodTypeAny, {
+        profile_id: string;
+        shortlisted_at: string;
+    }, {
+        profile_id: string;
+        shortlisted_at: string;
+    }>, "many">;
+}, "strict", z.ZodTypeAny, {
+    items: {
+        profile_id: string;
+        shortlisted_at: string;
+    }[];
+}, {
+    items: {
+        profile_id: string;
+        shortlisted_at: string;
+    }[];
+}>;
+export type ShortlistIndex = z.infer<typeof ShortlistIndexSchema>;
+/**
  * One row of the Matches list.
  *
  * `display_name` is null unless an unlock is open. A shortlisted profile is
@@ -107,7 +155,6 @@ export declare const MatchCardSchema: z.ZodObject<{
     shortlisted_at: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     profile_id: string;
-    unlock_expires_at: string | null;
     shortlisted_at: string | null;
     display_name: string | null;
     photo: {
@@ -121,10 +168,10 @@ export declare const MatchCardSchema: z.ZodObject<{
     is_shortlisted: boolean;
     is_unlocked: boolean;
     unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
+    unlock_expires_at: string | null;
     remaining_ms: number | null;
 }, {
     profile_id: string;
-    unlock_expires_at: string | null;
     shortlisted_at: string | null;
     display_name: string | null;
     photo: {
@@ -138,6 +185,7 @@ export declare const MatchCardSchema: z.ZodObject<{
     is_shortlisted: boolean;
     is_unlocked: boolean;
     unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
+    unlock_expires_at: string | null;
     remaining_ms: number | null;
 }>;
 export type MatchCard = z.infer<typeof MatchCardSchema>;
@@ -178,7 +226,6 @@ export declare const MatchesResponseSchema: z.ZodObject<{
         shortlisted_at: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
         profile_id: string;
-        unlock_expires_at: string | null;
         shortlisted_at: string | null;
         display_name: string | null;
         photo: {
@@ -192,10 +239,10 @@ export declare const MatchesResponseSchema: z.ZodObject<{
         is_shortlisted: boolean;
         is_unlocked: boolean;
         unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
+        unlock_expires_at: string | null;
         remaining_ms: number | null;
     }, {
         profile_id: string;
-        unlock_expires_at: string | null;
         shortlisted_at: string | null;
         display_name: string | null;
         photo: {
@@ -209,12 +256,12 @@ export declare const MatchesResponseSchema: z.ZodObject<{
         is_shortlisted: boolean;
         is_unlocked: boolean;
         unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
+        unlock_expires_at: string | null;
         remaining_ms: number | null;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     items: {
         profile_id: string;
-        unlock_expires_at: string | null;
         shortlisted_at: string | null;
         display_name: string | null;
         photo: {
@@ -228,12 +275,12 @@ export declare const MatchesResponseSchema: z.ZodObject<{
         is_shortlisted: boolean;
         is_unlocked: boolean;
         unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
+        unlock_expires_at: string | null;
         remaining_ms: number | null;
     }[];
 }, {
     items: {
         profile_id: string;
-        unlock_expires_at: string | null;
         shortlisted_at: string | null;
         display_name: string | null;
         photo: {
@@ -247,6 +294,7 @@ export declare const MatchesResponseSchema: z.ZodObject<{
         is_shortlisted: boolean;
         is_unlocked: boolean;
         unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
+        unlock_expires_at: string | null;
         remaining_ms: number | null;
     }[];
 }>;

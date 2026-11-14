@@ -32,7 +32,7 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
   const [filters, setFilters] = useState<TemporaryFilter>({});
   const [sort, setSort] = useState<DiscoverySort>('NEWEST_THEN_CLOSEST');
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { items, isLive, loading, refreshing, loadingMore, error, refresh, loadMore } =
+  const { items, isLive, loading, refreshing, loadingMore, error, refresh, loadMore, toggleShortlist } =
     useDiscoveryFeed({ filters, sort });
 
   const filtersActive = Object.keys(filters).length > 0;
@@ -114,7 +114,10 @@ export function HomeFeedScreen({ heroVariant = 1 }: { heroVariant?: HeroVariant 
             disabled={!isLive}
             onPress={() => router.push({ pathname: '/member/[id]', params: { id: item.id } })}
           >
-            <FeedCard item={item} />
+            <FeedCard
+              item={item}
+              onToggleShortlist={isLive ? toggleShortlist : undefined}
+            />
           </Pressable>
         )}
         onEndReachedThreshold={0.4}

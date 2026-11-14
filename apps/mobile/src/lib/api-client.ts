@@ -20,6 +20,7 @@ import type {
   MasterListsResponse,
   MatchesResponse,
   MyProfile,
+  ShortlistIndex,
   ShortlistResult,
   ShortlistState,
   NetWorthCategoryOption,
@@ -594,6 +595,16 @@ class ApiClient {
       method: 'DELETE',
       headers: authHeaders(token),
     });
+  }
+
+  /**
+   * The saved profile ids, newest first.
+   *
+   * Read once per feed load to fill the bookmark icons; it carries no photos, so
+   * it costs far less than the Matches list it deliberately is not.
+   */
+  async listShortlist(token: string): Promise<ShortlistIndex> {
+    return this.fetchJson('shortlist', { headers: authHeaders(token) });
   }
 
   /**
