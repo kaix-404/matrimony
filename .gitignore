@@ -77,3 +77,6 @@ packages/*/src/generated/
 docs/reports/PROJECT_STATUS_TILL_NOW.html
 docs/reports/PROJECT_STATUS_TILL_NOW.txt
 docs/reports/PROJECT_STATUS_TILL_NOW.pdf
+# Printed from the markdown beside them by `npm run docs:pdf`; the markdown is
+# the document, so the PDF is an output rather than a second copy to maintain.
+docs/**/*.pdf
