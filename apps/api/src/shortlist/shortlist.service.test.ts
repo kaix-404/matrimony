@@ -1,4 +1,8 @@
-import { MatchesResponseSchema, ShortlistResultSchema } from '@matrimony/shared';
+import {
+  MatchesResponseSchema,
+  ShortlistResultSchema,
+  ShortlistStateSchema,
+} from '@matrimony/shared';
 import { ShortlistService } from './shortlist.service';
 
 /**
@@ -88,6 +92,7 @@ function harness(
         .mockResolvedValue({ createdAt: new Date('2026-11-14T10:00:00.000Z') }),
       deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
       findMany: jest.fn().mockResolvedValue(options.shortlists ?? []),
+      findUnique: jest.fn().mockResolvedValue(null),
     },
     profile: {
       findMany: jest.fn().mockResolvedValue(options.profiles ?? []),
@@ -146,6 +151,39 @@ describe('ShortlistService', () => {
       expect(prisma.shortlist.findUniqueOrThrow).toHaveBeenCalledWith({
         where: { userId_profileId: { userId: VIEWER, profileId: 'profile_a' } },
         select: { createdAt: true },
+      });
+    });
+  });
+
+  describe('state', () => {
+    it('answers false for a profile nobody saved, without consulting the view guard', async () => {
+      // No `assertViewable` call on purpose: `false` is the answer for "not
+      // saved" and for "cannot see it" alike, so the route cannot be used to
+      // confirm that a hidden profile exists.
+      const { service, unlocks, prisma } = harness();
+
+      const state = ShortlistStateSchema.parse(await service.state(VIEWER, 'profile_a'));
+
+      expect(state).toEqual({ profile_id: 'profile_a', shortlisted: false, shortlisted_at: null });
+      expect(prisma.shortlist.findUnique).toHaveBeenCalledWith({
+        where: { userId_profileId: { userId: VIEWER, profileId: 'profile_a' } },
+        select: { createdAt: true },
+      });
+      expect(unlocks.assertViewable).not.toHaveBeenCalled();
+    });
+
+    it('answers true with the original time for a saved profile', async () => {
+      const { service, prisma } = harness();
+      prisma.shortlist.findUnique.mockResolvedValue({
+        createdAt: new Date('2026-11-14T08:00:00.000Z'),
+      });
+
+      const state = ShortlistStateSchema.parse(await service.state(VIEWER, 'profile_a'));
+
+      expect(state).toEqual({
+        profile_id: 'profile_a',
+        shortlisted: true,
+        shortlisted_at: '2026-11-14T08:00:00.000Z',
       });
     });
   });

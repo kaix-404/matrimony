@@ -42,6 +42,26 @@ export const ShortlistResultSchema = z
 export type ShortlistResult = z.infer<typeof ShortlistResultSchema>;
 
 /**
+ * Whether one profile is bookmarked, for the button on its page.
+ *
+ * Its own route rather than a field on the profile view. The view's payload is
+ * the spec's section 13 / 39 disclosure set, and a contract test pins its exact
+ * keys so a profile field cannot be smuggled in — caller state does not belong in
+ * it. It is also cheaper than the alternative the app started with, which was to
+ * download the Matches list (and presign a photo for every saved profile) to
+ * learn one boolean.
+ */
+export const ShortlistStateSchema = z
+  .object({
+    profile_id: z.string().min(1),
+    shortlisted: z.boolean(),
+    shortlisted_at: z.string().datetime().nullable(),
+  })
+  .strict();
+
+export type ShortlistState = z.infer<typeof ShortlistStateSchema>;
+
+/**
  * One row of the Matches list.
  *
  * `display_name` is null unless an unlock is open. A shortlisted profile is

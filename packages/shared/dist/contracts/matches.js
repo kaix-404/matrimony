@@ -14,7 +14,7 @@
  * quietly grows a field is how a locked profile's name leaks into a list.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.MatchesResponseSchema = exports.MatchCardSchema = exports.ShortlistResultSchema = exports.ShortlistProfileSchema = void 0;
+exports.MatchesResponseSchema = exports.MatchCardSchema = exports.ShortlistStateSchema = exports.ShortlistResultSchema = exports.ShortlistProfileSchema = void 0;
 const zod_1 = require("zod");
 const profile_js_1 = require("./profile.js");
 /** Bookmarks one profile. The id, not the owner's user id — see `BlockProfileSchema`. */
@@ -34,6 +34,23 @@ exports.ShortlistResultSchema = zod_1.z
     .object({
     shortlisted: zod_1.z.literal(true),
     shortlisted_at: zod_1.z.string().datetime(),
+})
+    .strict();
+/**
+ * Whether one profile is bookmarked, for the button on its page.
+ *
+ * Its own route rather than a field on the profile view. The view's payload is
+ * the spec's section 13 / 39 disclosure set, and a contract test pins its exact
+ * keys so a profile field cannot be smuggled in — caller state does not belong in
+ * it. It is also cheaper than the alternative the app started with, which was to
+ * download the Matches list (and presign a photo for every saved profile) to
+ * learn one boolean.
+ */
+exports.ShortlistStateSchema = zod_1.z
+    .object({
+    profile_id: zod_1.z.string().min(1),
+    shortlisted: zod_1.z.boolean(),
+    shortlisted_at: zod_1.z.string().datetime().nullable(),
 })
     .strict();
 /**

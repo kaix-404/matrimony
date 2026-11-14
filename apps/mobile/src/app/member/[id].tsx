@@ -54,15 +54,17 @@ export default function MemberScreen() {
     if (!token || !id) return;
     setError(null);
     try {
-      // The saved state comes from the Matches list, which is the only place the
-      // server reports it. A failure there is not a failure to load the profile,
-      // so it degrades to "not shortlisted" rather than blanking the screen.
-      const [view, matches] = await Promise.all([
+      // Two requests, in parallel: the profile itself, and one indexed lookup
+      // for the button state. Asking the Matches list for that boolean used to
+      // download every saved profile and sign a photo URL for each.
+      const [view, state] = await Promise.all([
         apiClient.viewProfile(id, token),
-        apiClient.getMatches(token).catch(() => null),
+        apiClient.getShortlistState(id, token).catch(() => null),
       ]);
       setProfile(view);
-      setShortlisted(matches?.items.some((item) => item.profile_id === id) ?? false);
+      // A failed lookup leaves the button showing "Shortlist"; tapping it then
+      // adds, which is the safe direction (the server is idempotent either way).
+      setShortlisted(state?.shortlisted ?? false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load this profile.');
     }

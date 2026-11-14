@@ -21,6 +21,7 @@ import type {
   MatchesResponse,
   MyProfile,
   ShortlistResult,
+  ShortlistState,
   NetWorthCategoryOption,
   NetWorthVisibilityPreference,
   NetWorthVisibilityPreferenceState,
@@ -591,6 +592,18 @@ class ApiClient {
   async removeFromShortlist(profileId: string, token: string): Promise<void> {
     await this.fetchJson('shortlist/' + encodeURIComponent(profileId), {
       method: 'DELETE',
+      headers: authHeaders(token),
+    });
+  }
+
+  /**
+   * Whether one profile is bookmarked.
+   *
+   * A single lookup, not the Matches list: the profile page needs one boolean,
+   * and the list signs a photo URL for every saved profile as it answers.
+   */
+  async getShortlistState(profileId: string, token: string): Promise<ShortlistState> {
+    return this.fetchJson('shortlist/' + encodeURIComponent(profileId), {
       headers: authHeaders(token),
     });
   }

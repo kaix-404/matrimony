@@ -216,6 +216,7 @@ function makeService(
       findFirst: async () =>
         opts.pricing === false ? null : { baseAmount: '1000.00', gstRate: 0.18 },
     },
+
   };
 
   const storage = {

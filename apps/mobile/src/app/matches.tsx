@@ -85,20 +85,29 @@ export default function MatchesScreen() {
   }, [load]);
 
   /**
-   * Un-bookmarks from the list itself.
+   * Toggles the bookmark from the row itself.
    *
-   * Only the bookmark can be removed here. An unlock is a payment record with an
-   * expiry, so "removing" it would either lie about what happened or hide a
-   * purchase the member may want the receipt of — it leaves the list when its
-   * window closes.
+   * It is a toggle, not a remove: an unlocked profile that was never bookmarked
+   * arrives here with an outline bookmark, and the icon has to mean what it
+   * shows — tapping it adds. The previous version always deleted, so on those
+   * rows it asked the server to remove a row that did not exist and the icon
+   * never filled in.
+   *
+   * Only the bookmark is touched. An unlock is a payment record with an expiry,
+   * so "removing" it would either lie about what happened or hide a purchase the
+   * member may want the receipt of — it leaves the list when its window closes.
    */
-  const remove = useCallback(
+  const toggle = useCallback(
     async (item: MatchCard) => {
       if (!token) return;
       setBusyId(item.profile_id);
       setError(null);
       try {
-        await apiClient.removeFromShortlist(item.profile_id, token);
+        if (item.is_shortlisted) {
+          await apiClient.removeFromShortlist(item.profile_id, token);
+        } else {
+          await apiClient.addToShortlist(item.profile_id, token);
+        }
         await load();
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Could not update your shortlist.');
@@ -180,7 +189,7 @@ export default function MatchesScreen() {
                   accessibilityLabel={item.is_shortlisted ? 'Remove from shortlist' : 'Shortlist'}
                   hitSlop={8}
                   disabled={busyId === item.profile_id}
-                  onPress={() => void remove(item)}
+                  onPress={() => void toggle(item)}
                 >
                   <Ionicons
                     name={item.is_shortlisted ? 'bookmark' : 'bookmark-outline'}

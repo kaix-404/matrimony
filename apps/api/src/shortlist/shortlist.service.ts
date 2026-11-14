@@ -4,6 +4,7 @@ import {
   type MatchesResponse,
   type PreviewPhoto,
   type ShortlistResult,
+  type ShortlistState,
 } from '@matrimony/shared';
 import { PhotoStatus, PrismaClient } from '../prisma/prisma-client';
 import { StorageService } from '../storage/s3.service';
@@ -88,6 +89,31 @@ export class ShortlistService {
     });
 
     return { shortlisted: true, shortlisted_at: row.createdAt.toISOString() };
+  }
+
+  /**
+   * Whether this caller has bookmarked one profile.
+   *
+   * No visibility guard, deliberately. The answer is `false` both for "you have
+   * not saved it" and for "you cannot see it", so a lookup cannot be used to
+   * confirm that a profile exists; a `true` can only come back for a profile the
+   * caller already saved, which required passing the guard in `add`.
+   *
+   * One indexed read on the unique pair — the profile page used to call the
+   * whole Matches list for this, which signed a photo URL per saved profile on
+   * every open.
+   */
+  async state(viewerId: string, profileId: string): Promise<ShortlistState> {
+    const row = await this.prisma.shortlist.findUnique({
+      where: { userId_profileId: { userId: viewerId, profileId } },
+      select: { createdAt: true },
+    });
+
+    return {
+      profile_id: profileId,
+      shortlisted: row !== null,
+      shortlisted_at: row?.createdAt.toISOString() ?? null,
+    };
   }
 
   /**

@@ -17,12 +17,12 @@ export declare const InterestOptionSchema: z.ZodObject<{
     label: z.ZodString;
     sort_order: z.ZodNumber;
 }, "strict", z.ZodTypeAny, {
-    label: string;
     key: string;
+    label: string;
     sort_order: number;
 }, {
-    label: string;
     key: string;
+    label: string;
     sort_order: number;
 }>;
 export type InterestOption = z.infer<typeof InterestOptionSchema>;
@@ -51,26 +51,26 @@ export declare const ProfileInterestsSchema: z.ZodObject<{
         label: z.ZodString;
         sort_order: z.ZodNumber;
     }, "strict", z.ZodTypeAny, {
-        label: string;
         key: string;
+        label: string;
         sort_order: number;
     }, {
-        label: string;
         key: string;
+        label: string;
         sort_order: number;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     selected: string[];
     available: {
-        label: string;
         key: string;
+        label: string;
         sort_order: number;
     }[];
 }, {
     selected: string[];
     available: {
-        label: string;
         key: string;
+        label: string;
         sort_order: number;
     }[];
 }>;

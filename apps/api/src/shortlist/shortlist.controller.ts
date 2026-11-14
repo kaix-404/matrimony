@@ -5,6 +5,7 @@ import {
   type MatchesResponse,
   type ShortlistProfileRequest,
   type ShortlistResult,
+  type ShortlistState,
 } from '@matrimony/shared';
 import { AuthUser, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
@@ -31,6 +32,15 @@ export class ShortlistController {
     @Body(new ZodValidationPipe(ShortlistProfileSchema)) body: ShortlistProfileRequest,
   ): Promise<ShortlistResult> {
     return this.shortlist.add(claims.sub, body.profile_id);
+  }
+
+  /** Whether this one profile is bookmarked — the profile page's button state. */
+  @Get(':profileId')
+  state(
+    @AuthUser() claims: AccessTokenClaims,
+    @Param('profileId') profileId: string,
+  ): Promise<ShortlistState> {
+    return this.shortlist.state(claims.sub, profileId);
   }
 
   /** 204 on an unknown profile too; see `remove`. */

@@ -35,7 +35,6 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     nakshatra: string | null;
     manglik_status: string | null;
     gender: "MALE" | "FEMALE" | "ANY";
-    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -44,6 +43,7 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_country: string | null;
     preferred_state: string | null;
     preferred_city: string | null;
+    marital_status: string | null;
     updated_at: string;
 }, {
     religion: string | null;
@@ -56,7 +56,6 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     nakshatra: string | null;
     manglik_status: string | null;
     gender: "MALE" | "FEMALE" | "ANY";
-    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -65,6 +64,7 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_country: string | null;
     preferred_state: string | null;
     preferred_city: string | null;
+    marital_status: string | null;
     updated_at: string;
 }>, {
     religion: string | null;
@@ -77,7 +77,6 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     nakshatra: string | null;
     manglik_status: string | null;
     gender: "MALE" | "FEMALE" | "ANY";
-    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -86,6 +85,7 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_country: string | null;
     preferred_state: string | null;
     preferred_city: string | null;
+    marital_status: string | null;
     updated_at: string;
 }, {
     religion: string | null;
@@ -98,7 +98,6 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     nakshatra: string | null;
     manglik_status: string | null;
     gender: "MALE" | "FEMALE" | "ANY";
-    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -107,6 +106,7 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_country: string | null;
     preferred_state: string | null;
     preferred_city: string | null;
+    marital_status: string | null;
     updated_at: string;
 }>, {
     religion: string | null;
@@ -119,7 +119,6 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     nakshatra: string | null;
     manglik_status: string | null;
     gender: "MALE" | "FEMALE" | "ANY";
-    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -128,6 +127,7 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_country: string | null;
     preferred_state: string | null;
     preferred_city: string | null;
+    marital_status: string | null;
     updated_at: string;
 }, {
     religion: string | null;
@@ -140,7 +140,6 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     nakshatra: string | null;
     manglik_status: string | null;
     gender: "MALE" | "FEMALE" | "ANY";
-    marital_status: string | null;
     id: string;
     age_min: number | null;
     age_max: number | null;
@@ -149,6 +148,7 @@ export declare const PartnerPreferenceSchema: z.ZodEffects<z.ZodEffects<z.ZodObj
     preferred_country: string | null;
     preferred_state: string | null;
     preferred_city: string | null;
+    marital_status: string | null;
     updated_at: string;
 }>;
 export type PartnerPreference = z.infer<typeof PartnerPreferenceSchema>;
@@ -609,7 +609,6 @@ export declare const ActiveUnlockSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     profile_id: string;
     unlock_expires_at: string;
-    unlock_id: string;
     display_name: string | null;
     photo: {
         photo_id: string;
@@ -619,13 +618,13 @@ export declare const ActiveUnlockSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
-    unlocked_at: string;
     remaining_ms: number;
+    unlock_id: string;
+    unlocked_at: string;
     is_expired: boolean;
 }, {
     profile_id: string;
     unlock_expires_at: string;
-    unlock_id: string;
     display_name: string | null;
     photo: {
         photo_id: string;
@@ -635,8 +634,9 @@ export declare const ActiveUnlockSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
-    unlocked_at: string;
     remaining_ms: number;
+    unlock_id: string;
+    unlocked_at: string;
     is_expired: boolean;
 }>;
 export type ActiveUnlock = z.infer<typeof ActiveUnlockSchema>;
@@ -737,7 +737,6 @@ export declare const NetWorthCategoryOptionSchema: z.ZodObject<{
     is_discoverable: z.ZodBoolean;
     sort_order: z.ZodNumber;
 }, "strict", z.ZodTypeAny, {
-    sort_order: number;
     key: string;
     label: string;
     description: string;
@@ -746,8 +745,8 @@ export declare const NetWorthCategoryOptionSchema: z.ZodObject<{
     setup_fee_amount: string;
     setup_fee_total: string;
     is_discoverable: boolean;
+    sort_order: number;
 }, {
-    sort_order: number;
     key: string;
     label: string;
     description: string;
@@ -756,6 +755,7 @@ export declare const NetWorthCategoryOptionSchema: z.ZodObject<{
     setup_fee_amount: string;
     setup_fee_total: string;
     is_discoverable: boolean;
+    sort_order: number;
 }>;
 export type NetWorthCategoryOption = z.infer<typeof NetWorthCategoryOptionSchema>;
 /**

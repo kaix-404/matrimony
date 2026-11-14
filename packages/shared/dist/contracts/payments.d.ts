@@ -85,7 +85,6 @@ export declare const PaymentOrderSchema: z.ZodObject<{
     unlock_window_hours: z.ZodOptional<z.ZodNumber>;
     created_at: z.ZodString;
 }, "strict", z.ZodTypeAny, {
-    created_at: string;
     payment_id: string;
     purpose: "UNLOCK" | "SETUP_FEE";
     gateway: "RAZORPAY";
@@ -98,13 +97,13 @@ export declare const PaymentOrderSchema: z.ZodObject<{
         total_amount: string;
         currency: "INR";
     };
+    created_at: string;
     profile?: {
         profile_id: string;
         first_name: string;
     } | undefined;
     unlock_window_hours?: number | undefined;
 }, {
-    created_at: string;
     payment_id: string;
     purpose: "UNLOCK" | "SETUP_FEE";
     gateway: "RAZORPAY";
@@ -117,6 +116,7 @@ export declare const PaymentOrderSchema: z.ZodObject<{
         total_amount: string;
         currency: "INR";
     };
+    created_at: string;
     profile?: {
         profile_id: string;
         first_name: string;
@@ -186,19 +186,18 @@ export declare const PaymentStatusSchema: z.ZodObject<{
     }, "strict", z.ZodTypeAny, {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
         unlock_expires_at: string;
-        unlocked_at: string;
         remaining_ms: number;
+        unlocked_at: string;
     }, {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
         unlock_expires_at: string;
-        unlocked_at: string;
         remaining_ms: number;
+        unlocked_at: string;
     }>>;
     created_at: z.ZodString;
     paid_at: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     status: "CREATED" | "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "PARTIALLY_REFUNDED";
-    created_at: string;
     payment_id: string;
     purpose: "UNLOCK" | "SETUP_FEE";
     amount: {
@@ -208,16 +207,16 @@ export declare const PaymentStatusSchema: z.ZodObject<{
         total_amount: string;
         currency: "INR";
     };
+    created_at: string;
     paid_at: string | null;
     unlock?: {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
         unlock_expires_at: string;
-        unlocked_at: string;
         remaining_ms: number;
+        unlocked_at: string;
     } | undefined;
 }, {
     status: "CREATED" | "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "REFUND_PENDING" | "REFUNDED" | "PARTIALLY_REFUNDED";
-    created_at: string;
     payment_id: string;
     purpose: "UNLOCK" | "SETUP_FEE";
     amount: {
@@ -227,12 +226,13 @@ export declare const PaymentStatusSchema: z.ZodObject<{
         total_amount: string;
         currency: "INR";
     };
+    created_at: string;
     paid_at: string | null;
     unlock?: {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
         unlock_expires_at: string;
-        unlocked_at: string;
         remaining_ms: number;
+        unlocked_at: string;
     } | undefined;
 }>;
 export type PaymentStatusResponse = z.infer<typeof PaymentStatusSchema>;
@@ -256,15 +256,15 @@ export declare const UnlockSummarySchema: z.ZodObject<{
     profile_id: string;
     unlock_expires_at: string;
     display_name: string | null;
-    unlocked_at: string;
     remaining_ms: number;
+    unlocked_at: string;
 }, {
     status: "ACTIVE" | "EXPIRED" | "REVOKED";
     profile_id: string;
     unlock_expires_at: string;
     display_name: string | null;
-    unlocked_at: string;
     remaining_ms: number;
+    unlocked_at: string;
 }>;
 export type UnlockSummary = z.infer<typeof UnlockSummarySchema>;
 export declare const UnlockListResponseSchema: z.ZodObject<{
@@ -280,15 +280,15 @@ export declare const UnlockListResponseSchema: z.ZodObject<{
         profile_id: string;
         unlock_expires_at: string;
         display_name: string | null;
-        unlocked_at: string;
         remaining_ms: number;
+        unlocked_at: string;
     }, {
         status: "ACTIVE" | "EXPIRED" | "REVOKED";
         profile_id: string;
         unlock_expires_at: string;
         display_name: string | null;
-        unlocked_at: string;
         remaining_ms: number;
+        unlocked_at: string;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     items: {
@@ -296,8 +296,8 @@ export declare const UnlockListResponseSchema: z.ZodObject<{
         profile_id: string;
         unlock_expires_at: string;
         display_name: string | null;
-        unlocked_at: string;
         remaining_ms: number;
+        unlocked_at: string;
     }[];
 }, {
     items: {
@@ -305,8 +305,8 @@ export declare const UnlockListResponseSchema: z.ZodObject<{
         profile_id: string;
         unlock_expires_at: string;
         display_name: string | null;
-        unlocked_at: string;
         remaining_ms: number;
+        unlocked_at: string;
     }[];
 }>;
 export type UnlockListResponse = z.infer<typeof UnlockListResponseSchema>;

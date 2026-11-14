@@ -63,6 +63,7 @@ export declare const BlockedProfileSchema: z.ZodObject<{
     }>>;
     blocked_at: z.ZodString;
 }, "strict", z.ZodTypeAny, {
+    profile_id: string;
     photo: {
         photo_id: string;
         url: string;
@@ -71,9 +72,9 @@ export declare const BlockedProfileSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
-    profile_id: string;
     blocked_at: string;
 }, {
+    profile_id: string;
     photo: {
         photo_id: string;
         url: string;
@@ -82,7 +83,6 @@ export declare const BlockedProfileSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
-    profile_id: string;
     blocked_at: string;
 }>;
 export type BlockedProfile = z.infer<typeof BlockedProfileSchema>;
@@ -113,6 +113,7 @@ export declare const BlockedListResponseSchema: z.ZodObject<{
         }>>;
         blocked_at: z.ZodString;
     }, "strict", z.ZodTypeAny, {
+        profile_id: string;
         photo: {
             photo_id: string;
             url: string;
@@ -121,9 +122,9 @@ export declare const BlockedListResponseSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
-        profile_id: string;
         blocked_at: string;
     }, {
+        profile_id: string;
         photo: {
             photo_id: string;
             url: string;
@@ -132,11 +133,11 @@ export declare const BlockedListResponseSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
-        profile_id: string;
         blocked_at: string;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     items: {
+        profile_id: string;
         photo: {
             photo_id: string;
             url: string;
@@ -145,11 +146,11 @@ export declare const BlockedListResponseSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
-        profile_id: string;
         blocked_at: string;
     }[];
 }, {
     items: {
+        profile_id: string;
         photo: {
             photo_id: string;
             url: string;
@@ -158,7 +159,6 @@ export declare const BlockedListResponseSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
-        profile_id: string;
         blocked_at: string;
     }[];
 }>;
@@ -199,6 +199,7 @@ export declare const BlockResultSchema: z.ZodObject<{
         }>>;
         blocked_at: z.ZodString;
     }, "strict", z.ZodTypeAny, {
+        profile_id: string;
         photo: {
             photo_id: string;
             url: string;
@@ -207,9 +208,9 @@ export declare const BlockResultSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
-        profile_id: string;
         blocked_at: string;
     }, {
+        profile_id: string;
         photo: {
             photo_id: string;
             url: string;
@@ -218,11 +219,11 @@ export declare const BlockResultSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
-        profile_id: string;
         blocked_at: string;
     }>;
 }, "strict", z.ZodTypeAny, {
     profile: {
+        profile_id: string;
         photo: {
             photo_id: string;
             url: string;
@@ -231,12 +232,12 @@ export declare const BlockResultSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
-        profile_id: string;
         blocked_at: string;
     };
     blocked: true;
 }, {
     profile: {
+        profile_id: string;
         photo: {
             photo_id: string;
             url: string;
@@ -245,7 +246,6 @@ export declare const BlockResultSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
-        profile_id: string;
         blocked_at: string;
     };
     blocked: true;
@@ -266,13 +266,13 @@ export declare const ReportReasonSchema: z.ZodObject<{
     /** Tells the app to render a free-text box before it can submit. */
     requires_description: z.ZodBoolean;
 }, "strict", z.ZodTypeAny, {
-    code: "OTHER" | "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT";
+    code: "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT" | "OTHER";
     label: string;
     description: string | null;
     reason_id: string;
     requires_description: boolean;
 }, {
-    code: "OTHER" | "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT";
+    code: "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT" | "OTHER";
     label: string;
     description: string | null;
     reason_id: string;
@@ -288,13 +288,13 @@ export declare const ReportReasonListResponseSchema: z.ZodObject<{
         /** Tells the app to render a free-text box before it can submit. */
         requires_description: z.ZodBoolean;
     }, "strict", z.ZodTypeAny, {
-        code: "OTHER" | "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT";
+        code: "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT" | "OTHER";
         label: string;
         description: string | null;
         reason_id: string;
         requires_description: boolean;
     }, {
-        code: "OTHER" | "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT";
+        code: "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT" | "OTHER";
         label: string;
         description: string | null;
         reason_id: string;
@@ -302,7 +302,7 @@ export declare const ReportReasonListResponseSchema: z.ZodObject<{
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     items: {
-        code: "OTHER" | "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT";
+        code: "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT" | "OTHER";
         label: string;
         description: string | null;
         reason_id: string;
@@ -310,7 +310,7 @@ export declare const ReportReasonListResponseSchema: z.ZodObject<{
     }[];
 }, {
     items: {
-        code: "OTHER" | "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT";
+        code: "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT" | "OTHER";
         label: string;
         description: string | null;
         reason_id: string;
@@ -356,16 +356,16 @@ export declare const ReportSummarySchema: z.ZodObject<{
     created_at: z.ZodString;
 }, "strict", z.ZodTypeAny, {
     status: "OPEN" | "IN_REVIEW" | "DISMISSED" | "ACTIONED";
-    created_at: string;
     profile_id: string;
+    created_at: string;
     report_id: string;
-    reason_code: "OTHER" | "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT";
+    reason_code: "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT" | "OTHER";
 }, {
     status: "OPEN" | "IN_REVIEW" | "DISMISSED" | "ACTIONED";
-    created_at: string;
     profile_id: string;
+    created_at: string;
     report_id: string;
-    reason_code: "OTHER" | "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT";
+    reason_code: "FAKE_PROFILE" | "INCORRECT_INFORMATION" | "INAPPROPRIATE_CONTENT" | "INCORRECT_CONTACT" | "HARASSMENT" | "OTHER";
 }>;
 export type ReportSummary = z.infer<typeof ReportSummarySchema>;
 /**
