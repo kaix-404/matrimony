@@ -39,6 +39,9 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
+    "experiments": {
+      "baseUrl": "/app"
+    },
     "extra": {
       "apiBaseUrl": "https://matrimony-api-2bmy.onrender.com/api/v1",
       "router": {

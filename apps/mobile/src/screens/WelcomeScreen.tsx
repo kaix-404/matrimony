@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppShell } from '../components/AppShell';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -51,6 +51,12 @@ export function WelcomeScreen() {
           <Text style={styles.caption}>
             New here? The same screen creates an account with your mobile number.
           </Text>
+          {Platform.OS === 'web' ? (
+            <Text style={styles.webNote}>
+              You are on the web version. For the best experience use the phone app: notifications,
+              photos straight from your camera roll, and a session kept in the device keystore.
+            </Text>
+          ) : null}
         </View>
       </View>
     </AppShell>
@@ -110,5 +116,13 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  webNote: {
+    ...typography.caption,
+    color: colors.textMuted,
+    textAlign: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+    paddingTop: spacing.md,
   },
 });

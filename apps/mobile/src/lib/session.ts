@@ -10,10 +10,12 @@ import type { TokenPair } from '@matrimony/shared';
  * plaintext and reachable from a backup). Expo's `SecureStore` is a thin
  * wrapper over Keychain on iOS and EncryptedSharedPreferences on Android.
  *
- * On web there is no keystore — `SecureStore` reports unavailable — so a
- * module-level fallback keeps the session for the tab's lifetime. Web is a
- * development target here, not a shipping one, and silently doing nothing would
- * make the sign-in flow appear broken during local testing.
+ * On web there is no keystore — `SecureStore` reports unavailable. The exported
+ * app is served as the website, so a browser session is stored in
+ * `localStorage` instead: without it every reload signed the member out, which
+ * is exactly what a website is not allowed to do. `localStorage` is readable by
+ * any script on the origin, so this is weaker than the keystore, and the app says
+ * so — the phone is the better place to stay signed in.
  */
 
 const SESSION_KEY = 'networth-matrimony.session';
@@ -52,6 +54,30 @@ export function sessionExpiresAt(session: StoredSession): number {
 
 let memoryFallback: StoredSession | null = null;
 
+/** The slice of `Storage` this module uses, so it does not need the DOM lib. */
+interface WebStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+  removeItem(key: string): void;
+}
+
+/**
+ * `localStorage` on web, or null everywhere else.
+ *
+ * The storage object itself is the test: the native runtime has no
+ * `localStorage`, and this module is unit tested without a React Native
+ * transform, so it cannot ask `Platform.OS`.
+ */
+function webStorage(): WebStorage | null {
+  try {
+    const store = (globalThis as { localStorage?: WebStorage }).localStorage;
+    return store ?? null;
+  } catch {
+    // Private-mode Safari and a site with storage disabled both throw on access.
+    return null;
+  }
+}
+
 function isStoredSession(value: unknown): value is StoredSession {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Record<string, unknown>;
@@ -79,6 +105,18 @@ export function toStoredSession(tokens: TokenPair, now: number = Date.now()): St
 }
 
 export async function loadSession(): Promise<StoredSession | null> {
+  const store = webStorage();
+  if (store !== null) {
+    try {
+      const raw = store.getItem(SESSION_KEY);
+      if (raw === null) return memoryFallback;
+      const parsed: unknown = JSON.parse(raw);
+      return isStoredSession(parsed) ? parsed : null;
+    } catch {
+      return memoryFallback;
+    }
+  }
+
   try {
     if (!(await SecureStore.isAvailableAsync())) {
       return memoryFallback;
@@ -97,6 +135,16 @@ export async function loadSession(): Promise<StoredSession | null> {
 
 export async function saveSession(session: StoredSession): Promise<void> {
   memoryFallback = session;
+  const store = webStorage();
+  if (store !== null) {
+    try {
+      store.setItem(SESSION_KEY, JSON.stringify(session));
+    } catch {
+      // Quota or a blocked write: the in-memory fallback still carries this run.
+    }
+    return;
+  }
+
   try {
     if (await SecureStore.isAvailableAsync()) {
       await SecureStore.setItemAsync(SESSION_KEY, JSON.stringify(session));
@@ -109,6 +157,16 @@ export async function saveSession(session: StoredSession): Promise<void> {
 
 export async function clearSession(): Promise<void> {
   memoryFallback = null;
+  const store = webStorage();
+  if (store !== null) {
+    try {
+      store.removeItem(SESSION_KEY);
+    } catch {
+      // Nothing useful to do: the fallback is already cleared.
+    }
+    return;
+  }
+
   try {
     if (await SecureStore.isAvailableAsync()) {
       await SecureStore.deleteItemAsync(SESSION_KEY);

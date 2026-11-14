@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +20,60 @@ const POLL_INTERVAL_MS = 2_000;
 const MAX_POLLS = 12;
 
 type Phase = 'checkout' | 'verifying' | 'confirmed' | 'pending' | 'failed';
+
+/**
+ * The web build renders in a browser, where `react-native-webview` has no
+ * implementation: a WebView here would show a blank panel.
+ *
+ * `document` is the test, not `Platform.OS`, because this file is bundled for
+ * both and the browser is the only platform that has one.
+ */
+const isBrowser = typeof document !== 'undefined';
+
+const RAZORPAY_SRC = 'https://checkout.razorpay.com/v1/checkout.js';
+
+interface RazorpayOutcome {
+  error?: { description?: string };
+}
+
+interface RazorpayInstance {
+  open(): void;
+  on(event: string, handler: (response: RazorpayOutcome) => void): void;
+}
+
+/** The global the gateway's script installs. */
+interface RazorpayWindow {
+  Razorpay?: new (options: Record<string, unknown>) => RazorpayInstance;
+}
+
+let razorpayScript: Promise<boolean> | null = null;
+
+/**
+ * Loads Razorpay's checkout script into the page, once.
+ *
+ * The native path ships the same script inside the WebView's HTML; a browser has
+ * to inject it instead, and memoising the promise keeps a re-render from adding
+ * a second copy of it — which would redefine `window.Razorpay` mid-checkout.
+ */
+function loadRazorpayScript(): Promise<boolean> {
+  if (!isBrowser) return Promise.resolve(false);
+  if (razorpayScript) return razorpayScript;
+
+  razorpayScript = new Promise<boolean>((resolve) => {
+    if ((window as unknown as RazorpayWindow).Razorpay) {
+      resolve(true);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = RAZORPAY_SRC;
+    script.async = true;
+    script.addEventListener('load', () => resolve(true));
+    script.addEventListener('error', () => resolve(false));
+    document.head.appendChild(script);
+  });
+
+  return razorpayScript;
+}
 
 /** Why this order exists; decides the copy and where a success returns to. */
 type Purpose = 'UNLOCK' | 'SETUP_FEE';
@@ -59,18 +113,20 @@ export default function CheckoutScreen() {
 
   const missing = !paymentId || !orderId || !keyId || !Number.isFinite(amountMinor);
 
+  const description =
+    purpose === 'SETUP_FEE'
+      ? 'One-time account setup fee'
+      : `Unlock contact with ${params.name ?? ''}`.trim();
+
   const html = useMemo(() => {
     if (missing) return '';
     return checkoutHtml({
       keyId: keyId as string,
       orderId: orderId as string,
       amountMinor,
-      description:
-        purpose === 'SETUP_FEE'
-          ? 'One-time account setup fee'
-          : `Unlock contact with ${params.name ?? ''}`.trim(),
+      description,
     });
-  }, [missing, keyId, orderId, amountMinor, params.name, purpose]);
+  }, [missing, keyId, orderId, amountMinor, description]);
 
   /**
    * Where a finished payment returns to. A setup fee is not tied to a member,
@@ -154,6 +210,62 @@ export default function CheckoutScreen() {
     }
   }, [missing]);
 
+  /** Opens the gateway in the page itself, the way a browser expects. */
+  const openedInBrowser = useRef(false);
+
+  useEffect(() => {
+    if (!isBrowser || missing || openedInBrowser.current) return;
+    openedInBrowser.current = true;
+
+    let cancelled = false;
+    void (async () => {
+      const ready = await loadRazorpayScript();
+      if (cancelled) return;
+
+      const Gateway = (window as unknown as RazorpayWindow).Razorpay;
+      if (!ready || !Gateway) {
+        setPhase('failed');
+        setMessage('Could not open the payment page.');
+        return;
+      }
+
+      try {
+        const checkout = new Gateway({
+          key: keyId,
+          order_id: orderId,
+          amount: String(amountMinor),
+          currency: 'INR',
+          name: 'Networth Matrimony',
+          description,
+          theme: { color: colors.primary },
+          // Same contract as the WebView path: the client never decides that a
+          // payment succeeded, it only asks the server to reconcile.
+          handler: () => {
+            void verify();
+          },
+          modal: {
+            ondismiss: () => {
+              setPhase('failed');
+              setMessage('Checkout was closed before payment.');
+            },
+          },
+        });
+        checkout.on('payment.failed', (response) => {
+          setPhase('failed');
+          setMessage(response.error?.description ?? 'The payment failed.');
+        });
+        checkout.open();
+      } catch (error) {
+        setPhase('failed');
+        setMessage(error instanceof Error ? error.message : 'Could not open the payment page.');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [missing, keyId, orderId, amountMinor, description, verify]);
+
   return (
     <AppShell>
       <View style={[styles.root, { paddingTop: insets.top }]}>
@@ -162,16 +274,23 @@ export default function CheckoutScreen() {
           onBack={() => router.back()}
         />
         {phase === 'checkout' && !missing ? (
-          <WebView
-            originWhitelist={['*']}
-            source={{ html }}
-            onMessage={onMessage}
-            style={styles.web}
-            onError={() => {
-              setPhase('failed');
-              setMessage('Could not open the payment page.');
-            }}
-          />
+          isBrowser ? (
+            <View style={styles.body}>
+              <ActivityIndicator color={colors.primary} />
+              <Text style={styles.text}>Opening secure checkout…</Text>
+            </View>
+          ) : (
+            <WebView
+              originWhitelist={['*']}
+              source={{ html }}
+              onMessage={onMessage}
+              style={styles.web}
+              onError={() => {
+                setPhase('failed');
+                setMessage('Could not open the payment page.');
+              }}
+            />
+          )
         ) : (
           <View style={styles.body}>
             {phase === 'verifying' ? (

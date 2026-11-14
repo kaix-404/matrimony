@@ -169,6 +169,23 @@
         font-weight: 600;
       }
 
+      .phone-note {
+        margin-top: 30px;
+        max-width: 62ch;
+        padding: 18px 20px;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--primary);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.75);
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .phone-note strong {
+        color: var(--ink-strong);
+        font-weight: 650;
+      }
+
       /* ----------------------------------------------------------- promises */
       .points {
         padding-block: clamp(40px, 7vw, 72px);
@@ -252,7 +269,7 @@
           <span class="mark" aria-hidden="true">NM</span>
           Networth Matrimony
         </a>
-        <a class="btn btn-primary" href="networth-matrimony://auth">Sign in</a>
+        <a class="btn btn-primary" href="/app/auth">Sign in</a>
       </div>
     </header>
 
@@ -266,14 +283,19 @@
             shared only when both sides agree.
           </p>
           <div class="cta-row">
-            <a class="btn btn-primary" id="signin" href="networth-matrimony://auth"
-              >Sign in to continue</a
-            >
-            <span class="cta-note" id="signin-note">
-              Opens the <strong>Networth Matrimony</strong> app. New here? You can create an account
-              from the same screen.
+            <a class="btn btn-primary" href="/app/auth">Sign in to continue</a>
+            <span class="cta-note">
+              Opens the member app in your browser. New here? You can create an account from the same
+              screen.
             </span>
           </div>
+
+          <p class="phone-note">
+            <strong>Best experience is on your phone.</strong> The web app does everything the mobile
+            app does, but the phone is where it belongs: push notifications for messages and unlocks,
+            photos straight from your camera roll, and a signed-in session kept in your device's
+            keystore instead of the browser's.
+          </p>
         </div>
       </section>
 
@@ -314,24 +336,5 @@
       </div>
     </footer>
 
-    <script>
-      /*
-       * Sign-in is a deep link into the app, because that is where the member
-       * session lives: the sign-in screen asks for a mobile number and the code
-       * sent to it, and a web page has no session to hand over.
-       *
-       * A deep link does nothing on a desktop with no app installed, and silently
-       * doing nothing is the worst answer, so the note under the button says what
-       * should have happened once the click has had a moment to take effect.
-       */
-      document.getElementById('signin').addEventListener('click', function () {
-        var note = document.getElementById('signin-note');
-        setTimeout(function () {
-          if (document.hidden) return;
-          note.textContent =
-            'If nothing opened, the app is not installed on this device yet — it is still being prepared for the App Store and Google Play. Open this page on your phone.';
-        }, 1200);
-      });
-    </script>
   </body>
 </html>

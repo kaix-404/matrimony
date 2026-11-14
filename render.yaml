@@ -199,21 +199,45 @@ services:
         - '**/*.test.ts'
         - '**/*.md'
 
-  # --- Landing Page ---------------------------------------------------------
+  # --- Website (landing page + the member app on web) -----------------------
+  # One origin, three paths: `/` is the landing page, `/app` is the Expo web
+  # build of the mobile app, and `/api` is proxied to the Nest service so the
+  # browser app never needs a CORS entry (the API's origin list stays limited to
+  # the admin console). See landing/server.js for the routing.
+  #
+  # The build is `npm ci` plus the export because the app is built from source
+  # here, exactly as the mobile build does — same screens, same API calls.
   - type: web
     name: matrimony-landing
     env: node
     region: singapore
     plan: free
     runtime: node
-    buildCommand: echo "no build"
+    buildCommand: npm ci --include=dev && npm run export:web -w @matrimony/mobile
     startCommand: node landing/server.js
     envVars:
       - key: NODE_ENV
         value: production
+      # Where `/api/*` is forwarded. Declared here so a replaced service still
+      # knows it, and so a preview host can be pointed elsewhere.
+      - key: API_ORIGIN
+        value: 'https://matrimony-api-2bmy.onrender.com'
     healthCheckPath: /
     autoDeploy: true
     rootDirectory: .
+    # The export is the slow part; only rebuild when something it contains or
+    # serves has changed.
+    buildFilter:
+      paths:
+        - apps/mobile/**
+        - packages/shared/**
+        - landing/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+      ignoredPaths:
+        - '**/*.test.ts'
+        - '**/*.md'
 
   # --- Mobile App (Expo) ----------------------------------------------------
   # The mobile app is an Expo/React Native app. It is NOT deployed as a

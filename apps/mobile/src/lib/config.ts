@@ -26,6 +26,18 @@ export function resolveApiBaseUrl(
 }
 
 function getApiBaseUrl(): string {
+  // A browser build is served from the same origin as the landing page, and that
+  // origin proxies `/api` to the API (`landing/server.js`). Asking for the API
+  // relatively means the web app needs no CORS entry of its own, and it keeps
+  // working on whatever hostname the site is deployed to. An explicit
+  // `EXPO_PUBLIC_API_BASE_URL` still wins, which is what points `expo start
+  // --web` at a local API.
+  //
+  // `document` rather than `Platform.OS`: this module is plain logic and unit
+  // tested, and the test runner has no React Native transform. A browser has a
+  // `document`; the native runtime does not.
+  if (typeof document !== 'undefined' && !EXPO_PUBLIC_API_BASE_URL) return '/api/v1';
+
   const extra = (Constants.expoConfig?.extra ?? {}) as ExpoExtra;
   return resolveApiBaseUrl(EXPO_PUBLIC_API_BASE_URL, extra.apiBaseUrl);
 }
