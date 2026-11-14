@@ -1,327 +1,337 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Networth Matrimony — Find Your Match</title>
-  <meta name="description" content="Networth Matrimony helps you find meaningful connections based on shared values and life goals." />
-  <meta name="theme-color" content="#FF5A43" />
-  <link rel="icon" type="image/png" href="favicon.png" />
-  <style>
-    :root {
-      --primary: #FF5A43;
-      --primary-deep: #B83280;
-      --bg: #FFFFFF;
-      --surface: #F4F4F6;
-      --surface-alt: #F8F9FB;
-      --text: #1C1917;
-      --text-strong: #2C2724;
-      --text-muted: #8E8E93;
-      --radius: 24px;
-      --shadow: 0 8px 32px rgba(28, 25, 23, 0.08);
-    }
-
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-    }
-
-    .hero {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 24px;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%);
-      color: white;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .hero::before {
-      content: '';
-      position: absolute;
-      top: -50%;
-      left: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle at 30% 40%, rgba(255,255,255,0.15) 0%, transparent 50%);
-      pointer-events: none;
-    }
-
-    .hero-content {
-      position: relative;
-      z-index: 1;
-      max-width: 520px;
-    }
-
-    .hero h1 {
-      font-size: clamp(2.2rem, 6vw, 3.5rem);
-      font-weight: 800;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
-      line-height: 1.1;
-    }
-
-    .hero p {
-      font-size: 1.15rem;
-      opacity: 0.9;
-      margin-bottom: 32px;
-      line-height: 1.5;
-    }
-
-    .hero-phone {
-      width: 280px;
-      height: 560px;
-      background: rgba(255,255,255,0.12);
-      border-radius: 40px;
-      border: 3px solid rgba(255,255,255,0.25);
-      backdrop-filter: blur(20px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin: 0 auto 32px;
-      position: relative;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    }
-
-    .hero-phone::after {
-      content: '';
-      position: absolute;
-      bottom: 8px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 120px;
-      height: 6px;
-      background: rgba(255,255,255,0.3);
-      border-radius: 3px;
-    }
-
-    .hero-phone-inner {
-      text-align: center;
-      opacity: 0.9;
-      font-size: 0.9rem;
-      letter-spacing: 0.05em;
-    }
-
-    .btn-group {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 14px 28px;
-      border-radius: 100px;
-      font-size: 1rem;
-      font-weight: 600;
-      text-decoration: none;
-      transition: transform 0.15s, box-shadow 0.15s;
-      cursor: pointer;
-      border: none;
-    }
-
-    .btn-primary {
-      background: white;
-      color: var(--primary);
-      box-shadow: var(--shadow);
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 12px 40px rgba(0,0,0,0.15);
-    }
-
-    .btn-secondary {
-      background: rgba(255,255,255,0.15);
-      color: white;
-      border: 1px solid rgba(255,255,255,0.3);
-      backdrop-filter: blur(10px);
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255,255,255,0.25);
-      transform: translateY(-2px);
-    }
-
-    .features {
-      padding: 80px 24px;
-      max-width: 900px;
-      margin: 0 auto;
-    }
-
-    .features h2 {
-      text-align: center;
-      font-size: 1.8rem;
-      font-weight: 700;
-      margin-bottom: 48px;
-      color: var(--text-strong);
-    }
-
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 24px;
-    }
-
-    .feature-card {
-      background: var(--surface);
-      border-radius: var(--radius);
-      padding: 28px;
-      box-shadow: var(--shadow);
-    }
-
-    .feature-card .icon {
-      width: 48px;
-      height: 48px;
-      background: linear-gradient(135deg, var(--primary), var(--primary-deep));
-      border-radius: 14px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      margin-bottom: 16px;
-      font-size: 1.4rem;
-    }
-
-    .feature-card h3 {
-      font-size: 1.1rem;
-      font-weight: 600;
-      margin-bottom: 8px;
-      color: var(--text-strong);
-    }
-
-    .feature-card p {
-      font-size: 0.92rem;
-      color: var(--text-muted);
-      line-height: 1.5;
-    }
-
-    .download-section {
-      padding: 60px 24px 80px;
-      background: var(--surface-alt);
-      text-align: center;
-    }
-
-    .download-section h2 {
-      font-size: 1.6rem;
-      font-weight: 700;
-      margin-bottom: 16px;
-      color: var(--text-strong);
-    }
-
-    .download-section p {
-      color: var(--text-muted);
-      margin-bottom: 32px;
-      max-width: 480px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-
-    .qr-box {
-      display: inline-block;
-      background: white;
-      border-radius: var(--radius);
-      padding: 24px;
-      box-shadow: var(--shadow);
-      margin-bottom: 24px;
-    }
-
-    .qr-box img {
-      width: 200px;
-      height: 200px;
-      display: block;
-      margin: 0 auto;
-    }
-
-    .qr-box p {
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      margin-top: 12px;
-    }
-
-    .footer {
-      padding: 32px 24px;
-      text-align: center;
-      color: var(--text-muted);
-      font-size: 0.85rem;
-      border-top: 1px solid var(--surface);
-    }
-
-    @media (max-width: 480px) {
-      .hero-phone {
-        width: 220px;
-        height: 440px;
-        border-radius: 30px;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Networth Matrimony</title>
+    <meta
+      name="description"
+      content="Networth Matrimony — a matrimony service for families who want to know the person behind the profile. Verified members, mutual visibility, and contact details shared only by consent."
+    />
+    <meta name="theme-color" content="#FF5A43" />
+    <style>
+      :root {
+        --primary: #ff5a43;
+        --primary-deep: #b83280;
+        --ink: #1c1917;
+        --ink-strong: #2c2724;
+        --muted: #6b6560;
+        --line: #e9e4e1;
+        --surface: #faf8f7;
+        --radius: 20px;
       }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        color: var(--ink);
+        background: #fff;
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .wrap {
+        width: min(1040px, 100% - 48px);
+        margin-inline: auto;
+      }
+
+      /* ---------------------------------------------------------------- nav */
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(255, 255, 255, 0.92);
+        border-bottom: 1px solid var(--line);
+        backdrop-filter: saturate(180%) blur(12px);
+      }
+
+      .topbar-inner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding-block: 14px;
+      }
+
+      .wordmark {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 800;
+        letter-spacing: -0.015em;
+        font-size: 1.05rem;
+        color: var(--ink-strong);
+        text-decoration: none;
+      }
+
+      .mark {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 11px;
+        background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+        color: #fff;
+        font-size: 0.85rem;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      /* --------------------------------------------------------------- hero */
+      .hero {
+        padding-block: clamp(56px, 11vw, 112px) clamp(48px, 9vw, 88px);
+        background:
+          radial-gradient(circle at 15% 12%, rgba(255, 90, 67, 0.13), transparent 45%),
+          radial-gradient(circle at 88% 8%, rgba(184, 50, 128, 0.12), transparent 42%);
+      }
+
+      .hero h1 {
+        font-size: clamp(2.4rem, 7vw, 4rem);
+        line-height: 1.05;
+        letter-spacing: -0.03em;
+        font-weight: 800;
+        color: var(--ink-strong);
+        max-width: 16ch;
+      }
+
+      .hero .accent {
+        background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+
+      .hero p {
+        margin-top: 20px;
+        font-size: clamp(1.02rem, 2.4vw, 1.2rem);
+        color: var(--muted);
+        max-width: 56ch;
+      }
+
+      .cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 16px;
+        margin-top: 34px;
+      }
+
       .btn {
-        padding: 12px 20px;
-        font-size: 0.9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 15px 30px;
+        border-radius: 999px;
+        font-size: 1rem;
+        font-weight: 650;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition:
+          transform 0.15s ease,
+          box-shadow 0.15s ease,
+          background-color 0.15s ease;
       }
-    }
-  </style>
-</head>
-<body>
-  <section class="hero">
-    <div class="hero-content">
-      <div class="hero-phone">
-        <div class="hero-phone-inner">📱<br/>Networth<br/>Matrimony</div>
-      </div>
-      <h1>Find Your Match</h1>
-      <p>Connect with people who share your values, lifestyle, and vision for the future.</p>
-      <div class="btn-group">
-        <a href="#download" class="btn btn-primary">Get the App</a>
-        <a href="#features" class="btn btn-secondary">Learn More</a>
-      </div>
-    </div>
-  </section>
 
-  <section class="features" id="features">
-    <h2>Why Networth Matrimony?</h2>
-    <div class="features-grid">
-      <div class="feature-card">
-        <div class="icon">💰</div>
-        <h3>Net Worth Compatibility</h3>
-        <p>Match based on financial compatibility and shared economic goals — because money matters in relationships.</p>
-      </div>
-      <div class="feature-card">
-        <div class="icon">🔒</div>
-        <h3>Privacy First</h3>
-        <p>Your profile and data stay private. You control who sees what, with end-to-end encrypted communications.</p>
-      </div>
-      <div class="feature-card">
-        <div class="icon">📱</div>
-        <h3>Simple & Intuitive</h3>
-        <p>Built with a clean, modern design. Find your match without complexity — just open the app and start exploring.</p>
-      </div>
-    </div>
-  </section>
+      .btn-primary {
+        background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+        color: #fff;
+        box-shadow: 0 10px 26px rgba(184, 50, 128, 0.25);
+      }
 
-  <section class="download-section" id="download">
-    <h2>Coming Soon</h2>
-    <p>Networth Matrimony will be available on the App Store and Google Play. Join the waitlist to get early access.</p>
-    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-      <a href="#" class="btn btn-primary" onclick="alert('App Store link coming soon');return false;">
-        Apple App Store
-      </a>
-      <a href="#" class="btn btn-secondary" onclick="alert('Google Play link coming soon');return false;">
-        Google Play
-      </a>
-    </div>
-  </section>
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 14px 32px rgba(184, 50, 128, 0.3);
+      }
 
-  <footer class="footer">
-    <p>&copy; 2026 Networth Matrimony. All rights reserved.</p>
-  </footer>
-</body>
+      .btn:focus-visible,
+      .wordmark:focus-visible {
+        outline: 3px solid rgba(255, 90, 67, 0.55);
+        outline-offset: 3px;
+      }
+
+      .cta-note {
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+
+      .cta-note strong {
+        color: var(--ink-strong);
+        font-weight: 600;
+      }
+
+      /* ----------------------------------------------------------- promises */
+      .points {
+        padding-block: clamp(40px, 7vw, 72px);
+        border-top: 1px solid var(--line);
+        background: var(--surface);
+      }
+
+      .points h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: var(--ink-strong);
+        max-width: 30ch;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 18px;
+        margin-top: 32px;
+      }
+
+      .point {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 24px;
+      }
+
+      .point h3 {
+        font-size: 1rem;
+        font-weight: 650;
+        color: var(--ink-strong);
+        margin-bottom: 8px;
+      }
+
+      .point p {
+        font-size: 0.93rem;
+        color: var(--muted);
+      }
+
+      /* ------------------------------------------------------------- footer */
+      .footer {
+        padding-block: 28px;
+        border-top: 1px solid var(--line);
+      }
+
+      .footer-inner {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+        color: var(--muted);
+      }
+
+      .footer a {
+        color: var(--muted);
+        text-decoration: none;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .footer a:hover {
+        color: var(--ink-strong);
+        border-color: var(--ink-strong);
+      }
+
+      @media (max-width: 560px) {
+        .cta-row .btn {
+          width: 100%;
+          justify-content: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="wrap topbar-inner">
+        <a class="wordmark" href="/">
+          <span class="mark" aria-hidden="true">NM</span>
+          Networth Matrimony
+        </a>
+        <a class="btn btn-primary" href="networth-matrimony://auth">Sign in</a>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div class="wrap">
+          <h1>Networth Matrimony <span class="accent">starts with who you are.</span></h1>
+          <p>
+            A matrimony service for families who want to know the person behind the profile.
+            Identity-verified members, financial compatibility stated up front, and contact details
+            shared only when both sides agree.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" id="signin" href="networth-matrimony://auth"
+              >Sign in to continue</a
+            >
+            <span class="cta-note" id="signin-note">
+              Opens the <strong>Networth Matrimony</strong> app. New here? You can create an account
+              from the same screen.
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section class="points">
+        <div class="wrap">
+          <h2>What a member is asked for, and what nobody can see without consent.</h2>
+          <div class="grid">
+            <div class="point">
+              <h3>Identity first</h3>
+              <p>
+                Aadhaar-based verification through DigiLocker before a profile becomes discoverable,
+                with your consent recorded before the check runs.
+              </p>
+            </div>
+            <div class="point">
+              <h3>Compatibility, stated plainly</h3>
+              <p>
+                Your family's net-worth band is part of your profile from the start, so the people
+                you meet are already in the same conversation.
+              </p>
+            </div>
+            <div class="point">
+              <h3>Visibility is yours</h3>
+              <p>
+                Discovery is mutual: a member appears to you only if you appear to them. Phone and
+                email stay hidden until a contact unlock is bought or granted.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-inner">
+        <span>&copy; 2026 Networth Matrimony. All rights reserved.</span>
+        <span>Member support is available from the Help screen in the app.</span>
+      </div>
+    </footer>
+
+    <script>
+      /*
+       * Sign-in is a deep link into the app, because that is where the member
+       * session lives: the sign-in screen asks for a mobile number and the code
+       * sent to it, and a web page has no session to hand over.
+       *
+       * A deep link does nothing on a desktop with no app installed, and silently
+       * doing nothing is the worst answer, so the note under the button says what
+       * should have happened once the click has had a moment to take effect.
+       */
+      document.getElementById('signin').addEventListener('click', function () {
+        var note = document.getElementById('signin-note');
+        setTimeout(function () {
+          if (document.hidden) return;
+          note.textContent =
+            'If nothing opened, the app is not installed on this device yet — it is still being prepared for the App Store and Google Play. Open this page on your phone.';
+        }, 1200);
+      });
+    </script>
+  </body>
 </html>
