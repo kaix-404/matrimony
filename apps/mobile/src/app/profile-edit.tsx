@@ -2,13 +2,23 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
+  FAMILY_STATUSES,
+  FAMILY_TYPES,
+  FAMILY_VALUES,
   GENDERS,
+  FOOD_OPTIONS,
+  HOBBY_OPTIONS,
+  KUJA_DOSHAM_VALUES,
   MARITAL_STATUSES,
+  MUSIC_OPTIONS,
+  PHYSICAL_STATUSES,
+  SPORTS_OPTIONS,
   type MasterList,
   type MasterListsResponse,
   type MyProfile,
   type UpdateProfileInput,
 } from '@matrimony/shared';
+import { CheckboxList } from '../components/CheckboxList';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { SelectField } from '../components/SelectField';
@@ -37,6 +47,36 @@ const MARITAL_LABELS: Record<string, string> = {
   DIVORCED: 'Divorced',
   WIDOWED: 'Widowed',
   AWAITING_DIVORCE: 'Awaiting divorce',
+};
+
+/** The client's option sets, stored as keys and shown as the words in their PDF. */
+const PHYSICAL_LABELS: Record<string, string> = {
+  NORMAL: 'Normal',
+  PHYSICALLY_CHALLENGED: 'Physically challenged',
+};
+
+const KUJA_LABELS: Record<string, string> = {
+  YES: 'Yes',
+  NO: 'No',
+  DONT_KNOW: "Don't know",
+};
+
+const FAMILY_VALUE_LABELS: Record<string, string> = {
+  ORTHODOX: 'Orthodox',
+  TRADITIONAL: 'Traditional',
+  MODERATE: 'Moderate',
+  LIBERAL: 'Liberal',
+};
+
+const FAMILY_TYPE_LABELS: Record<string, string> = {
+  JOINT: 'Joint family',
+  NUCLEAR: 'Nuclear family',
+};
+
+const FAMILY_STATUS_LABELS: Record<string, string> = {
+  MIDDLE_CLASS: 'Middle class',
+  UPPER_MIDDLE_CLASS: 'Upper middle class',
+  RICH_AFFLUENT: 'Rich / Affluent',
 };
 
 /** Every free-text field the owner may edit, and how it maps to the API. */
@@ -85,6 +125,12 @@ export default function ProfileEditScreen() {
   const [lists, setLists] = useState<MasterListsResponse['lists']>([]);
   const [initial, setInitial] = useState<Record<string, string> | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
+  /**
+   * The multi-select answers, held apart from `form` because a chip group edits a
+   * set, not a string. Both halves are diffed against a pristine copy on save.
+   */
+  const [multi, setMulti] = useState<Record<string, string[]>>({});
+  const [initialMulti, setInitialMulti] = useState<Record<string, string[]> | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -97,10 +143,13 @@ export default function ProfileEditScreen() {
         apiClient.getMasterLists(),
       ]);
       const snapshot = toForm(mine, master.lists);
+      const listsSnapshot = toLists(mine);
       setProfile(mine);
       setLists(master.lists);
       setInitial(snapshot);
       setForm(snapshot);
+      setInitialMulti(listsSnapshot);
+      setMulti(listsSnapshot);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load your profile.');
     }
@@ -135,7 +184,7 @@ export default function ProfileEditScreen() {
 
   const dobValid = /^\d{4}-\d{2}-\d{2}$/.test(form.dateOfBirth ?? '');
   const nameValid = (form.firstName ?? '').trim().length > 0;
-  const changes = buildPatch(form, initial);
+  const changes = buildPatch(form, initial, multi, initialMulti);
 
   async function save() {
     if (!token || !changes) return;
@@ -144,9 +193,12 @@ export default function ProfileEditScreen() {
     try {
       const updated = await apiClient.updateProfile(changes, token);
       const snapshot = toForm(updated, lists);
+      const listsSnapshot = toLists(updated);
       setProfile(updated);
       setInitial(snapshot);
       setForm(snapshot);
+      setInitialMulti(listsSnapshot);
+      setMulti(listsSnapshot);
       await refreshUser();
       router.back();
     } catch (e) {
@@ -249,6 +301,19 @@ export default function ProfileEditScreen() {
           keyboardType="number-pad"
           maxLength={3}
         />
+        <TextField
+          label="Weight (kg, optional)"
+          value={form.weightKg ?? ''}
+          onChangeText={(v) => set('weightKg', v.replace(/[^0-9]/g, ''))}
+          keyboardType="number-pad"
+          maxLength={3}
+        />
+        <SelectField
+          label="Physical status"
+          options={labelled(PHYSICAL_STATUSES, PHYSICAL_LABELS)}
+          value={form.physicalStatus || null}
+          onChange={(v) => set('physicalStatus', v ?? '')}
+        />
         <SelectField
           label="Marital status"
           options={MARITAL_STATUSES.map((m) => ({ value: m, label: MARITAL_LABELS[m] ?? m }))}
@@ -299,6 +364,19 @@ export default function ProfileEditScreen() {
             maxLength={spec.maxLength}
           />
         ))}
+        <Checklist
+          label="Languages known"
+          hint="Pick every language you can hold a conversation in."
+          options={textOptions(motherTongueList).map((option) => option.value)}
+          selected={multi.languagesKnown ?? []}
+          onChange={(next) => setMulti((prev) => ({ ...prev, languagesKnown: next }))}
+        />
+        <SelectField
+          label="Kuja dosham"
+          options={labelled(KUJA_DOSHAM_VALUES, KUJA_LABELS)}
+          value={form.manglikStatus || null}
+          onChange={(v) => set('manglikStatus', v ?? '')}
+        />
       </Section>
 
       <Section title="Education and work">
@@ -327,6 +405,33 @@ export default function ProfileEditScreen() {
         )}
       </Section>
 
+      <Section title="Hobbies and interests">
+        <Checklist
+          label="Hobbies and interests"
+          options={HOBBY_OPTIONS}
+          selected={multi.hobbies ?? []}
+          onChange={(next) => setMulti((prev) => ({ ...prev, hobbies: next }))}
+        />
+        <Checklist
+          label="Favourite music"
+          options={MUSIC_OPTIONS}
+          selected={multi.favouriteMusic ?? []}
+          onChange={(next) => setMulti((prev) => ({ ...prev, favouriteMusic: next }))}
+        />
+        <Checklist
+          label="Sports you like"
+          options={SPORTS_OPTIONS}
+          selected={multi.sports ?? []}
+          onChange={(next) => setMulti((prev) => ({ ...prev, sports: next }))}
+        />
+        <Checklist
+          label="Favourite food"
+          options={FOOD_OPTIONS}
+          selected={multi.favouriteFood ?? []}
+          onChange={(next) => setMulti((prev) => ({ ...prev, favouriteFood: next }))}
+        />
+      </Section>
+
       <Section title="Family">
         {TEXT_FIELDS.filter((s) =>
           ['fathersOccupation', 'mothersOccupation', 'siblings', 'familyLocation'].includes(s.key),
@@ -339,8 +444,50 @@ export default function ProfileEditScreen() {
             maxLength={spec.maxLength}
           />
         ))}
+        <SelectField
+          label="Family value"
+          options={labelled(FAMILY_VALUES, FAMILY_VALUE_LABELS)}
+          value={form.familyValue || null}
+          onChange={(v) => set('familyValue', v ?? '')}
+        />
+        <SelectField
+          label="Family type"
+          options={labelled(FAMILY_TYPES, FAMILY_TYPE_LABELS)}
+          value={form.familyType || null}
+          onChange={(v) => set('familyType', v ?? '')}
+        />
+        <SelectField
+          label="Family status"
+          options={labelled(FAMILY_STATUSES, FAMILY_STATUS_LABELS)}
+          value={form.familyStatus || null}
+          onChange={(v) => set('familyStatus', v ?? '')}
+        />
         <TextField
-          label="Family description"
+          label="Native place"
+          value={form.nativePlace ?? ''}
+          onChangeText={(v) => set('nativePlace', v)}
+          maxLength={120}
+          autoCapitalize="words"
+        />
+        {(
+          [
+            ['brothersCount', 'No. of brothers'],
+            ['brothersMarriedCount', 'Brothers married'],
+            ['sistersCount', 'No. of sisters'],
+            ['sistersMarriedCount', 'Sisters married'],
+          ] as const
+        ).map(([key, label]) => (
+          <TextField
+            key={key}
+            label={label}
+            value={form[key] ?? ''}
+            onChangeText={(v) => set(key, v.replace(/[^0-9]/g, ''))}
+            keyboardType="number-pad"
+            maxLength={2}
+          />
+        ))}
+        <TextField
+          label="About my family"
           value={form.familyDescription ?? ''}
           onChangeText={(v) => set('familyDescription', v)}
           multiline
@@ -391,6 +538,53 @@ export default function ProfileEditScreen() {
   );
 }
 
+/** Turns stored keys into picker rows, showing the client's wording. */
+function labelled(
+  values: readonly string[],
+  labels: Record<string, string>,
+): { value: string; label: string }[] {
+  return values.map((value) => ({ value, label: labels[value] ?? value }));
+}
+
+/**
+ * A titled block of checkbox rows.
+ *
+ * `CheckboxList` is the app's multi-select control and the client's reference
+ * uses checkbox blocks for exactly these four answers, so the only thing added
+ * here is the heading each block needs.
+ */
+function Checklist({
+  label,
+  options,
+  selected,
+  onChange,
+  hint,
+}: {
+  label: string;
+  options: readonly string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  hint?: string;
+}) {
+  return (
+    <View style={styles.fieldGroup}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
+      <CheckboxList
+        options={options.map((value) => ({ value, label: value }))}
+        selected={selected}
+        onToggle={(value) =>
+          onChange(
+            selected.includes(value)
+              ? selected.filter((item) => item !== value)
+              : [...selected, value],
+          )
+        }
+      />
+    </View>
+  );
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <View style={styles.section}>
@@ -414,6 +608,9 @@ function toForm(profile: MyProfile, lists: MasterList[]): Record<string, string>
     gender: profile.gender,
     dateOfBirth: profile.date_of_birth,
     heightCm: profile.height_cm === null ? '' : String(profile.height_cm),
+    weightKg: profile.weight_kg === null ? '' : String(profile.weight_kg),
+    physicalStatus: profile.physical_status ?? '',
+    manglikStatus: profile.manglik_status ?? '',
     maritalStatus: profile.marital_status ?? '',
     religion: profile.religion ?? '',
     subCaste: profile.sub_caste ?? '',
@@ -428,6 +625,16 @@ function toForm(profile: MyProfile, lists: MasterList[]): Record<string, string>
     fathersOccupation: profile.fathers_occupation ?? '',
     mothersOccupation: profile.mothers_occupation ?? '',
     siblings: profile.siblings ?? '',
+    familyValue: profile.family_value ?? '',
+    familyType: profile.family_type ?? '',
+    familyStatus: profile.family_status ?? '',
+    nativePlace: profile.native_place ?? '',
+    brothersCount: profile.brothers_count === null ? '' : String(profile.brothers_count),
+    brothersMarriedCount:
+      profile.brothers_married_count === null ? '' : String(profile.brothers_married_count),
+    sistersCount: profile.sisters_count === null ? '' : String(profile.sisters_count),
+    sistersMarriedCount:
+      profile.sisters_married_count === null ? '' : String(profile.sisters_married_count),
     familyLocation: profile.family_location ?? '',
     familyDescription: profile.family_description ?? '',
     foodPreference: profile.food_preference ?? '',
@@ -443,10 +650,23 @@ function toForm(profile: MyProfile, lists: MasterList[]): Record<string, string>
   return base;
 }
 
+/** The multi-select half of the snapshot: five sets, each compared in order. */
+function toLists(profile: MyProfile): Record<string, string[]> {
+  return {
+    languagesKnown: [...profile.languages_known],
+    hobbies: [...profile.hobbies],
+    favouriteMusic: [...profile.favourite_music],
+    sports: [...profile.sports],
+    favouriteFood: [...profile.favourite_food],
+  };
+}
+
 /** Diff a form against its snapshot, returning a PATCH body or null if none. */
 function buildPatch(
   form: Record<string, string>,
   initial: Record<string, string> | null,
+  multi: Record<string, string[]>,
+  initialMulti: Record<string, string[]> | null,
 ): UpdateProfileInput | null {
   if (initial === null) return null;
   const payload: Record<string, unknown> = {};
@@ -513,6 +733,52 @@ function buildPatch(
     payload[api] = form[key] === '' ? null : form[key];
   }
 
+  const weight = (form.weightKg ?? '').trim();
+  if (weight !== (initial.weightKg ?? '').trim()) {
+    payload.weight_kg = weight === '' ? null : Number.parseInt(weight, 10);
+  }
+
+  // Enum answers: stored as the key the chip group chose, cleared with null.
+  for (const [key, api] of [
+    ['physicalStatus', 'physical_status'],
+    ['manglikStatus', 'manglik_status'],
+    ['familyValue', 'family_value'],
+    ['familyType', 'family_type'],
+    ['familyStatus', 'family_status'],
+  ] as const) {
+    if ((form[key] ?? '') === (initial[key] ?? '')) continue;
+    payload[api] = (form[key] ?? '') === '' ? null : form[key];
+  }
+
+  for (const [key, api] of [
+    ['brothersCount', 'brothers_count'],
+    ['brothersMarriedCount', 'brothers_married_count'],
+    ['sistersCount', 'sisters_count'],
+    ['sistersMarriedCount', 'sisters_married_count'],
+  ] as const) {
+    const next = (form[key] ?? '').trim();
+    if (next === (initial[key] ?? '').trim()) continue;
+    payload[api] = next === '' ? null : Number.parseInt(next, 10);
+  }
+
+  text('nativePlace', 'native_place');
+
+  // Lists: an emptied set is a real instruction, so it is sent as [].
+  for (const [key, api] of [
+    ['languagesKnown', 'languages_known'],
+    ['hobbies', 'hobbies'],
+    ['favouriteMusic', 'favourite_music'],
+    ['sports', 'sports'],
+    ['favouriteFood', 'favourite_food'],
+  ] as const) {
+    const next = multi[key] ?? [];
+    const before = initialMulti?.[key] ?? [];
+    if (next.length === before.length && next.every((value, index) => value === before[index])) {
+      continue;
+    }
+    payload[api] = next;
+  }
+
   if (Object.keys(payload).length === 0) return null;
   return payload as UpdateProfileInput;
 }
@@ -538,6 +804,17 @@ const styles = StyleSheet.create({
   },
   error: {
     color: colors.primary,
+    ...typography.caption,
+  },
+  fieldGroup: {
+    gap: spacing.sm,
+  },
+  fieldLabel: {
+    color: colors.textStrong,
+    ...typography.title,
+  },
+  fieldHint: {
+    color: colors.textMuted,
     ...typography.caption,
   },
   importBanner: {

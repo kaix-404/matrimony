@@ -20,6 +20,7 @@ __exportStar(require("./interests.js"), exports);
 __exportStar(require("./biodata-parse.js"), exports);
 __exportStar(require("./contracts/auth.js"), exports);
 __exportStar(require("./contracts/profile.js"), exports);
+__exportStar(require("./contracts/profile-details.js"), exports);
 __exportStar(require("./contracts/profile-edit.js"), exports);
 __exportStar(require("./contracts/biodata.js"), exports);
 __exportStar(require("./contracts/master-data.js"), exports);

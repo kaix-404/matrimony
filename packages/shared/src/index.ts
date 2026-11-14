@@ -4,6 +4,7 @@ export * from './interests.js';
 export * from './biodata-parse.js';
 export * from './contracts/auth.js';
 export * from './contracts/profile.js';
+export * from './contracts/profile-details.js';
 export * from './contracts/profile-edit.js';
 export * from './contracts/biodata.js';
 export * from './contracts/master-data.js';

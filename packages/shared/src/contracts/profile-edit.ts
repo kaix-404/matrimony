@@ -25,6 +25,19 @@
 
 import { z } from 'zod';
 import { GENDERS, MARITAL_STATUSES } from '../enums';
+import {
+  FAMILY_STATUSES,
+  FAMILY_TYPES,
+  FAMILY_VALUES,
+  PHYSICAL_STATUSES,
+  ProfileDetailListSchema,
+} from './profile-details.js';
+
+/**
+ * How many brothers or sisters. Bounded well above any real answer: the point is
+ * to keep a typo (or a client bug) from writing twelve digits into a count.
+ */
+const siblingCount = z.number().int().min(0).max(20).nullable().optional();
 
 // ---------------------------------------------------------------------------
 // Shared field rules
@@ -140,6 +153,26 @@ export const CreateProfileSchema = z
     drinking: optionalText(60),
     about_me: text(2000).nullable().optional(),
 
+    // -- client feedback point 4: the Edit Profile data points -------------
+    // Optional, because the reference marks only a few of them required and a
+    // profile must still save while it is half-filled. `null` clears; an absent
+    // key leaves the column alone.
+    weight_kg: z.number().int().min(25).max(300).nullable().optional(),
+    physical_status: z.enum(PHYSICAL_STATUSES).nullable().optional(),
+    languages_known: ProfileDetailListSchema.optional(),
+    hobbies: ProfileDetailListSchema.optional(),
+    favourite_music: ProfileDetailListSchema.optional(),
+    sports: ProfileDetailListSchema.optional(),
+    favourite_food: ProfileDetailListSchema.optional(),
+    family_value: z.enum(FAMILY_VALUES).nullable().optional(),
+    family_type: z.enum(FAMILY_TYPES).nullable().optional(),
+    family_status: z.enum(FAMILY_STATUSES).nullable().optional(),
+    native_place: optionalText(120),
+    brothers_count: siblingCount,
+    brothers_married_count: siblingCount,
+    sisters_count: siblingCount,
+    sisters_married_count: siblingCount,
+
     country: country.nullable().optional(),
     state: optionalText(80),
     city: optionalText(80),
@@ -198,6 +231,26 @@ export const UpdateProfileSchema = z
     smoking: optionalText(60),
     drinking: optionalText(60),
     about_me: text(2000).nullable().optional(),
+
+    // -- client feedback point 4: the Edit Profile data points -------------
+    // Optional, because the reference marks only a few of them required and a
+    // profile must still save while it is half-filled. `null` clears; an absent
+    // key leaves the column alone.
+    weight_kg: z.number().int().min(25).max(300).nullable().optional(),
+    physical_status: z.enum(PHYSICAL_STATUSES).nullable().optional(),
+    languages_known: ProfileDetailListSchema.optional(),
+    hobbies: ProfileDetailListSchema.optional(),
+    favourite_music: ProfileDetailListSchema.optional(),
+    sports: ProfileDetailListSchema.optional(),
+    favourite_food: ProfileDetailListSchema.optional(),
+    family_value: z.enum(FAMILY_VALUES).nullable().optional(),
+    family_type: z.enum(FAMILY_TYPES).nullable().optional(),
+    family_status: z.enum(FAMILY_STATUSES).nullable().optional(),
+    native_place: optionalText(120),
+    brothers_count: siblingCount,
+    brothers_married_count: siblingCount,
+    sisters_count: siblingCount,
+    sisters_married_count: siblingCount,
 
     country: country.nullable().optional(),
     state: optionalText(80),
@@ -293,6 +346,22 @@ export const MyProfileSchema = z
     smoking: z.string().nullable(),
     drinking: z.string().nullable(),
     about_me: z.string().nullable(),
+
+    weight_kg: z.number().int().nullable(),
+    physical_status: z.enum(PHYSICAL_STATUSES).nullable(),
+    languages_known: ProfileDetailListSchema,
+    hobbies: ProfileDetailListSchema,
+    favourite_music: ProfileDetailListSchema,
+    sports: ProfileDetailListSchema,
+    favourite_food: ProfileDetailListSchema,
+    family_value: z.enum(FAMILY_VALUES).nullable(),
+    family_type: z.enum(FAMILY_TYPES).nullable(),
+    family_status: z.enum(FAMILY_STATUSES).nullable(),
+    native_place: z.string().nullable(),
+    brothers_count: z.number().int().nullable(),
+    brothers_married_count: z.number().int().nullable(),
+    sisters_count: z.number().int().nullable(),
+    sisters_married_count: z.number().int().nullable(),
 
     country: z.string().nullable(),
     state: z.string().nullable(),

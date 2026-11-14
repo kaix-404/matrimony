@@ -27,6 +27,12 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProfileCompletenessSchema = exports.MyProfileSchema = exports.OwnPhotoSchema = exports.UpdateProfileSchema = exports.CreateProfileSchema = void 0;
 const zod_1 = require("zod");
 const enums_1 = require("../enums");
+const profile_details_js_1 = require("./profile-details.js");
+/**
+ * How many brothers or sisters. Bounded well above any real answer: the point is
+ * to keep a typo (or a client bug) from writing twelve digits into a count.
+ */
+const siblingCount = zod_1.z.number().int().min(0).max(20).nullable().optional();
 // ---------------------------------------------------------------------------
 // Shared field rules
 // ---------------------------------------------------------------------------
@@ -126,6 +132,25 @@ exports.CreateProfileSchema = zod_1.z
     smoking: optionalText(60),
     drinking: optionalText(60),
     about_me: text(2000).nullable().optional(),
+    // -- client feedback point 4: the Edit Profile data points -------------
+    // Optional, because the reference marks only a few of them required and a
+    // profile must still save while it is half-filled. `null` clears; an absent
+    // key leaves the column alone.
+    weight_kg: zod_1.z.number().int().min(25).max(300).nullable().optional(),
+    physical_status: zod_1.z.enum(profile_details_js_1.PHYSICAL_STATUSES).nullable().optional(),
+    languages_known: profile_details_js_1.ProfileDetailListSchema.optional(),
+    hobbies: profile_details_js_1.ProfileDetailListSchema.optional(),
+    favourite_music: profile_details_js_1.ProfileDetailListSchema.optional(),
+    sports: profile_details_js_1.ProfileDetailListSchema.optional(),
+    favourite_food: profile_details_js_1.ProfileDetailListSchema.optional(),
+    family_value: zod_1.z.enum(profile_details_js_1.FAMILY_VALUES).nullable().optional(),
+    family_type: zod_1.z.enum(profile_details_js_1.FAMILY_TYPES).nullable().optional(),
+    family_status: zod_1.z.enum(profile_details_js_1.FAMILY_STATUSES).nullable().optional(),
+    native_place: optionalText(120),
+    brothers_count: siblingCount,
+    brothers_married_count: siblingCount,
+    sisters_count: siblingCount,
+    sisters_married_count: siblingCount,
     country: country.nullable().optional(),
     state: optionalText(80),
     city: optionalText(80),
@@ -176,6 +201,25 @@ exports.UpdateProfileSchema = zod_1.z
     smoking: optionalText(60),
     drinking: optionalText(60),
     about_me: text(2000).nullable().optional(),
+    // -- client feedback point 4: the Edit Profile data points -------------
+    // Optional, because the reference marks only a few of them required and a
+    // profile must still save while it is half-filled. `null` clears; an absent
+    // key leaves the column alone.
+    weight_kg: zod_1.z.number().int().min(25).max(300).nullable().optional(),
+    physical_status: zod_1.z.enum(profile_details_js_1.PHYSICAL_STATUSES).nullable().optional(),
+    languages_known: profile_details_js_1.ProfileDetailListSchema.optional(),
+    hobbies: profile_details_js_1.ProfileDetailListSchema.optional(),
+    favourite_music: profile_details_js_1.ProfileDetailListSchema.optional(),
+    sports: profile_details_js_1.ProfileDetailListSchema.optional(),
+    favourite_food: profile_details_js_1.ProfileDetailListSchema.optional(),
+    family_value: zod_1.z.enum(profile_details_js_1.FAMILY_VALUES).nullable().optional(),
+    family_type: zod_1.z.enum(profile_details_js_1.FAMILY_TYPES).nullable().optional(),
+    family_status: zod_1.z.enum(profile_details_js_1.FAMILY_STATUSES).nullable().optional(),
+    native_place: optionalText(120),
+    brothers_count: siblingCount,
+    brothers_married_count: siblingCount,
+    sisters_count: siblingCount,
+    sisters_married_count: siblingCount,
     country: country.nullable().optional(),
     state: optionalText(80),
     city: optionalText(80),
@@ -258,6 +302,21 @@ exports.MyProfileSchema = zod_1.z
     smoking: zod_1.z.string().nullable(),
     drinking: zod_1.z.string().nullable(),
     about_me: zod_1.z.string().nullable(),
+    weight_kg: zod_1.z.number().int().nullable(),
+    physical_status: zod_1.z.enum(profile_details_js_1.PHYSICAL_STATUSES).nullable(),
+    languages_known: profile_details_js_1.ProfileDetailListSchema,
+    hobbies: profile_details_js_1.ProfileDetailListSchema,
+    favourite_music: profile_details_js_1.ProfileDetailListSchema,
+    sports: profile_details_js_1.ProfileDetailListSchema,
+    favourite_food: profile_details_js_1.ProfileDetailListSchema,
+    family_value: zod_1.z.enum(profile_details_js_1.FAMILY_VALUES).nullable(),
+    family_type: zod_1.z.enum(profile_details_js_1.FAMILY_TYPES).nullable(),
+    family_status: zod_1.z.enum(profile_details_js_1.FAMILY_STATUSES).nullable(),
+    native_place: zod_1.z.string().nullable(),
+    brothers_count: zod_1.z.number().int().nullable(),
+    brothers_married_count: zod_1.z.number().int().nullable(),
+    sisters_count: zod_1.z.number().int().nullable(),
+    sisters_married_count: zod_1.z.number().int().nullable(),
     country: zod_1.z.string().nullable(),
     state: zod_1.z.string().nullable(),
     city: zod_1.z.string().nullable(),

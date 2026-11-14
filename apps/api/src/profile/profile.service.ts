@@ -113,6 +113,24 @@ export class ProfileService {
         drinking: input.drinking ?? null,
         aboutMe: input.about_me ?? null,
 
+        // Point 4 of the client's feedback. Arrays default to empty rather than
+        // null: the contract promises a list, and Prisma types it as one.
+        weightKg: input.weight_kg ?? null,
+        physicalStatus: input.physical_status ?? null,
+        languagesKnown: input.languages_known ?? [],
+        hobbies: input.hobbies ?? [],
+        favouriteMusic: input.favourite_music ?? [],
+        sports: input.sports ?? [],
+        favouriteFood: input.favourite_food ?? [],
+        familyValue: input.family_value ?? null,
+        familyType: input.family_type ?? null,
+        familyStatus: input.family_status ?? null,
+        nativePlace: input.native_place ?? null,
+        brothersCount: input.brothers_count ?? null,
+        brothersMarriedCount: input.brothers_married_count ?? null,
+        sistersCount: input.sisters_count ?? null,
+        sistersMarriedCount: input.sisters_married_count ?? null,
+
         country: input.country ?? null,
         state: input.state ?? null,
         city: input.city ?? null,
@@ -229,6 +247,25 @@ export class ProfileService {
     set('smoking', input.smoking);
     set('drinking', input.drinking);
     set('aboutMe', input.about_me);
+
+    set('weightKg', input.weight_kg);
+    set('physicalStatus', input.physical_status);
+    // An empty array is a real instruction ("I cleared this list"), so these are
+    // written whenever the key is present, unlike the scalars where `null` is
+    // the explicit clear.
+    set('languagesKnown', input.languages_known);
+    set('hobbies', input.hobbies);
+    set('favouriteMusic', input.favourite_music);
+    set('sports', input.sports);
+    set('favouriteFood', input.favourite_food);
+    set('familyValue', input.family_value);
+    set('familyType', input.family_type);
+    set('familyStatus', input.family_status);
+    set('nativePlace', input.native_place);
+    set('brothersCount', input.brothers_count);
+    set('brothersMarriedCount', input.brothers_married_count);
+    set('sistersCount', input.sisters_count);
+    set('sistersMarriedCount', input.sisters_married_count);
 
     set('country', input.country);
     set('state', input.state);
@@ -526,6 +563,21 @@ export class ProfileService {
         smoking: true,
         drinking: true,
         aboutMe: true,
+        weightKg: true,
+        physicalStatus: true,
+        languagesKnown: true,
+        hobbies: true,
+        favouriteMusic: true,
+        sports: true,
+        favouriteFood: true,
+        familyValue: true,
+        familyType: true,
+        familyStatus: true,
+        nativePlace: true,
+        brothersCount: true,
+        brothersMarriedCount: true,
+        sistersCount: true,
+        sistersMarriedCount: true,
         country: true,
         state: true,
         city: true,
@@ -582,6 +634,21 @@ export class ProfileService {
       smoking: row.smoking,
       drinking: row.drinking,
       about_me: row.aboutMe,
+      weight_kg: row.weightKg,
+      physical_status: row.physicalStatus as MyProfile['physical_status'],
+      languages_known: row.languagesKnown ?? [],
+      hobbies: row.hobbies ?? [],
+      favourite_music: row.favouriteMusic ?? [],
+      sports: row.sports ?? [],
+      favourite_food: row.favouriteFood ?? [],
+      family_value: row.familyValue as MyProfile['family_value'],
+      family_type: row.familyType as MyProfile['family_type'],
+      family_status: row.familyStatus as MyProfile['family_status'],
+      native_place: row.nativePlace,
+      brothers_count: row.brothersCount,
+      brothers_married_count: row.brothersMarriedCount,
+      sisters_count: row.sistersCount,
+      sisters_married_count: row.sistersMarriedCount,
       country: row.country,
       state: row.state,
       city: row.city,

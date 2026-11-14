@@ -696,6 +696,33 @@ model Profile {
   /// admin-configured fields need no migration.
   attributes     Json?
 
+  // -- client feedback, point 4: Edit Profile data points ------------------
+  // The client supplied these as a fixed list ("use Datapoints as it is"), so
+  // the option sets live in `@matrimony/shared` and these columns take plain
+  // strings: adding a value to a client list must not need a migration.
+  weightKg       Int?
+  physicalStatus String?
+  /// The client's "Languages Known" picker. Labels, not ids — the list is the
+  /// mother-tongue master data, and a label cannot dangle if a row is retired.
+  languagesKnown String[] @default([])
+
+  /// Multi-select answers to the client's hobbies, music, sports and food
+  /// blocks. Arrays because each is a set, and each is stored as the label the
+  /// member picked so the profile reads the same way it was filled in.
+  hobbies        String[] @default([])
+  favouriteMusic String[] @default([])
+  sports         String[] @default([])
+  favouriteFood  String[] @default([])
+
+  familyValue          String?
+  familyType           String?
+  familyStatus         String?
+  nativePlace          String?
+  brothersCount        Int?
+  brothersMarriedCount Int?
+  sistersCount         Int?
+  sistersMarriedCount  Int?
+
   // -- 8.6 location --------------------------------------------------------
   country String? @db.VarChar(2)
   state   String?
