@@ -186,7 +186,9 @@ exports.FullProfileSchema = zod_1.z
     about_me: zod_1.z.string().nullable(),
     country: zod_1.z.string().nullable(),
     state: zod_1.z.string().nullable(),
-    district: zod_1.z.string().nullable(),
+    // Defaulted rather than required: an API instance still on the build
+    // that predates the district must not fail the whole unlock response.
+    district: zod_1.z.string().nullable().default(null),
     city: zod_1.z.string().nullable(),
 })
     .strict();

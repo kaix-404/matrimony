@@ -207,7 +207,9 @@ export const FullProfileSchema = z
 
     country: z.string().nullable(),
     state: z.string().nullable(),
-    district: z.string().nullable(),
+    // Defaulted rather than required: an API instance still on the build
+    // that predates the district must not fail the whole unlock response.
+    district: z.string().nullable().default(null),
     city: z.string().nullable(),
   })
   .strict();

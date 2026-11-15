@@ -238,7 +238,7 @@ export declare const FullProfileSchema: z.ZodObject<{
     about_me: z.ZodNullable<z.ZodString>;
     country: z.ZodNullable<z.ZodString>;
     state: z.ZodNullable<z.ZodString>;
-    district: z.ZodNullable<z.ZodString>;
+    district: z.ZodDefault<z.ZodNullable<z.ZodString>>;
     city: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     swagotra: string | null;
@@ -313,7 +313,7 @@ export declare const FullProfileSchema: z.ZodObject<{
     place_of_birth: string | null;
     sub_caste: string | null;
     work_location: string | null;
-    district: string | null;
+    district?: string | null | undefined;
 }>;
 export type FullProfile = z.infer<typeof FullProfileSchema>;
 /**
@@ -394,7 +394,7 @@ export declare const UnlockedProfileResponseSchema: z.ZodObject<{
         about_me: z.ZodNullable<z.ZodString>;
         country: z.ZodNullable<z.ZodString>;
         state: z.ZodNullable<z.ZodString>;
-        district: z.ZodNullable<z.ZodString>;
+        district: z.ZodDefault<z.ZodNullable<z.ZodString>>;
         city: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
         swagotra: string | null;
@@ -469,7 +469,7 @@ export declare const UnlockedProfileResponseSchema: z.ZodObject<{
         place_of_birth: string | null;
         sub_caste: string | null;
         work_location: string | null;
-        district: string | null;
+        district?: string | null | undefined;
     }>;
     contact: z.ZodObject<{
         mobile: z.ZodString;
@@ -594,7 +594,7 @@ export declare const UnlockedProfileResponseSchema: z.ZodObject<{
         place_of_birth: string | null;
         sub_caste: string | null;
         work_location: string | null;
-        district: string | null;
+        district?: string | null | undefined;
     };
     unlock_expires_at: string;
 }>;
