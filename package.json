@@ -2,7 +2,7 @@
   "name": "matrimony",
   "version": "0.1.0",
   "private": true,
-  "description": "Matrimony platform — React Native app, NestJS API, Next.js admin dashboard",
+  "description": "Matrimony platform \u2014 React Native app, NestJS API, Next.js admin dashboard",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=22.6.0"
@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "typecheck": "npm run build -w @matrimony/shared && npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run build -w @matrimony/shared && npm run typecheck --workspaces --if-present && npm run typecheck:tools -w @matrimony/api",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md,yml,yaml}\"",

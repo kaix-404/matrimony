@@ -75,6 +75,10 @@ jobs:
       - name: Generate Prisma client
         run: npm run prisma:generate
 
+      # `npm run typecheck` also runs apps/api's `typecheck:tools`, which covers
+      # prisma/seed.ts and the other Prisma-side scripts. They sit outside
+      # `src`, so the application typecheck never saw them: a missing import
+      # once passed this step and only failed when the seed actually ran.
       - name: Typecheck, lint, test and build
         run: npm run typecheck && npm run lint && npm run test && npm run build
 

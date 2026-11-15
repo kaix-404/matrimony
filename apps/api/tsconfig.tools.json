@@ -12,6 +12,9 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true
   },
-  "include": ["src/**/*.ts", "prisma/**/*.ts", "*.ts"],
+  // The seed and the other Prisma-side scripts. They are outside `src`, so the
+  // application typecheck never sees them: a ReferenceError there once shipped
+  // green through typecheck, lint, build and CI's verify step.
+  "include": ["prisma/**/*.ts", "*.ts"],
   "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts"]
 }
