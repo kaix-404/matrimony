@@ -19,6 +19,7 @@ import { hashPassword } from '../src/common/crypto/password';
 import { removeDemoProfiles, seedDemoProfiles } from './demo-profiles';
 import {
   CASTE_VALUES,
+  DISTRICT_VALUES,
   EDUCATION_VALUES,
   MOTHER_TONGUE_VALUES,
   PROFESSION_VALUES,
