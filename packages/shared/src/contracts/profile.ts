@@ -207,6 +207,7 @@ export const FullProfileSchema = z
 
     country: z.string().nullable(),
     state: z.string().nullable(),
+    district: z.string().nullable(),
     city: z.string().nullable(),
   })
   .strict();

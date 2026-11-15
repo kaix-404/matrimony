@@ -609,6 +609,7 @@ export declare const ActiveUnlockSchema: z.ZodObject<{
 }, "strict", z.ZodTypeAny, {
     profile_id: string;
     unlock_expires_at: string;
+    unlock_id: string;
     display_name: string | null;
     photo: {
         photo_id: string;
@@ -618,13 +619,13 @@ export declare const ActiveUnlockSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
-    remaining_ms: number;
-    unlock_id: string;
     unlocked_at: string;
+    remaining_ms: number;
     is_expired: boolean;
 }, {
     profile_id: string;
     unlock_expires_at: string;
+    unlock_id: string;
     display_name: string | null;
     photo: {
         photo_id: string;
@@ -634,9 +635,8 @@ export declare const ActiveUnlockSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
-    remaining_ms: number;
-    unlock_id: string;
     unlocked_at: string;
+    remaining_ms: number;
     is_expired: boolean;
 }>;
 export type ActiveUnlock = z.infer<typeof ActiveUnlockSchema>;

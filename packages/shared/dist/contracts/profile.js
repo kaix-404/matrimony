@@ -186,6 +186,7 @@ exports.FullProfileSchema = zod_1.z
     about_me: zod_1.z.string().nullable(),
     country: zod_1.z.string().nullable(),
     state: zod_1.z.string().nullable(),
+    district: zod_1.z.string().nullable(),
     city: zod_1.z.string().nullable(),
 })
     .strict();

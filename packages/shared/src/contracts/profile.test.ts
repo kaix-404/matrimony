@@ -85,6 +85,7 @@ const FULL_PROFILE = {
   about_me: 'Looking for a life partner',
   country: 'IN',
   state: 'Kerala',
+  district: 'Ernakulam',
   city: 'Kochi',
 };
 
@@ -118,6 +119,7 @@ describe('section 38 — locked profile response', () => {
       annual_income: '1200000',
       city: 'Kochi',
       state: 'Kerala',
+      district: null,
       country: 'IN',
       community: 'Nair',
       mother_tongue: 'Malayalam',

@@ -160,6 +160,12 @@ export default function ProfileScreen() {
     );
   }
 
+  // District, city and state read as one place; the district is the useful
+  // detail locally, so it leads.
+  const location = [profile?.district, profile?.city, profile?.state]
+    .filter((part): part is string => typeof part === 'string' && part !== '')
+    .join(', ');
+
   return (
     <Screen title="Profile" subtitle={user?.mobile ? `+91 ${user.mobile}` : undefined} bottomNav>
       <View style={styles.card}>
@@ -167,6 +173,7 @@ export default function ProfileScreen() {
           {[profile?.first_name, profile?.last_name].filter(Boolean).join(' ')}
         </Text>
         {bandLabel ? <Text style={styles.band}>{bandLabel}</Text> : null}
+        {location !== '' ? <Text style={styles.meta}>{location}</Text> : null}
         <View style={styles.metaRow}>
           <Ionicons
             name={profile?.visibility === 'ACTIVE' ? 'eye-outline' : 'eye-off-outline'}

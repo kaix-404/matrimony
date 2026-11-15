@@ -68,6 +68,7 @@ function profile(overrides: ProfileRow = {}): ProfileRow {
     aboutMe: 'Reader and trekker.',
     country: 'IN',
     state: 'Maharashtra',
+    district: null,
     city: 'Pune',
     communityValue: { value: 'Marathi' },
     educationValue: { value: 'Master' },

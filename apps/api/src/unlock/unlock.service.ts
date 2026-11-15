@@ -504,6 +504,7 @@ export class UnlockService {
 
       country: p.country,
       state: p.state,
+      district: p.district,
       city: p.city,
     };
   }

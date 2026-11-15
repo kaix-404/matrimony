@@ -21,6 +21,7 @@ const FULL_PROFILE_FIELDS: Array<[keyof FullProfile, string]> = [
   ['mother_tongue', 'Mother tongue'],
   ['education', 'Education'],
   ['profession', 'Profession'],
+  ['district', 'District'],
   ['city', 'City'],
   ['about_me', 'About'],
 ];

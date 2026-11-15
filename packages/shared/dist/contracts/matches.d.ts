@@ -155,7 +155,7 @@ export declare const MatchCardSchema: z.ZodObject<{
     shortlisted_at: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     profile_id: string;
-    shortlisted_at: string | null;
+    unlock_expires_at: string | null;
     display_name: string | null;
     photo: {
         photo_id: string;
@@ -165,14 +165,14 @@ export declare const MatchCardSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
+    remaining_ms: number | null;
+    shortlisted_at: string | null;
     is_shortlisted: boolean;
     is_unlocked: boolean;
     unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
-    unlock_expires_at: string | null;
-    remaining_ms: number | null;
 }, {
     profile_id: string;
-    shortlisted_at: string | null;
+    unlock_expires_at: string | null;
     display_name: string | null;
     photo: {
         photo_id: string;
@@ -182,11 +182,11 @@ export declare const MatchCardSchema: z.ZodObject<{
         is_primary: boolean;
         photo_type: "SINGLE" | "FAMILY";
     } | null;
+    remaining_ms: number | null;
+    shortlisted_at: string | null;
     is_shortlisted: boolean;
     is_unlocked: boolean;
     unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
-    unlock_expires_at: string | null;
-    remaining_ms: number | null;
 }>;
 export type MatchCard = z.infer<typeof MatchCardSchema>;
 export declare const MatchesResponseSchema: z.ZodObject<{
@@ -226,7 +226,7 @@ export declare const MatchesResponseSchema: z.ZodObject<{
         shortlisted_at: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
         profile_id: string;
-        shortlisted_at: string | null;
+        unlock_expires_at: string | null;
         display_name: string | null;
         photo: {
             photo_id: string;
@@ -236,14 +236,14 @@ export declare const MatchesResponseSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
+        remaining_ms: number | null;
+        shortlisted_at: string | null;
         is_shortlisted: boolean;
         is_unlocked: boolean;
         unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
-        unlock_expires_at: string | null;
-        remaining_ms: number | null;
     }, {
         profile_id: string;
-        shortlisted_at: string | null;
+        unlock_expires_at: string | null;
         display_name: string | null;
         photo: {
             photo_id: string;
@@ -253,16 +253,16 @@ export declare const MatchesResponseSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
+        remaining_ms: number | null;
+        shortlisted_at: string | null;
         is_shortlisted: boolean;
         is_unlocked: boolean;
         unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
-        unlock_expires_at: string | null;
-        remaining_ms: number | null;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     items: {
         profile_id: string;
-        shortlisted_at: string | null;
+        unlock_expires_at: string | null;
         display_name: string | null;
         photo: {
             photo_id: string;
@@ -272,16 +272,16 @@ export declare const MatchesResponseSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
+        remaining_ms: number | null;
+        shortlisted_at: string | null;
         is_shortlisted: boolean;
         is_unlocked: boolean;
         unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
-        unlock_expires_at: string | null;
-        remaining_ms: number | null;
     }[];
 }, {
     items: {
         profile_id: string;
-        shortlisted_at: string | null;
+        unlock_expires_at: string | null;
         display_name: string | null;
         photo: {
             photo_id: string;
@@ -291,11 +291,11 @@ export declare const MatchesResponseSchema: z.ZodObject<{
             is_primary: boolean;
             photo_type: "SINGLE" | "FAMILY";
         } | null;
+        remaining_ms: number | null;
+        shortlisted_at: string | null;
         is_shortlisted: boolean;
         is_unlocked: boolean;
         unlock_status: "ACTIVE" | "EXPIRED" | "REVOKED" | null;
-        unlock_expires_at: string | null;
-        remaining_ms: number | null;
     }[];
 }>;
 export type MatchesResponse = z.infer<typeof MatchesResponseSchema>;
