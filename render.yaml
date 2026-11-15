@@ -4,7 +4,7 @@ services:
   # `prisma generate` (the generated client is gitignored, so a fresh clone does
   # not have it), then builds shared + api.
   - type: web
-    name: matrimony-api
+    name: matrimony-api-2bmy
     env: docker
     region: singapore
     plan: free
@@ -170,7 +170,7 @@ services:
   # `next start` serves the normal build; there is no `output: 'standalone'` in
   # next.config.ts, so a standalone server.js does not exist.
   - type: web
-    name: matrimony-admin
+    name: matrimony-admin-o9o2
     env: node
     region: singapore
     plan: free
