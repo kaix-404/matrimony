@@ -222,7 +222,11 @@ services:
       # knows it, and so a preview host can be pointed elsewhere.
       - key: API_ORIGIN
         value: 'https://matrimony-api-2bmy.onrender.com'
-    healthCheckPath: /
+    # `/app`, not `/`. The landing page is a static file and returns 200 whether
+    # or not the member app was ever built, which is how a deploy that serves 500
+    # to every `/app/...` route reported itself as healthy. The app is the part
+    # that can be missing, so it is the part the check should request.
+    healthCheckPath: /app
     autoDeploy: true
     rootDirectory: .
     # The export is the slow part; only rebuild when something it contains or

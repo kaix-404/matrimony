@@ -4,15 +4,15 @@
 
 ## Executive Summary
 
-The platform is feature-complete end to end, and the client's first feedback round is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, the admin console can maintain those lists without a release, and an email address can be added or moved once the client supplies the MSG91 email credentials. All gates are green with 1196 automated tests passing.
+The platform is feature-complete end to end, and the client's first feedback round is delivered. Phases 0-8 deliver the backend: authentication (with OTP delivery over MSG91), profile and discovery, payments and unlocks (including the section-15 pre-expiry reminder), trust and safety (including the report moderation queue), identity verification, notifications (with push delivery over Firebase), and the admin API with RBAC, audit logging, enrichment tooling, TOTP MFA, the section-30 moderation queue, and the Next.js admin dashboard. Phase 9 delivers the React Native member app: session persistence, OTP sign-in and registration in the client's stated order, discovery with temporary filters and sort, member previews and Razorpay checkout, the account setup fee, profile and photo management, biodata import, visibility preferences, notifications, unlocks, the feature-flagged For You feed, and a settings screen limited to the actions the client asked for. The client's own datapoint lists now drive every picker in the profile and in partner preferences, the admin console can maintain those lists without a release, and an email address can be added or moved once the client supplies the MSG91 email credentials. All gates are green with 1232 automated tests passing.
 
 ## Key Metrics
 
 | Metric                | Value                                              |
 | --------------------- | -------------------------------------------------- |
-| Automated Tests       | 1196 (780 API + 81 Admin + 292 Shared + 43 Mobile) |
-| Test Suites           | 84 (49 API + 12 Admin + 16 Shared + 7 Mobile)      |
-| Admin Permission Keys | 26                                                 |
+| Automated Tests       | 1232 (809 API + 81 Admin + 299 Shared + 43 Mobile) |
+| Test Suites           | 85 (50 API + 12 Admin + 16 Shared + 7 Mobile)      |
+| Admin Permission Keys | 27                                                 |
 | Current Commit        | 3ea3dd2                                            |
 | Status                | All Gates Green                                    |
 
@@ -156,7 +156,7 @@ The platform is feature-complete end to end, and the client's first feedback rou
 
 ## Quality Assurance
 
-- Tests: 1196 passed (780 API + 81 Admin + 292 Shared + 43 Mobile)
+- Tests: 1232 passed (809 API + 81 Admin + 299 Shared + 43 Mobile)
 - Typecheck: PASS (workspaces + tools, including the seed and the mobile app)
 - Lint: PASS
 - Build: PASS (shared + API + admin)

@@ -98,8 +98,38 @@ function serveApp(req, res, pathname) {
   });
 }
 
+/**
+ * Answers when the exported app is not on disk.
+ *
+ * This is the one failure this service has actually had: the build command was
+ * a landing-page build, so `apps/mobile/dist` never appeared, and every
+ * `/app/...` route answered a bare 500 "Error loading page" that named no
+ * cause. The file being absent is nearly always a build command that did not run
+ * `export:web`, so the response and the log line both say so.
+ */
+let missingBuildReported = false;
+
+function appBuildMissing(res) {
+  if (!missingBuildReported) {
+    missingBuildReported = true;
+    console.error(
+      `The exported app is missing: ${APP_INDEX}\n` +
+        'Build it with `npm run export:web -w @matrimony/mobile`; /app cannot be served without it.',
+    );
+  }
+  res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end('The member app build is missing from this deployment.');
+}
+
 function serveAppIndex(res) {
-  sendFile(res, APP_INDEX, { cache: 'no-cache' });
+  fs.readFile(APP_INDEX, (err, data) => {
+    if (err) return appBuildMissing(res);
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-cache',
+    });
+    res.end(data);
+  });
 }
 
 /** Streams API traffic to the Nest service and back, headers and all. */
@@ -146,4 +176,11 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, () => {
   console.log(`Networth Matrimony site running on port ${PORT}`);
   console.log(`API traffic proxied to ${API_ORIGIN}`);
+  // Said at boot, where a deploy log will show it, rather than only on the first
+  // request someone happens to make to `/app`.
+  if (!fs.existsSync(APP_INDEX)) {
+    console.error(
+      `The exported app is missing: ${APP_INDEX} — /app will answer 503 until it is built.`,
+    );
+  }
 });
