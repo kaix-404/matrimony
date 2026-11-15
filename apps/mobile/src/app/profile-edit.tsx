@@ -30,6 +30,7 @@ import { TextField } from '../components/TextField';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../lib/auth-context';
 import {
+  districtOptions,
   idOptions,
   listFor,
   subCasteOptions,
@@ -239,6 +240,7 @@ export default function ProfileEditScreen() {
   const motherTongueList = listFor(lists, 'MOTHER_TONGUE');
   const caste = listFor(lists, 'CASTE');
   const stateList = listFor(lists, 'STATE');
+  const districtList = listFor(lists, 'DISTRICT');
 
   // Religion, sub-caste, mother tongue and state are stored as the label rather
   // than as a master-list id (religion is compared as text by the discovery
@@ -579,7 +581,18 @@ export default function ProfileEditScreen() {
           label="State"
           options={withCurrent(textOptions(stateList), form.state ?? '')}
           value={form.state || null}
-          onChange={(v) => set('state', v ?? '')}
+          onChange={(v) => {
+            // A district belongs to one state: keeping the old one would save a
+            // pair the server would then hold as "Karnataka / Thrissur".
+            if ((v ?? '') !== form.state) set('district', '');
+            set('state', v ?? '');
+          }}
+        />
+        <SelectField
+          label={form.state ? 'District' : 'District (choose a state first)'}
+          options={districtOptions(districtList, form.state ?? '')}
+          value={form.district || null}
+          onChange={(v) => set('district', v ?? '')}
         />
         {TEXT_FIELDS.filter((s) => ['city', 'country'].includes(s.key)).map((spec) => (
           <TextField
@@ -682,6 +695,7 @@ function toForm(profile: MyProfile, lists: MasterList[]): Record<string, string>
     drinking: profile.drinking ?? '',
     city: profile.city ?? '',
     state: profile.state ?? '',
+    district: profile.district ?? '',
     country: profile.country ?? '',
     communityId: idForLabel(listFor(lists, 'COMMUNITY'), profile.community),
     educationId: idForLabel(listFor(lists, 'EDUCATION'), profile.education),
@@ -764,6 +778,7 @@ function buildPatch(
   }
   text('city', 'city');
   text('state', 'state');
+  text('district', 'district');
   text('country', 'country');
 
   for (const key of ['familyDescription', 'aboutMe'] as const) {

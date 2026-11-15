@@ -916,10 +916,20 @@ export const AdminListProfilesQuerySchema = z.object({
     .enum(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED'])
     .optional()
     .default('PENDING_REVIEW'),
+  /** Free text: matches the profile's name, its account's mobile, or its id. */
+  q: z.string().trim().max(80).optional(),
   limit: z.coerce.number().int().positive().max(100).optional().default(20),
   cursor: z.string().min(1).optional(),
 });
 export type AdminListProfilesQuery = z.infer<typeof AdminListProfilesQuerySchema>;
+
+/** Suspending a profile: the reason is kept, and the member is told. */
+export const AdminSuspendProfileSchema = z
+  .object({
+    reason: z.string().trim().min(5, 'must explain the suspension').max(500),
+  })
+  .strict();
+export type AdminSuspendProfileInput = z.infer<typeof AdminSuspendProfileSchema>;
 
 /**
  * A profile as the review queue shows it.
@@ -1024,6 +1034,7 @@ export const AdminProfileDetailSchema = z
     favourite_food: z.array(z.string()),
     country: z.string().nullable(),
     state: z.string().nullable(),
+    district: z.string().nullable(),
     city: z.string().nullable(),
     submitted_at: z.string().datetime(),
     approved_at: z.string().datetime().nullable(),
@@ -1109,6 +1120,7 @@ export const AdminProfileUpdateSchema = z
       .nullable()
       .optional(),
     state: nullableText(80).optional(),
+    district: nullableText(80).optional(),
     city: nullableText(80).optional(),
   })
   .strict();

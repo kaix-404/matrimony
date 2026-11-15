@@ -82,6 +82,7 @@ export declare const CreateProfileSchema: z.ZodObject<{
     sisters_married_count: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
     country: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>>>;
     state: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodString, string, string>>>;
+    district: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodString, string, string>>>;
     city: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodString, string, string>>>;
 }, "strict", z.ZodTypeAny, {
     first_name: string;
@@ -134,6 +135,7 @@ export declare const CreateProfileSchema: z.ZodObject<{
     sisters_married_count?: number | null | undefined;
     country?: string | null | undefined;
     state?: string | null | undefined;
+    district?: string | null | undefined;
     city?: string | null | undefined;
 }, {
     first_name: string;
@@ -186,6 +188,7 @@ export declare const CreateProfileSchema: z.ZodObject<{
     sisters_married_count?: number | null | undefined;
     country?: string | null | undefined;
     state?: string | null | undefined;
+    district?: string | null | undefined;
     city?: string | null | undefined;
 }>;
 export type CreateProfileInput = z.infer<typeof CreateProfileSchema>;
@@ -248,6 +251,7 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     sisters_married_count: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
     country: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>>>;
     state: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodString, string, string>>>;
+    district: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodString, string, string>>>;
     city: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodString, string, string>>>;
 }, "strict", z.ZodTypeAny, {
     first_name?: string | undefined;
@@ -300,6 +304,7 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     sisters_married_count?: number | null | undefined;
     country?: string | null | undefined;
     state?: string | null | undefined;
+    district?: string | null | undefined;
     city?: string | null | undefined;
 }, {
     first_name?: string | undefined;
@@ -352,6 +357,7 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     sisters_married_count?: number | null | undefined;
     country?: string | null | undefined;
     state?: string | null | undefined;
+    district?: string | null | undefined;
     city?: string | null | undefined;
 }>, {
     first_name?: string | undefined;
@@ -404,6 +410,7 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     sisters_married_count?: number | null | undefined;
     country?: string | null | undefined;
     state?: string | null | undefined;
+    district?: string | null | undefined;
     city?: string | null | undefined;
 }, {
     first_name?: string | undefined;
@@ -456,6 +463,7 @@ export declare const UpdateProfileSchema: z.ZodEffects<z.ZodObject<{
     sisters_married_count?: number | null | undefined;
     country?: string | null | undefined;
     state?: string | null | undefined;
+    district?: string | null | undefined;
     city?: string | null | undefined;
 }>;
 export type UpdateProfileInput = z.infer<typeof UpdateProfileSchema>;
@@ -573,6 +581,7 @@ export declare const MyProfileSchema: z.ZodObject<{
     sisters_married_count: z.ZodNullable<z.ZodNumber>;
     country: z.ZodNullable<z.ZodString>;
     state: z.ZodNullable<z.ZodString>;
+    district: z.ZodNullable<z.ZodString>;
     city: z.ZodNullable<z.ZodString>;
     status: z.ZodEnum<["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED", "SUSPENDED", "DELETED"]>;
     /**
@@ -627,10 +636,10 @@ export declare const MyProfileSchema: z.ZodObject<{
         created_at: string;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
-    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
     first_name: string;
     last_name: string | null;
     gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
     date_of_birth: string;
     time_of_birth: string | null;
     place_of_birth: string | null;
@@ -675,6 +684,7 @@ export declare const MyProfileSchema: z.ZodObject<{
     sisters_married_count: number | null;
     country: string | null;
     state: string | null;
+    district: string | null;
     city: string | null;
     rejection_reason: string | null;
     profile_id: string;
@@ -699,10 +709,10 @@ export declare const MyProfileSchema: z.ZodObject<{
         created_at: string;
     }[];
 }, {
-    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
     first_name: string;
     last_name: string | null;
     gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
     date_of_birth: string;
     time_of_birth: string | null;
     place_of_birth: string | null;
@@ -747,6 +757,7 @@ export declare const MyProfileSchema: z.ZodObject<{
     sisters_married_count: number | null;
     country: string | null;
     state: string | null;
+    district: string | null;
     city: string | null;
     rejection_reason: string | null;
     profile_id: string;

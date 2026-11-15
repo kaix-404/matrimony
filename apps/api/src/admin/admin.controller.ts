@@ -25,6 +25,8 @@ import {
   AdminProfileUpdateSchema,
   AdminPublishPricingSchema,
   AdminRejectProfileSchema,
+  AdminSuspendProfileSchema,
+  type AdminSuspendProfileInput,
   AdminResolveDataRequestSchema,
   AdminRestoreUserSchema,
   AdminReviewPhotoSchema,
@@ -366,7 +368,7 @@ export class AdminController {
   async listProfiles(
     @Query(new ZodValidationPipe(AdminListProfilesQuerySchema)) query: AdminListProfilesQuery,
   ): Promise<AdminProfileListResponse> {
-    return this.adminService.listProfiles(query.limit, query.cursor, query.status);
+    return this.adminService.listProfiles(query.limit, query.cursor, query.status, query.q);
   }
 
   /** Section 26: make a reviewed profile discoverable. */
@@ -390,6 +392,18 @@ export class AdminController {
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminProfileView> {
     return this.adminService.rejectProfile(id, body, principal.id);
+  }
+
+  /** Section 30: suspend a profile outright, with the reason on the record. */
+  @Post('profiles/:id/suspend')
+  @RequirePermission('profile:suspend')
+  @HttpCode(200)
+  async suspendProfile(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminSuspendProfileSchema)) body: AdminSuspendProfileInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminProfileView> {
+    return this.adminService.suspendProfile(id, body.reason, principal.id);
   }
 
   /** Section 30: the moderation queue, optionally filtered by status. */

@@ -44,6 +44,18 @@ export function textOptions(list: MasterList | undefined): LabelOption[] {
  * present 835 names in list order with no indication of which faith each one
  * belongs to.
  */
+/**
+ * The districts of the chosen state. Grouped the same way sub-castes are: an
+ * unchosen state offers nothing, because 722 names without their state would be
+ * a list, not a choice.
+ */
+export function districtOptions(list: MasterList | undefined, state: string): LabelOption[] {
+  if (state === '') return [];
+  return (list?.values ?? [])
+    .filter((value) => value.group === state)
+    .map((value) => ({ value: value.value, label: value.value }));
+}
+
 export function subCasteOptions(list: MasterList | undefined, religion: string): LabelOption[] {
   if (religion === '') return [];
   return (list?.values ?? [])

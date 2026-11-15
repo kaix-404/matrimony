@@ -431,14 +431,14 @@ export declare const AdminSessionViewSchema: z.ZodObject<{
     roles: z.ZodArray<z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>, "many">;
     permissions: z.ZodArray<z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[]]>, "many">;
 }, "strict", z.ZodTypeAny, {
-    email: string;
     id: string;
+    email: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
     name: string;
     permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
 }, {
-    email: string;
     id: string;
+    email: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
     name: string;
     permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
@@ -508,11 +508,11 @@ export declare const AdminListUsersQuerySchema: z.ZodObject<{
     q: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     limit: number;
-    status?: "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | "ACTIVE" | "SUSPENDED" | "DELETED" | undefined;
+    status?: "SUSPENDED" | "DELETED" | "ACTIVE" | "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | undefined;
     cursor?: string | undefined;
     q?: string | undefined;
 }, {
-    status?: "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | "ACTIVE" | "SUSPENDED" | "DELETED" | undefined;
+    status?: "SUSPENDED" | "DELETED" | "ACTIVE" | "PENDING_CATEGORY" | "PENDING_VERIFICATION" | "AWAITING_SETUP_FEE" | undefined;
     limit?: number | undefined;
     cursor?: string | undefined;
     q?: string | undefined;
@@ -775,10 +775,10 @@ export declare const AdminListDataRequestsQuerySchema: z.ZodObject<{
     cursor: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
     limit: number;
-    status?: "REQUESTED" | "IN_PROGRESS" | "COMPLETED" | "REJECTED" | undefined;
+    status?: "REJECTED" | "REQUESTED" | "IN_PROGRESS" | "COMPLETED" | undefined;
     cursor?: string | undefined;
 }, {
-    status?: "REQUESTED" | "IN_PROGRESS" | "COMPLETED" | "REJECTED" | undefined;
+    status?: "REJECTED" | "REQUESTED" | "IN_PROGRESS" | "COMPLETED" | undefined;
     limit?: number | undefined;
     cursor?: string | undefined;
 }>;
@@ -795,16 +795,16 @@ export declare const AdminResolveDataRequestSchema: z.ZodEffects<z.ZodObject<{
     status: z.ZodEnum<["COMPLETED", "REJECTED"]>;
     resolutionNotes: z.ZodOptional<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    status: "COMPLETED" | "REJECTED";
+    status: "REJECTED" | "COMPLETED";
     resolutionNotes?: string | undefined;
 }, {
-    status: "COMPLETED" | "REJECTED";
+    status: "REJECTED" | "COMPLETED";
     resolutionNotes?: string | undefined;
 }>, {
-    status: "COMPLETED" | "REJECTED";
+    status: "REJECTED" | "COMPLETED";
     resolutionNotes?: string | undefined;
 }, {
-    status: "COMPLETED" | "REJECTED";
+    status: "REJECTED" | "COMPLETED";
     resolutionNotes?: string | undefined;
 }>;
 export type AdminResolveDataRequestInput = z.infer<typeof AdminResolveDataRequestSchema>;
@@ -906,11 +906,11 @@ export declare const AdminListPhotosQuerySchema: z.ZodObject<{
     limit: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
     cursor: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
     limit: number;
     cursor?: string | undefined;
 }, {
-    status?: "REJECTED" | "PENDING_REVIEW" | "APPROVED" | undefined;
+    status?: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | undefined;
     limit?: number | undefined;
     cursor?: string | undefined;
 }>;
@@ -939,26 +939,26 @@ export declare const AdminPhotoViewSchema: z.ZodObject<{
     rejection_reason: z.ZodNullable<z.ZodString>;
     reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-    id: string;
-    profile_id: string;
-    profile_name: string | null;
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
     photo_type: "SINGLE" | "FAMILY";
+    rejection_reason: string | null;
+    profile_id: string;
+    id: string;
+    profile_name: string | null;
     url: string;
     uploaded_at: string;
     reviewed_at: string | null;
-    rejection_reason: string | null;
     reviewed_by_admin_id: string | null;
 }, {
-    status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-    id: string;
-    profile_id: string;
-    profile_name: string | null;
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
     photo_type: "SINGLE" | "FAMILY";
+    rejection_reason: string | null;
+    profile_id: string;
+    id: string;
+    profile_name: string | null;
     url: string;
     uploaded_at: string;
     reviewed_at: string | null;
-    rejection_reason: string | null;
     reviewed_by_admin_id: string | null;
 }>;
 export type AdminPhotoView = z.infer<typeof AdminPhotoViewSchema>;
@@ -975,56 +975,56 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
         rejection_reason: z.ZodNullable<z.ZodString>;
         reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        id: string;
-        profile_id: string;
-        profile_name: string | null;
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
         photo_type: "SINGLE" | "FAMILY";
+        rejection_reason: string | null;
+        profile_id: string;
+        id: string;
+        profile_name: string | null;
         url: string;
         uploaded_at: string;
         reviewed_at: string | null;
-        rejection_reason: string | null;
         reviewed_by_admin_id: string | null;
     }, {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        id: string;
-        profile_id: string;
-        profile_name: string | null;
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
         photo_type: "SINGLE" | "FAMILY";
+        rejection_reason: string | null;
+        profile_id: string;
+        id: string;
+        profile_name: string | null;
         url: string;
         uploaded_at: string;
         reviewed_at: string | null;
-        rejection_reason: string | null;
         reviewed_by_admin_id: string | null;
     }>, "many">;
     nextCursor: z.ZodNullable<z.ZodString>;
     hasMore: z.ZodBoolean;
 }, "strict", z.ZodTypeAny, {
     photos: {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        id: string;
-        profile_id: string;
-        profile_name: string | null;
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
         photo_type: "SINGLE" | "FAMILY";
+        rejection_reason: string | null;
+        profile_id: string;
+        id: string;
+        profile_name: string | null;
         url: string;
         uploaded_at: string;
         reviewed_at: string | null;
-        rejection_reason: string | null;
         reviewed_by_admin_id: string | null;
     }[];
     nextCursor: string | null;
     hasMore: boolean;
 }, {
     photos: {
-        status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        id: string;
-        profile_id: string;
-        profile_name: string | null;
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
         photo_type: "SINGLE" | "FAMILY";
+        rejection_reason: string | null;
+        profile_id: string;
+        id: string;
+        profile_name: string | null;
         url: string;
         uploaded_at: string;
         reviewed_at: string | null;
-        rejection_reason: string | null;
         reviewed_by_admin_id: string | null;
     }[];
     nextCursor: string | null;
@@ -1064,18 +1064,31 @@ export declare const AdminReviewPhotoSchema: z.ZodEffects<z.ZodEffects<z.ZodObje
 export type AdminReviewPhotoInput = z.infer<typeof AdminReviewPhotoSchema>;
 export declare const AdminListProfilesQuerySchema: z.ZodObject<{
     status: z.ZodDefault<z.ZodOptional<z.ZodEnum<["PENDING_REVIEW", "APPROVED", "REJECTED", "SUSPENDED"]>>>;
+    /** Free text: matches the profile's name, its account's mobile, or its id. */
+    q: z.ZodOptional<z.ZodString>;
     limit: z.ZodDefault<z.ZodOptional<z.ZodNumber>>;
     cursor: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    status: "SUSPENDED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "SUSPENDED";
     limit: number;
     cursor?: string | undefined;
+    q?: string | undefined;
 }, {
-    status?: "SUSPENDED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | undefined;
+    status?: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "SUSPENDED" | undefined;
     limit?: number | undefined;
     cursor?: string | undefined;
+    q?: string | undefined;
 }>;
 export type AdminListProfilesQuery = z.infer<typeof AdminListProfilesQuerySchema>;
+/** Suspending a profile: the reason is kept, and the member is told. */
+export declare const AdminSuspendProfileSchema: z.ZodObject<{
+    reason: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    reason: string;
+}, {
+    reason: string;
+}>;
+export type AdminSuspendProfileInput = z.infer<typeof AdminSuspendProfileSchema>;
 /**
  * A profile as the review queue shows it.
  *
@@ -1096,24 +1109,24 @@ export declare const AdminProfileViewSchema: z.ZodObject<{
     reviewed_at: z.ZodNullable<z.ZodString>;
     rejection_reason: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
+    city: string | null;
+    rejection_reason: string | null;
     id: string;
     name: string;
     reviewed_at: string | null;
-    rejection_reason: string | null;
     user_id: string;
-    city: string | null;
     age: number | null;
     photo_url: string | null;
     submitted_at: string;
 }, {
-    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
+    city: string | null;
+    rejection_reason: string | null;
     id: string;
     name: string;
     reviewed_at: string | null;
-    rejection_reason: string | null;
     user_id: string;
-    city: string | null;
     age: number | null;
     photo_url: string | null;
     submitted_at: string;
@@ -1132,24 +1145,24 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
         reviewed_at: z.ZodNullable<z.ZodString>;
         rejection_reason: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
+        city: string | null;
+        rejection_reason: string | null;
         id: string;
         name: string;
         reviewed_at: string | null;
-        rejection_reason: string | null;
         user_id: string;
-        city: string | null;
         age: number | null;
         photo_url: string | null;
         submitted_at: string;
     }, {
-        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
+        city: string | null;
+        rejection_reason: string | null;
         id: string;
         name: string;
         reviewed_at: string | null;
-        rejection_reason: string | null;
         user_id: string;
-        city: string | null;
         age: number | null;
         photo_url: string | null;
         submitted_at: string;
@@ -1160,13 +1173,13 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
     nextCursor: string | null;
     hasMore: boolean;
     profiles: {
-        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
+        city: string | null;
+        rejection_reason: string | null;
         id: string;
         name: string;
         reviewed_at: string | null;
-        rejection_reason: string | null;
         user_id: string;
-        city: string | null;
         age: number | null;
         photo_url: string | null;
         submitted_at: string;
@@ -1175,13 +1188,13 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
     nextCursor: string | null;
     hasMore: boolean;
     profiles: {
-        status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+        status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
+        city: string | null;
+        rejection_reason: string | null;
         id: string;
         name: string;
         reviewed_at: string | null;
-        rejection_reason: string | null;
         user_id: string;
-        city: string | null;
         age: number | null;
         photo_url: string | null;
         submitted_at: string;
@@ -1251,6 +1264,7 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     favourite_food: z.ZodArray<z.ZodString, "many">;
     country: z.ZodNullable<z.ZodString>;
     state: z.ZodNullable<z.ZodString>;
+    district: z.ZodNullable<z.ZodString>;
     city: z.ZodNullable<z.ZodString>;
     submitted_at: z.ZodString;
     approved_at: z.ZodNullable<z.ZodString>;
@@ -1258,37 +1272,24 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     rejection_reason: z.ZodNullable<z.ZodString>;
     updated_at: z.ZodString;
 }, "strict", z.ZodTypeAny, {
-    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-    id: string;
-    rejection_reason: string | null;
-    user_id: string;
-    city: string | null;
-    submitted_at: string;
-    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
     first_name: string;
     last_name: string | null;
     gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
     date_of_birth: string;
     time_of_birth: string | null;
     place_of_birth: string | null;
     height_cm: number | null;
-    weight_kg: number | null;
     marital_status: string | null;
-    physical_status: string | null;
     religion: string | null;
     sub_caste: string | null;
-    community: string | null;
     mother_tongue: string | null;
-    languages_known: string[];
     swagotra: string | null;
     maternal_gothra: string | null;
     rashi: string | null;
     nakshatra: string | null;
     gan: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
-    employed_in: string | null;
     company: string | null;
     annual_income: string | null;
     work_location: string | null;
@@ -1297,6 +1298,18 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     siblings: string | null;
     family_location: string | null;
     family_description: string | null;
+    food_preference: string | null;
+    smoking: string | null;
+    drinking: string | null;
+    employed_in: string | null;
+    about_me: string | null;
+    weight_kg: number | null;
+    physical_status: string | null;
+    languages_known: string[];
+    hobbies: string[];
+    favourite_music: string[];
+    sports: string[];
+    favourite_food: string[];
     family_value: string | null;
     family_type: string | null;
     family_status: string | null;
@@ -1305,51 +1318,40 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     brothers_married_count: number | null;
     sisters_count: number | null;
     sisters_married_count: number | null;
-    food_preference: string | null;
-    smoking: string | null;
-    drinking: string | null;
-    about_me: string | null;
-    hobbies: string[];
-    favourite_music: string[];
-    sports: string[];
-    favourite_food: string[];
     country: string | null;
     state: string | null;
+    district: string | null;
+    city: string | null;
+    rejection_reason: string | null;
+    community: string | null;
+    education: string | null;
+    profession: string | null;
+    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
+    id: string;
+    user_id: string;
+    submitted_at: string;
     approved_at: string | null;
     rejected_at: string | null;
     updated_at: string;
 }, {
-    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-    id: string;
-    rejection_reason: string | null;
-    user_id: string;
-    city: string | null;
-    submitted_at: string;
-    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
     first_name: string;
     last_name: string | null;
     gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    status: "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "DRAFT" | "SUSPENDED" | "DELETED";
     date_of_birth: string;
     time_of_birth: string | null;
     place_of_birth: string | null;
     height_cm: number | null;
-    weight_kg: number | null;
     marital_status: string | null;
-    physical_status: string | null;
     religion: string | null;
     sub_caste: string | null;
-    community: string | null;
     mother_tongue: string | null;
-    languages_known: string[];
     swagotra: string | null;
     maternal_gothra: string | null;
     rashi: string | null;
     nakshatra: string | null;
     gan: string | null;
     manglik_status: string | null;
-    education: string | null;
-    profession: string | null;
-    employed_in: string | null;
     company: string | null;
     annual_income: string | null;
     work_location: string | null;
@@ -1358,6 +1360,18 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     siblings: string | null;
     family_location: string | null;
     family_description: string | null;
+    food_preference: string | null;
+    smoking: string | null;
+    drinking: string | null;
+    employed_in: string | null;
+    about_me: string | null;
+    weight_kg: number | null;
+    physical_status: string | null;
+    languages_known: string[];
+    hobbies: string[];
+    favourite_music: string[];
+    sports: string[];
+    favourite_food: string[];
     family_value: string | null;
     family_type: string | null;
     family_status: string | null;
@@ -1366,16 +1380,18 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     brothers_married_count: number | null;
     sisters_count: number | null;
     sisters_married_count: number | null;
-    food_preference: string | null;
-    smoking: string | null;
-    drinking: string | null;
-    about_me: string | null;
-    hobbies: string[];
-    favourite_music: string[];
-    sports: string[];
-    favourite_food: string[];
     country: string | null;
     state: string | null;
+    district: string | null;
+    city: string | null;
+    rejection_reason: string | null;
+    community: string | null;
+    education: string | null;
+    profession: string | null;
+    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
+    id: string;
+    user_id: string;
+    submitted_at: string;
     approved_at: string | null;
     rejected_at: string | null;
     updated_at: string;
@@ -1440,28 +1456,24 @@ export declare const AdminProfileUpdateSchema: z.ZodObject<{
     favourite_food: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     country: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodString, string, string>>>;
     state: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    district: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     city: z.ZodOptional<z.ZodNullable<z.ZodString>>;
 }, "strict", z.ZodTypeAny, {
     reason: string;
-    city?: string | null | undefined;
     first_name?: string | undefined;
     last_name?: string | null | undefined;
     date_of_birth?: string | undefined;
     height_cm?: number | null | undefined;
-    weight_kg?: number | null | undefined;
     marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
-    physical_status?: "NORMAL" | "PHYSICALLY_CHALLENGED" | null | undefined;
     religion?: string | null | undefined;
     sub_caste?: string | null | undefined;
     mother_tongue?: string | null | undefined;
-    languages_known?: string[] | undefined;
     swagotra?: string | null | undefined;
     maternal_gothra?: string | null | undefined;
     rashi?: string | null | undefined;
     nakshatra?: string | null | undefined;
     gan?: string | null | undefined;
     manglik_status?: "YES" | "NO" | "DONT_KNOW" | null | undefined;
-    employed_in?: "Government" | "Private" | "Business" | "Self-employed" | "Not working" | null | undefined;
     company?: string | null | undefined;
     annual_income?: string | null | undefined;
     work_location?: string | null | undefined;
@@ -1470,6 +1482,18 @@ export declare const AdminProfileUpdateSchema: z.ZodObject<{
     siblings?: string | null | undefined;
     family_location?: string | null | undefined;
     family_description?: string | null | undefined;
+    food_preference?: "Vegetarian" | "Non-vegetarian" | "Eggetarian" | "Vegan" | null | undefined;
+    smoking?: "Non-smoker" | "Light smoker" | "Social smoker" | "Regular smoker" | null | undefined;
+    drinking?: "Non-drinker" | "Light drinker" | "Social drinker" | "Regular drinker" | null | undefined;
+    employed_in?: "Government" | "Private" | "Business" | "Self-employed" | "Not working" | null | undefined;
+    about_me?: string | null | undefined;
+    weight_kg?: number | null | undefined;
+    physical_status?: "NORMAL" | "PHYSICALLY_CHALLENGED" | null | undefined;
+    languages_known?: string[] | undefined;
+    hobbies?: string[] | undefined;
+    favourite_music?: string[] | undefined;
+    sports?: string[] | undefined;
+    favourite_food?: string[] | undefined;
     family_value?: "ORTHODOX" | "TRADITIONAL" | "MODERATE" | "LIBERAL" | null | undefined;
     family_type?: "JOINT" | "NUCLEAR" | null | undefined;
     family_status?: "MIDDLE_CLASS" | "UPPER_MIDDLE_CLASS" | "RICH_AFFLUENT" | null | undefined;
@@ -1478,37 +1502,26 @@ export declare const AdminProfileUpdateSchema: z.ZodObject<{
     brothers_married_count?: number | null | undefined;
     sisters_count?: number | null | undefined;
     sisters_married_count?: number | null | undefined;
-    food_preference?: "Vegetarian" | "Non-vegetarian" | "Eggetarian" | "Vegan" | null | undefined;
-    smoking?: "Non-smoker" | "Light smoker" | "Social smoker" | "Regular smoker" | null | undefined;
-    drinking?: "Non-drinker" | "Light drinker" | "Social drinker" | "Regular drinker" | null | undefined;
-    about_me?: string | null | undefined;
-    hobbies?: string[] | undefined;
-    favourite_music?: string[] | undefined;
-    sports?: string[] | undefined;
-    favourite_food?: string[] | undefined;
     country?: string | null | undefined;
     state?: string | null | undefined;
+    district?: string | null | undefined;
+    city?: string | null | undefined;
 }, {
     reason: string;
-    city?: string | null | undefined;
     first_name?: string | undefined;
     last_name?: string | null | undefined;
     date_of_birth?: string | undefined;
     height_cm?: number | null | undefined;
-    weight_kg?: number | null | undefined;
     marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
-    physical_status?: "NORMAL" | "PHYSICALLY_CHALLENGED" | null | undefined;
     religion?: string | null | undefined;
     sub_caste?: string | null | undefined;
     mother_tongue?: string | null | undefined;
-    languages_known?: string[] | undefined;
     swagotra?: string | null | undefined;
     maternal_gothra?: string | null | undefined;
     rashi?: string | null | undefined;
     nakshatra?: string | null | undefined;
     gan?: string | null | undefined;
     manglik_status?: "YES" | "NO" | "DONT_KNOW" | null | undefined;
-    employed_in?: "Government" | "Private" | "Business" | "Self-employed" | "Not working" | null | undefined;
     company?: string | null | undefined;
     annual_income?: string | null | undefined;
     work_location?: string | null | undefined;
@@ -1517,6 +1530,18 @@ export declare const AdminProfileUpdateSchema: z.ZodObject<{
     siblings?: string | null | undefined;
     family_location?: string | null | undefined;
     family_description?: string | null | undefined;
+    food_preference?: "Vegetarian" | "Non-vegetarian" | "Eggetarian" | "Vegan" | null | undefined;
+    smoking?: "Non-smoker" | "Light smoker" | "Social smoker" | "Regular smoker" | null | undefined;
+    drinking?: "Non-drinker" | "Light drinker" | "Social drinker" | "Regular drinker" | null | undefined;
+    employed_in?: "Government" | "Private" | "Business" | "Self-employed" | "Not working" | null | undefined;
+    about_me?: string | null | undefined;
+    weight_kg?: number | null | undefined;
+    physical_status?: "NORMAL" | "PHYSICALLY_CHALLENGED" | null | undefined;
+    languages_known?: string[] | undefined;
+    hobbies?: string[] | undefined;
+    favourite_music?: string[] | undefined;
+    sports?: string[] | undefined;
+    favourite_food?: string[] | undefined;
     family_value?: "ORTHODOX" | "TRADITIONAL" | "MODERATE" | "LIBERAL" | null | undefined;
     family_type?: "JOINT" | "NUCLEAR" | null | undefined;
     family_status?: "MIDDLE_CLASS" | "UPPER_MIDDLE_CLASS" | "RICH_AFFLUENT" | null | undefined;
@@ -1525,16 +1550,10 @@ export declare const AdminProfileUpdateSchema: z.ZodObject<{
     brothers_married_count?: number | null | undefined;
     sisters_count?: number | null | undefined;
     sisters_married_count?: number | null | undefined;
-    food_preference?: "Vegetarian" | "Non-vegetarian" | "Eggetarian" | "Vegan" | null | undefined;
-    smoking?: "Non-smoker" | "Light smoker" | "Social smoker" | "Regular smoker" | null | undefined;
-    drinking?: "Non-drinker" | "Light drinker" | "Social drinker" | "Regular drinker" | null | undefined;
-    about_me?: string | null | undefined;
-    hobbies?: string[] | undefined;
-    favourite_music?: string[] | undefined;
-    sports?: string[] | undefined;
-    favourite_food?: string[] | undefined;
     country?: string | null | undefined;
     state?: string | null | undefined;
+    district?: string | null | undefined;
+    city?: string | null | undefined;
 }>;
 export type AdminProfileUpdateInput = z.infer<typeof AdminProfileUpdateSchema>;
 /**
@@ -1571,20 +1590,20 @@ export declare const AdminMasterListValueViewSchema: z.ZodObject<{
     sort_order: z.ZodNumber;
 }, "strict", z.ZodTypeAny, {
     value: string;
+    sort_order: number;
     id: string;
     group: string | null;
     is_active: boolean;
-    sort_order: number;
 }, {
     value: string;
+    sort_order: number;
     id: string;
     group: string | null;
     is_active: boolean;
-    sort_order: number;
 }>;
 export type AdminMasterListValueView = z.infer<typeof AdminMasterListValueViewSchema>;
 export declare const AdminMasterListViewSchema: z.ZodObject<{
-    key: z.ZodEnum<["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE"]>;
+    key: z.ZodEnum<["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE", "DISTRICT"]>;
     label: z.ZodString;
     is_active: z.ZodBoolean;
     values: z.ZodArray<z.ZodObject<{
@@ -1595,44 +1614,44 @@ export declare const AdminMasterListViewSchema: z.ZodObject<{
         sort_order: z.ZodNumber;
     }, "strict", z.ZodTypeAny, {
         value: string;
+        sort_order: number;
         id: string;
         group: string | null;
         is_active: boolean;
-        sort_order: number;
     }, {
         value: string;
+        sort_order: number;
         id: string;
         group: string | null;
         is_active: boolean;
-        sort_order: number;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     values: {
         value: string;
+        sort_order: number;
         id: string;
         group: string | null;
         is_active: boolean;
-        sort_order: number;
     }[];
-    is_active: boolean;
-    key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+    key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE" | "DISTRICT";
     label: string;
+    is_active: boolean;
 }, {
     values: {
         value: string;
+        sort_order: number;
         id: string;
         group: string | null;
         is_active: boolean;
-        sort_order: number;
     }[];
-    is_active: boolean;
-    key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+    key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE" | "DISTRICT";
     label: string;
+    is_active: boolean;
 }>;
 export type AdminMasterListView = z.infer<typeof AdminMasterListViewSchema>;
 export declare const AdminMasterListsResponseSchema: z.ZodObject<{
     lists: z.ZodArray<z.ZodObject<{
-        key: z.ZodEnum<["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE"]>;
+        key: z.ZodEnum<["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE", "DISTRICT"]>;
         label: z.ZodString;
         is_active: z.ZodBoolean;
         values: z.ZodArray<z.ZodObject<{
@@ -1643,65 +1662,65 @@ export declare const AdminMasterListsResponseSchema: z.ZodObject<{
             sort_order: z.ZodNumber;
         }, "strict", z.ZodTypeAny, {
             value: string;
+            sort_order: number;
             id: string;
             group: string | null;
             is_active: boolean;
-            sort_order: number;
         }, {
             value: string;
+            sort_order: number;
             id: string;
             group: string | null;
             is_active: boolean;
-            sort_order: number;
         }>, "many">;
     }, "strict", z.ZodTypeAny, {
         values: {
             value: string;
+            sort_order: number;
             id: string;
             group: string | null;
             is_active: boolean;
-            sort_order: number;
         }[];
-        is_active: boolean;
-        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE" | "DISTRICT";
         label: string;
+        is_active: boolean;
     }, {
         values: {
             value: string;
+            sort_order: number;
             id: string;
             group: string | null;
             is_active: boolean;
-            sort_order: number;
         }[];
-        is_active: boolean;
-        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE" | "DISTRICT";
         label: string;
+        is_active: boolean;
     }>, "many">;
 }, "strict", z.ZodTypeAny, {
     lists: {
         values: {
             value: string;
+            sort_order: number;
             id: string;
             group: string | null;
             is_active: boolean;
-            sort_order: number;
         }[];
-        is_active: boolean;
-        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE" | "DISTRICT";
         label: string;
+        is_active: boolean;
     }[];
 }, {
     lists: {
         values: {
             value: string;
+            sort_order: number;
             id: string;
             group: string | null;
             is_active: boolean;
-            sort_order: number;
         }[];
-        is_active: boolean;
-        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE";
+        key: "RELIGION" | "MOTHER_TONGUE" | "EDUCATION" | "PROFESSION" | "CASTE" | "COMMUNITY" | "STATE" | "DISTRICT";
         label: string;
+        is_active: boolean;
     }[];
 }>;
 export type AdminMasterListsResponse = z.infer<typeof AdminMasterListsResponseSchema>;

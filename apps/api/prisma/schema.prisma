@@ -730,6 +730,8 @@ model Profile {
   // -- 8.6 location --------------------------------------------------------
   country String? @db.VarChar(2)
   state   String?
+  /// Grouped DISTRICT master-list value, scoped by `state`.
+  district String?
   city    String?
 
   // -- moderation ----------------------------------------------------------

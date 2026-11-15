@@ -55,6 +55,8 @@ exports.MASTER_LIST_KEYS = [
     'CASTE',
     'COMMUNITY',
     'STATE',
+    // Grouped by state: the district picker offers only the chosen state's rows.
+    'DISTRICT',
 ];
 /** The same keys as a schema, for validating a list key that arrives in a path. */
 exports.MasterListKeySchema = zod_1.z.enum(exports.MASTER_LIST_KEYS);

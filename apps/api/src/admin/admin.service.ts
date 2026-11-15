@@ -466,6 +466,7 @@ const PROFILE_DETAIL_SELECT = {
   favouriteFood: true,
   country: true,
   state: true,
+  district: true,
   city: true,
   createdAt: true,
   approvedAt: true,
@@ -1334,6 +1335,7 @@ export class AdminService {
     set('favouriteFood', input.favourite_food);
     set('country', input.country);
     set('state', input.state);
+    set('district', input.district);
     set('city', input.city);
 
     if (Object.keys(data).length === 0) {
@@ -1426,6 +1428,7 @@ export class AdminService {
       favourite_food: row.favouriteFood,
       country: row.country,
       state: row.state,
+      district: row.district,
       city: row.city,
       submitted_at: row.createdAt.toISOString(),
       approved_at: row.approvedAt ? row.approvedAt.toISOString() : null,
@@ -1447,14 +1450,31 @@ export class AdminService {
     limit = 20,
     cursor?: string,
     status: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUSPENDED' = 'PENDING_REVIEW',
+    q?: string,
   ): Promise<AdminProfileListResponse> {
     const take = Math.min(limit, 100);
+    // A reviewer looking for one person types a name; support types a mobile
+    // number from a complaint; both land here. The id is matched too so a link
+    // into the queue still works when the name has been corrected.
+    const search = q?.trim();
+    const matching = {
+      ...(search
+        ? {
+            OR: [
+              { firstName: { contains: search, mode: 'insensitive' as const } },
+              { lastName: { contains: search, mode: 'insensitive' as const } },
+              { id: search },
+              { user: { mobile: { contains: search } } },
+            ],
+          }
+        : {}),
+    };
     const oldestFirst = status === 'PENDING_REVIEW';
     const items = await this.prisma.profile.findMany({
       take: take + 1,
       cursor: cursor ? { id: cursor } : undefined,
       skip: cursor ? 1 : 0,
-      where: { status: status as never, deletedAt: null },
+      where: { status: status as never, deletedAt: null, ...matching },
       orderBy: oldestFirst
         ? [{ updatedAt: 'asc' as const }, { id: 'asc' as const }]
         : [{ updatedAt: 'desc' as const }, { id: 'desc' as const }],
@@ -1474,6 +1494,42 @@ export class AdminService {
       nextCursor: hasMore ? (profiles[profiles.length - 1]?.id ?? null) : null,
       hasMore,
     };
+  }
+
+  /**
+   * Suspends a profile (§30 "action the account").
+   *
+   * Suspension is separate from rejection: the profile stays as it was reviewed,
+   * but the member is no longer discoverable and cannot be unlocked, and the
+   * decision records who did it and why. Lifting it is a restore, not an
+   * approval, so nothing here touches `approvedAt`.
+   */
+  async suspendProfile(
+    id: string,
+    reason: string,
+    actingAdminId: string,
+  ): Promise<AdminProfileView> {
+    const row = await this.requireReviewable(id);
+    const updated = await this.prisma.profile.update({
+      where: { id },
+      data: { status: 'SUSPENDED' as never },
+      select: PROFILE_REVIEW_SELECT,
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'profile:suspend',
+      resourceType: 'Profile',
+      resourceId: id,
+      previousValue: { status: row.status },
+      newValue: { status: 'SUSPENDED', reason },
+    });
+
+    return toProfileReviewView(
+      updated,
+      await this.photoUrl(updated.photos[0]?.objectKey),
+      this.clock.now(),
+    );
   }
 
   /**

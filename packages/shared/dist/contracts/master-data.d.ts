@@ -148,10 +148,10 @@ export declare const MasterListsResponseSchema: z.ZodObject<{
 }>;
 export type MasterListsResponse = z.infer<typeof MasterListsResponseSchema>;
 /** Master-list keys, seeded and referenced by the profile schema. */
-export declare const MASTER_LIST_KEYS: readonly ["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE"];
+export declare const MASTER_LIST_KEYS: readonly ["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE", "DISTRICT"];
 export type MasterListKey = (typeof MASTER_LIST_KEYS)[number];
 /** The same keys as a schema, for validating a list key that arrives in a path. */
-export declare const MasterListKeySchema: z.ZodEnum<["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE"]>;
+export declare const MasterListKeySchema: z.ZodEnum<["RELIGION", "MOTHER_TONGUE", "EDUCATION", "PROFESSION", "CASTE", "COMMUNITY", "STATE", "DISTRICT"]>;
 /**
  * Map a profile field to the list it draws from, so the server can validate ids
  * without a per-field switch at every call site.

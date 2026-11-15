@@ -206,6 +206,7 @@ const MASTER_LISTS = [
   { key: 'CASTE', label: 'Sub-caste', isSensitive: true, sortOrder: 5 },
   { key: 'COMMUNITY', label: 'Community', isSensitive: true, sortOrder: 6 },
   { key: 'STATE', label: 'State', isSensitive: false, sortOrder: 7 },
+  { key: 'DISTRICT', label: 'District', isSensitive: false, sortOrder: 8 },
 ] as const;
 
 /**
@@ -226,6 +227,7 @@ const MASTER_LIST_VALUES: Record<string, MasterListValueSeed[]> = {
   PROFESSION: PROFESSION_VALUES,
   CASTE: CASTE_VALUES,
   STATE: STATE_VALUES,
+  DISTRICT: DISTRICT_VALUES,
 };
 
 async function seedMasterLists(): Promise<void> {

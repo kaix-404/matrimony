@@ -63,6 +63,8 @@ export const MASTER_LIST_KEYS = [
   'CASTE',
   'COMMUNITY',
   'STATE',
+  // Grouped by state: the district picker offers only the chosen state's rows.
+  'DISTRICT',
 ] as const;
 export type MasterListKey = (typeof MASTER_LIST_KEYS)[number];
 

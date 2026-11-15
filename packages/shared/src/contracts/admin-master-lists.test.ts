@@ -43,6 +43,7 @@ describe('master-list permissions', () => {
       'CASTE',
       'COMMUNITY',
       'STATE',
+      'DISTRICT',
     ]);
   });
 });

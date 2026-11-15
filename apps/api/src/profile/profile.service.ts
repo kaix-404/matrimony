@@ -134,6 +134,7 @@ export class ProfileService {
 
         country: input.country ?? null,
         state: input.state ?? null,
+        district: input.district ?? null,
         city: input.city ?? null,
 
         // DRAFT until the user submits for review. Section 26 makes only
@@ -271,6 +272,7 @@ export class ProfileService {
 
     set('country', input.country);
     set('state', input.state);
+    set('district', input.district);
     set('city', input.city);
 
     // Resolving a master-list id to null clears the column, but a client that
@@ -583,6 +585,7 @@ export class ProfileService {
         sistersMarriedCount: true,
         country: true,
         state: true,
+        district: true,
         city: true,
         status: true,
         rejectionReason: true,
@@ -655,6 +658,7 @@ export class ProfileService {
       sisters_married_count: row.sistersMarriedCount,
       country: row.country,
       state: row.state,
+      district: row.district,
       city: row.city,
       status: row.status,
       rejection_reason: row.rejectionReason,

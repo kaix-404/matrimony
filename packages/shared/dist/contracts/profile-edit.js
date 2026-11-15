@@ -167,6 +167,9 @@ exports.CreateProfileSchema = zod_1.z
     sisters_married_count: siblingCount,
     country: country.nullable().optional(),
     state: optionalText(80),
+    // A DISTRICT master-list value, meaningful only beside `state`: the list is
+    // grouped by state, the way sub-castes are grouped by religion.
+    district: optionalText(80),
     city: optionalText(80),
 })
     .strict();
@@ -250,6 +253,8 @@ exports.UpdateProfileSchema = zod_1.z
     sisters_married_count: siblingCount,
     country: country.nullable().optional(),
     state: optionalText(80),
+    // Grouped DISTRICT value, meaningful only beside `state`.
+    district: optionalText(80),
     city: optionalText(80),
 })
     .strict()
@@ -348,6 +353,7 @@ exports.MyProfileSchema = zod_1.z
     sisters_married_count: zod_1.z.number().int().nullable(),
     country: zod_1.z.string().nullable(),
     state: zod_1.z.string().nullable(),
+    district: zod_1.z.string().nullable(),
     city: zod_1.z.string().nullable(),
     status: zod_1.z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED', 'DELETED']),
     /**

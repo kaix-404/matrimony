@@ -11,6 +11,7 @@ import {
 import { readParam } from '@/lib/query';
 import { Pager } from '../pager';
 import { ProfileReviewControls } from './review-controls';
+import { SuspendProfileButton } from './suspend-button';
 
 /**
  * The profile review queue (section 26).
@@ -40,8 +41,12 @@ export default async function ProfilesPage({
   const params = await searchParams;
   const status = asStatus(readParam(params, 'status'));
   const cursor = readParam(params, 'cursor');
+  const search = readParam(params, 'q')?.trim() ?? '';
 
   const query = new URLSearchParams({ status });
+  if (search !== '') {
+    query.set('q', search);
+  }
   if (cursor !== undefined) {
     query.set('cursor', cursor);
   }
@@ -62,6 +67,28 @@ export default async function ProfilesPage({
         can find that member at all.
       </p>
 
+      {/* One box for all three statuses: a reviewer looking for a member should
+          not have to guess which tab that member is under. */}
+      <form action="/profiles" method="get" className="filters">
+        <input type="hidden" name="status" value={status} />
+        <input
+          type="search"
+          name="q"
+          defaultValue={search}
+          placeholder="Search name, mobile or profile id"
+          aria-label="Search profiles"
+          style={{ minWidth: 260 }}
+        />
+        <button type="submit" className="button">
+          Search
+        </button>
+        {search !== '' ? (
+          <Link href={`/profiles?status=${status}`} className="chip">
+            Clear
+          </Link>
+        ) : null}
+      </form>
+
       <div className="filters">
         {PROFILE_REVIEW_STATUSES.map((value) => (
           <Link
@@ -80,9 +107,11 @@ export default async function ProfilesPage({
         <div className="card">
           {list.profiles.length === 0 ? (
             <p className="notice">
-              {status === 'PENDING_REVIEW'
-                ? 'Nothing is waiting for review.'
-                : 'No profiles have this status.'}
+              {search !== ''
+                ? `No profile matches “${search}” in this status.`
+                : status === 'PENDING_REVIEW'
+                  ? 'Nothing is waiting for review.'
+                  : 'No profiles have this status.'}
             </p>
           ) : (
             <div
@@ -144,6 +173,9 @@ export default async function ProfilesPage({
                     ) : null}
                   </div>
                   <ProfileReviewControls profileId={profile.id} status={profile.status} />
+                  {profile.status !== 'SUSPENDED' ? (
+                    <SuspendProfileButton profileId={profile.id} />
+                  ) : null}
                 </div>
               ))}
             </div>

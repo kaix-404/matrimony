@@ -193,6 +193,9 @@ export const CreateProfileSchema = z
 
     country: country.nullable().optional(),
     state: optionalText(80),
+    // A DISTRICT master-list value, meaningful only beside `state`: the list is
+    // grouped by state, the way sub-castes are grouped by religion.
+    district: optionalText(80),
     city: optionalText(80),
   })
   .strict();
@@ -286,6 +289,8 @@ export const UpdateProfileSchema = z
 
     country: country.nullable().optional(),
     state: optionalText(80),
+    // Grouped DISTRICT value, meaningful only beside `state`.
+    district: optionalText(80),
     city: optionalText(80),
   })
   .strict()
@@ -398,6 +403,7 @@ export const MyProfileSchema = z
 
     country: z.string().nullable(),
     state: z.string().nullable(),
+    district: z.string().nullable(),
     city: z.string().nullable(),
 
     status: z.enum(['DRAFT', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED', 'DELETED']),

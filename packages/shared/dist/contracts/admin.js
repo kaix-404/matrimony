@@ -17,7 +17,7 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileUpdateSchema = exports.AdminProfileDetailSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminSessionViewSchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileUpdateSchema = exports.AdminProfileDetailSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminSuspendProfileSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminSessionViewSchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const enums_js_1 = require("../enums.js");
@@ -590,9 +590,17 @@ exports.AdminListProfilesQuerySchema = zod_1.z.object({
         .enum(['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'SUSPENDED'])
         .optional()
         .default('PENDING_REVIEW'),
+    /** Free text: matches the profile's name, its account's mobile, or its id. */
+    q: zod_1.z.string().trim().max(80).optional(),
     limit: zod_1.z.coerce.number().int().positive().max(100).optional().default(20),
     cursor: zod_1.z.string().min(1).optional(),
 });
+/** Suspending a profile: the reason is kept, and the member is told. */
+exports.AdminSuspendProfileSchema = zod_1.z
+    .object({
+    reason: zod_1.z.string().trim().min(5, 'must explain the suspension').max(500),
+})
+    .strict();
 /**
  * A profile as the review queue shows it.
  *
@@ -690,6 +698,7 @@ exports.AdminProfileDetailSchema = zod_1.z
     favourite_food: zod_1.z.array(zod_1.z.string()),
     country: zod_1.z.string().nullable(),
     state: zod_1.z.string().nullable(),
+    district: zod_1.z.string().nullable(),
     city: zod_1.z.string().nullable(),
     submitted_at: zod_1.z.string().datetime(),
     approved_at: zod_1.z.string().datetime().nullable(),
@@ -773,6 +782,7 @@ exports.AdminProfileUpdateSchema = zod_1.z
         .nullable()
         .optional(),
     state: nullableText(80).optional(),
+    district: nullableText(80).optional(),
     city: nullableText(80).optional(),
 })
     .strict();
