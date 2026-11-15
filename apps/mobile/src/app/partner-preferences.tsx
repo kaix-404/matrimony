@@ -340,7 +340,9 @@ export default function PartnerPreferencesScreen() {
 
       <Text style={styles.hint}>
         Turn on “Compulsory” beside an answer to make it a hard filter. Those are the only answers
-        that remove profiles from your feed — the others are what we recommend by.
+        that remove profiles from your feed — the others are what we recommend by. The ticks work
+        both ways: your profile is hidden from members whose own compulsory filters it does not
+        meet.
         {count > 0 ? ` ${count} compulsory ${count === 1 ? 'filter' : 'filters'}.` : ''}
       </Text>
 

@@ -2,7 +2,69 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, PrismaClient, type PhotoType } from '../prisma/prisma-client';
 import { StorageService } from '../storage/s3.service';
 import { VisibilityPreferenceService } from './visibility-preference.service';
-import { PartnerPreferenceService, partnerPreferenceWhere } from './partner-preference.service';
+import {
+  PartnerPreferenceService,
+  meetsCompulsoryFilters,
+  partnerPreferenceWhere,
+  type ViewerProfileFacts,
+} from './partner-preference.service';
+
+/**
+ * How many batches one page may span while the mutual compulsory filter removes
+ * candidates. Bounded so a member whose ticked filters exclude most profiles
+ * cannot turn a page request into a table scan.
+ */
+const MUTUAL_FILTER_ROUNDS = 4;
+
+/**
+ * The fields a discovery card needs, plus the two the mutual filter needs.
+ *
+ * `userId` is not part of the response — it is how a candidate's own preference
+ * row is looked up — and the mapping below stays explicit about the card shape.
+ */
+const CANDIDATE_SELECT = {
+  id: true,
+  userId: true,
+  photos: {
+    // Section 9: only APPROVED photos reach another user.
+    where: { status: 'APPROVED' },
+    orderBy: { sortOrder: 'asc' },
+    take: 6,
+    select: {
+      id: true,
+      objectKey: true,
+      widthPx: true,
+      heightPx: true,
+      isPrimary: true,
+      photoType: true,
+    },
+  },
+  user: { select: { networthCategory: true } },
+} satisfies Prisma.ProfileSelect;
+
+type CandidateRow = Prisma.ProfileGetPayload<{ select: typeof CANDIDATE_SELECT }>;
+
+/** The viewer's own facts, as a candidate's compulsory filters see them. */
+const VIEWER_FACTS_SELECT = {
+  gender: true,
+  dateOfBirth: true,
+  heightCm: true,
+  maritalStatus: true,
+  religion: true,
+  subCaste: true,
+  motherTongue: true,
+  educationId: true,
+  professionId: true,
+  country: true,
+  state: true,
+  city: true,
+  physicalStatus: true,
+  foodPreference: true,
+  drinking: true,
+  smoking: true,
+  manglikStatus: true,
+  employedIn: true,
+} satisfies Prisma.ProfileSelect;
 import {
   quotePayment,
   type DiscoveryCard,
@@ -71,50 +133,51 @@ export class DiscoveryService {
     }
 
     const cursor = decodeCursor(query.cursor);
-    // The member's own partner preferences narrow what they see. They are a
-    // filter over the feed, not a permission: a candidate outside them may still
-    // be opened directly, and the preference is never applied in the other
-    // direction (it does not make anyone less discoverable).
+    // The member's own partner preferences narrow what they see, and a
+    // candidate's compulsory ones narrow who may see *them* — the ticks are
+    // mutual, as the client's reference describes. They remain a filter over the
+    // feed rather than a permission: a candidate outside them can still be opened
+    // directly by id.
     const partnerPreference = await this.partnerPreferences.get(viewerId);
-    // The client's "Compulsory Filters" rule: a preference the member ticked is
-    // a hard filter, and one they only stated does not remove anybody. With no
-    // ticks at all every saved preference still applies, which is both the
-    // behaviour this feed had before the ticks existed and what a member who has
-    // never opened the new control expects.
-    const compulsory = partnerPreference.preference.compulsory;
-    const ticked = compulsory.length > 0 ? new Set(compulsory) : undefined;
-    const rows = await this.prisma.profile.findMany({
-      where: {
-        ...this.candidateWhere(viewerId, viewerBand, scope),
-        ...partnerPreferenceWhere(partnerPreference.preference, new Date(), ticked),
-        ...this.temporaryFilter(query),
-      },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: query.limit + 1,
-      ...(cursor ? { cursor: { id: cursor.id }, skip: 1 } : {}),
-      select: {
-        id: true,
-        photos: {
-          // Section 9: only APPROVED photos reach another user.
-          where: { status: 'APPROVED' },
-          orderBy: { sortOrder: 'asc' },
-          take: 6,
-          select: {
-            id: true,
-            objectKey: true,
-            widthPx: true,
-            heightPx: true,
-            isPrimary: true,
-            photoType: true,
-          },
-        },
-        user: { select: { networthCategory: true } },
-      },
-    });
+    const now = new Date();
+    // One rule: the member's ticked preferences filter, and nothing else does.
+    // Rows saved before the ticks existed were backfilled with a tick on every
+    // answer they had, so no feed silently widened when the rule arrived.
+    const where: Prisma.ProfileWhereInput = {
+      ...this.candidateWhere(viewerId, viewerBand, scope),
+      ...partnerPreferenceWhere(partnerPreference.preference, now),
+      ...this.temporaryFilter(query),
+    };
+
+    // A candidate's own compulsory filters can remove a row the query already
+    // returned, so the page is refilled from the last raw row. Bounded: four
+    // rounds of `limit + 1`, after which a short page is served rather than a
+    // request that scans the whole table.
+    const collected: CandidateRow[] = [];
+    let after = cursor?.id;
+    for (let round = 0; round < MUTUAL_FILTER_ROUNDS; round += 1) {
+      const batch = await this.prisma.profile.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: query.limit + 1,
+        ...(after ? { cursor: { id: after }, skip: 1 } : {}),
+        select: CANDIDATE_SELECT,
+      });
+      if (batch.length === 0) break;
+
+      const allowed = await this.acceptedByCandidates(viewerId, batch, now);
+      for (const row of batch) {
+        if (allowed.has(row.id)) collected.push(row);
+      }
+
+      after = batch[batch.length - 1]?.id;
+      // A short batch is the end of the table, whatever was filtered out of it.
+      if (batch.length <= query.limit) break;
+    }
 
     // One row past the page is the has-more probe, not part of the response.
-    const page = rows.slice(0, query.limit);
-    const hasMore = rows.length > query.limit;
+    const page = collected.slice(0, query.limit);
+    const hasMore = collected.length > query.limit;
 
     const built = await Promise.all(
       page.map(async (row): Promise<DiscoveryCard | null> => {
@@ -158,6 +221,46 @@ export class DiscoveryService {
       // ignored while every returned card had in fact been filtered by them.
       preference_applied: true,
     };
+  }
+
+  /**
+   * Which of these candidates' compulsory filters the viewer passes.
+   *
+   * The client's reference makes the ticks mutual: "your profile will not be
+   * shown to matches who do not fit your 'Compulsory' filters". The forward
+   * direction is one SQL predicate; this one is per candidate, because it asks
+   * whether *this viewer's* profile satisfies *their* saved answers, which no
+   * single query over candidate profiles can express.
+   */
+  private async acceptedByCandidates(
+    viewerId: string,
+    rows: CandidateRow[],
+    now: Date,
+  ): Promise<Set<string>> {
+    const allowed = new Set(rows.map((row) => row.id));
+    if (rows.length === 0) return allowed;
+
+    const filters = await this.partnerPreferences.compulsoryFiltersFor(
+      rows.map((row) => row.userId),
+    );
+    if (filters.size === 0) return allowed;
+
+    const viewer = await this.prisma.profile.findUnique({
+      where: { userId: viewerId },
+      select: VIEWER_FACTS_SELECT,
+    });
+    // No profile means no feed to filter either; leaving the page alone keeps one
+    // missing row from silently emptying it.
+    if (viewer === null) return allowed;
+
+    const facts: ViewerProfileFacts = viewer;
+    for (const row of rows) {
+      const preference = filters.get(row.userId);
+      if (preference === undefined) continue;
+      if (!meetsCompulsoryFilters(preference, facts, now)) allowed.delete(row.id);
+    }
+
+    return allowed;
   }
 
   /**

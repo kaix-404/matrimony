@@ -68,6 +68,29 @@ class FakePrisma {
   /** The last `where` handed to the candidate query, for structural assertions. */
   lastProfileWhere: unknown = null;
   profileFindManyCalls = 0;
+  /** Preference rows of candidates, keyed by user id, for the mutual filter. */
+  candidatePreferences: Record<string, Record<string, unknown>> = {};
+  /** The viewer's own profile, as a candidate's compulsory filters see it. */
+  viewerFacts: Record<string, unknown> | null = {
+    gender: 'MALE',
+    dateOfBirth: new Date('1992-06-01T00:00:00Z'),
+    heightCm: 170,
+    maritalStatus: 'NEVER_MARRIED',
+    religion: 'Hindu',
+    subCaste: null,
+    motherTongue: null,
+    educationId: null,
+    professionId: null,
+    country: 'IN',
+    state: null,
+    city: null,
+    physicalStatus: null,
+    foodPreference: null,
+    drinking: null,
+    smoking: null,
+    manglikStatus: null,
+    employedIn: null,
+  };
 
   user = {
     findUniqueOrThrow: async ({ where }: { where: { id: string } }) => {
@@ -118,6 +141,9 @@ class FakePrisma {
 
       return rows.slice(0, args.take).map((p) => ({
         id: p.id,
+        // Not part of a card; the mutual compulsory filter looks up a
+        // candidate's own preference row by it.
+        userId: p.userId,
         photos: p.photos
           .filter((photo) => photo.status === 'APPROVED')
           .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -135,6 +161,14 @@ class FakePrisma {
         },
       }));
     },
+
+    /** The viewer's own facts, read only when a candidate has ticked filters. */
+    findUnique: async ({ where }: { where: { userId: string } }) => {
+      if (where.userId !== 'viewer') {
+        throw new Error(`double has no profile facts for ${where.userId}`);
+      }
+      return this.viewerFacts;
+    },
   };
 
   /** The viewer's saved partner preference, or null when never saved. */
@@ -149,6 +183,22 @@ class FakePrisma {
       }
       if (this.partnerPreferenceRow === null) return null;
       return { ...this.partnerPreferenceRow, updatedAt: new Date('2026-01-01T00:00:00Z') };
+    },
+
+    /** Several candidates' rows at once, which is how the mutual filter reads. */
+    findMany: async ({
+      where,
+    }: {
+      where: { userId: { in: string[] }; compulsoryFilters?: { isEmpty?: boolean } };
+    }) => {
+      return where.userId.in
+        .map((userId) => ({ ...EMPTY_CANDIDATE_PREFERENCE, ...this.candidatePreferences[userId], userId }))
+        .filter((row) => {
+          if (where.compulsoryFilters?.isEmpty === false) {
+            return (row.compulsoryFilters as string[]).length > 0;
+          }
+          return true;
+        });
     },
   };
 
@@ -176,6 +226,33 @@ class FakePrisma {
  * and the paging tests would pass without ever exercising a real cursor.
  */
 const pid = (key: string): string => `ck${key.padEnd(22, '0')}`;
+
+/** A candidate preference row with nothing set, in the columns' own names. */
+const EMPTY_CANDIDATE_PREFERENCE = {
+  gender: 'ANY',
+  ageMin: null,
+  ageMax: null,
+  heightMinCm: null,
+  heightMaxCm: null,
+  maritalStatus: null,
+  religion: null,
+  subCaste: null,
+  educationId: null,
+  professionId: null,
+  motherTongue: null,
+  preferredCountry: null,
+  preferredState: null,
+  preferredCity: null,
+  physicalStatus: [],
+  eatingHabits: [],
+  drinkingHabits: [],
+  smokingHabits: [],
+  kujaDosham: [],
+  employedIn: [],
+  annualIncomeBands: [],
+  compulsoryFilters: [],
+  updatedAt: new Date('2026-01-01T00:00:00Z'),
+};
 
 /**
  * Real Decimal values, not a stand-in.
@@ -782,6 +859,8 @@ describe('DiscoveryService', () => {
         heightMaxCm: null,
         maritalStatus: null,
         religion: 'hindu',
+        // Ticked, because only ticked preferences filter now.
+        compulsoryFilters: ['religion'],
         subCaste: null,
         educationId: null,
         professionId: null,
@@ -796,7 +875,6 @@ describe('DiscoveryService', () => {
         kujaDosham: [],
         employedIn: [],
         annualIncomeBands: [],
-        compulsoryFilters: [],
       };
 
       const result = await service.search('viewer', query());
@@ -835,7 +913,8 @@ describe('DiscoveryService', () => {
         kujaDosham: [],
         employedIn: [],
         annualIncomeBands: [],
-        compulsoryFilters: [],
+        // Ticked: only ticked preferences filter, so this one has to be.
+        compulsoryFilters: ['religion'],
       };
 
       const result = await service.search('viewer', query());
@@ -870,6 +949,34 @@ describe('DiscoveryService', () => {
         annualIncomeBands: [],
         compulsoryFilters: ['country'],
       };
+
+      const result = await service.search('viewer', query());
+      expect(result.items.map((item) => item.profile_id).sort()).toEqual([
+        pid('hindu'),
+        pid('other'),
+      ]);
+    });
+
+    it("hides the viewer from a candidate whose compulsory filters they fail", async () => {
+      // The client's reference makes the ticks mutual: a member's compulsory
+      // filters decide who may appear to them, so this viewer must not turn up in
+      // the feed of someone who insisted on a different eating habit.
+      both();
+      prisma.viewerFacts = { ...prisma.viewerFacts, foodPreference: 'Vegetarian' };
+      prisma.candidatePreferences['other'] = {
+        eatingHabits: ['Vegan'],
+        compulsoryFilters: ['eating'],
+      };
+
+      const result = await service.search('viewer', query());
+      expect(result.items.map((item) => item.profile_id)).toEqual([pid('hindu')]);
+    });
+
+    it('keeps the viewer when the candidate\'s compulsory filters are unticked', async () => {
+      // Same answers, no tick: stated, not enforced — in either direction.
+      both();
+      prisma.viewerFacts = { ...prisma.viewerFacts, foodPreference: 'Vegetarian' };
+      prisma.candidatePreferences['other'] = { eatingHabits: ['Vegan'], compulsoryFilters: [] };
 
       const result = await service.search('viewer', query());
       expect(result.items.map((item) => item.profile_id).sort()).toEqual([
