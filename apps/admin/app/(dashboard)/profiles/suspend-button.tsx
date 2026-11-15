@@ -3,13 +3,15 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { adminFetch } from '../../../lib/api';
+import { suspendProfileAction } from './actions';
 
 /**
  * Suspends a profile from the review queue.
  *
  * The reason is asked for up front because it is what gets audited and what the
  * member is told; a bare "suspended" would leave support with nothing to say.
+ * The request itself goes through a server action — the admin API client reads
+ * the session cookie on the server, so it cannot be imported here.
  */
 export function SuspendProfileButton({ profileId }: { profileId: string }) {
   const router = useRouter();
@@ -26,17 +28,14 @@ export function SuspendProfileButton({ profileId }: { profileId: string }) {
 
     setBusy(true);
     setError(null);
-    try {
-      await adminFetch(`/admin/profiles/${profileId}/suspend`, {
-        method: 'POST',
-        body: JSON.stringify({ reason: reason.trim() }),
-      });
-      router.refresh();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not suspend the profile.');
-    } finally {
-      setBusy(false);
+    const result = await suspendProfileAction(profileId, reason.trim());
+    setBusy(false);
+
+    if (!result.ok) {
+      setError(result.error);
+      return;
     }
+    router.refresh();
   }
 
   return (

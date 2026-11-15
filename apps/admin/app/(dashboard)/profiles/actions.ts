@@ -73,3 +73,31 @@ export async function rejectProfileAction(
   revalidatePath('/profiles');
   return { error: null };
 }
+
+/**
+ * Suspends one profile from the review queue (section 30).
+ *
+ * Separate from rejection: the profile keeps the content that was reviewed, but
+ * the member is no longer discoverable, and the reason goes on the audit trail
+ * and to the member.
+ */
+export async function suspendProfileAction(
+  profileId: string,
+  reason: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (profileId.length === 0) {
+    return { ok: false, error: 'Missing profile id.' };
+  }
+
+  try {
+    await adminFetch(`/admin/profiles/${profileId}/suspend`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  } catch (caught) {
+    return { ok: false, error: describeError(caught) };
+  }
+
+  revalidatePath('/profiles');
+  return { ok: true };
+}
