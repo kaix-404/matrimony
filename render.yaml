@@ -207,8 +207,17 @@ services:
   #
   # The build is `npm ci` plus the export because the app is built from source
   # here, exactly as the mobile build does — same screens, same API calls.
+  #
+  # The name is the one the live service already has, not a nicer one. A
+  # blueprint matches an existing service by name and takes over its
+  # configuration on the next sync; a name it has never seen would instead
+  # provision a second service and leave the real one unmanaged, which is how
+  # this entry came to exist as `matrimony-landing` while the running service was
+  # called `networth-matrimony` — so the build command and health check below
+  # never reached it. Renaming the service instead would move the URL people
+  # already have.
   - type: web
-    name: matrimony-landing
+    name: networth-matrimony
     env: node
     region: singapore
     plan: free
