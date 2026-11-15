@@ -628,7 +628,9 @@ describe('DiscoveryService', () => {
       expect(where['visibility']).toBe('ACTIVE');
       expect(where['deletedAt']).toBeNull();
       expect(user['status']).toBe('ACTIVE');
-      expect(user['identityVerifiedAt']).toEqual({ not: null });
+      // Identity verification is not a gate any more: the profile's APPROVED
+      // status above is the review an administrator actually performed.
+      expect(user['identityVerifiedAt']).toBeUndefined();
       expect(user['setupFeePaidAt']).toEqual({ not: null });
       expect(user['isAnonymised']).toBe(false);
       expect(user['id']).toEqual({ not: 'viewer' });
@@ -665,9 +667,14 @@ describe('DiscoveryService', () => {
       expect((await service.search('viewer', query())).items).toEqual([]);
     });
 
-    it('omits an unverified account', async () => {
+    it('includes an approved profile whose identity check never passed', async () => {
+      // The administrator's approval is the review that matters. Members whose
+      // DigiLocker check could not complete used to disappear from every feed
+      // even after that approval.
       seedEligible('a', 'LOW', { identityVerified: false });
-      expect((await service.search('viewer', query())).items).toEqual([]);
+      expect((await service.search('viewer', query())).items.map((i) => i.profile_id)).toEqual([
+        pid('a'),
+      ]);
     });
 
     it('omits an account that has not paid the setup fee', async () => {

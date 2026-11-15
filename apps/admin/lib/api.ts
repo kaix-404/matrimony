@@ -15,7 +15,7 @@ import { ACCESS_COOKIE } from './session';
  * fresh token in hand before the cookie exists.
  */
 export interface AdminFetchOptions {
-  method?: 'GET' | 'POST' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   token?: string;
 }

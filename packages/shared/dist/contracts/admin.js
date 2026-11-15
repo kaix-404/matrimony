@@ -17,10 +17,11 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminSessionViewSchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileUpdateSchema = exports.AdminProfileDetailSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminSessionViewSchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const enums_js_1 = require("../enums.js");
+const profile_details_js_1 = require("./profile-details.js");
 const master_data_js_1 = require("./master-data.js");
 /**
  * Every permission the backend is allowed to check.
@@ -85,6 +86,12 @@ exports.ADMIN_PERMISSIONS = {
         action: 'suspend',
         sensitive: true,
         description: 'Suspend a profile',
+    },
+    'profile:update': {
+        resource: 'profile',
+        action: 'update',
+        sensitive: true,
+        description: "Correct a member profile's details (always audited)",
     },
     'photo:review': {
         resource: 'photo',
@@ -613,6 +620,160 @@ exports.AdminProfileListResponseSchema = zod_1.z
     profiles: zod_1.z.array(exports.AdminProfileViewSchema),
     nextCursor: zod_1.z.string().nullable(),
     hasMore: zod_1.z.boolean(),
+})
+    .strict();
+// ---------------------------------------------------------------------------
+// One profile in depth (support correction)
+// ---------------------------------------------------------------------------
+const nullableText = (max) => zod_1.z.string().max(max).nullable();
+/**
+ * A member profile as the console's own page shows it.
+ *
+ * Wider than the review queue on purpose: an administrator correcting a member's
+ * details has to see what is actually stored. `profile:read` already gates
+ * profile content, and the account's contact details stay on the user view —
+ * this is the profile, not the account.
+ */
+exports.AdminProfileDetailSchema = zod_1.z
+    .object({
+    id: zod_1.z.string().min(1),
+    user_id: zod_1.z.string().min(1),
+    status: zod_1.z.enum(enums_js_1.PROFILE_STATUSES),
+    visibility: zod_1.z.enum(enums_js_1.PROFILE_VISIBILITIES),
+    first_name: zod_1.z.string(),
+    last_name: zod_1.z.string().nullable(),
+    gender: zod_1.z.enum(enums_js_1.GENDERS),
+    date_of_birth: zod_1.z.string(),
+    time_of_birth: zod_1.z.string().nullable(),
+    place_of_birth: zod_1.z.string().nullable(),
+    height_cm: zod_1.z.number().int().nullable(),
+    weight_kg: zod_1.z.number().int().nullable(),
+    marital_status: zod_1.z.string().nullable(),
+    physical_status: zod_1.z.string().nullable(),
+    religion: zod_1.z.string().nullable(),
+    sub_caste: zod_1.z.string().nullable(),
+    community: zod_1.z.string().nullable(),
+    mother_tongue: zod_1.z.string().nullable(),
+    languages_known: zod_1.z.array(zod_1.z.string()),
+    swagotra: zod_1.z.string().nullable(),
+    maternal_gothra: zod_1.z.string().nullable(),
+    rashi: zod_1.z.string().nullable(),
+    nakshatra: zod_1.z.string().nullable(),
+    gan: zod_1.z.string().nullable(),
+    manglik_status: zod_1.z.string().nullable(),
+    education: zod_1.z.string().nullable(),
+    profession: zod_1.z.string().nullable(),
+    employed_in: zod_1.z.string().nullable(),
+    company: zod_1.z.string().nullable(),
+    annual_income: zod_1.z.string().nullable(),
+    work_location: zod_1.z.string().nullable(),
+    fathers_occupation: zod_1.z.string().nullable(),
+    mothers_occupation: zod_1.z.string().nullable(),
+    siblings: zod_1.z.string().nullable(),
+    family_location: zod_1.z.string().nullable(),
+    family_description: zod_1.z.string().nullable(),
+    family_value: zod_1.z.string().nullable(),
+    family_type: zod_1.z.string().nullable(),
+    family_status: zod_1.z.string().nullable(),
+    native_place: zod_1.z.string().nullable(),
+    brothers_count: zod_1.z.number().int().nullable(),
+    brothers_married_count: zod_1.z.number().int().nullable(),
+    sisters_count: zod_1.z.number().int().nullable(),
+    sisters_married_count: zod_1.z.number().int().nullable(),
+    food_preference: zod_1.z.string().nullable(),
+    smoking: zod_1.z.string().nullable(),
+    drinking: zod_1.z.string().nullable(),
+    about_me: zod_1.z.string().nullable(),
+    hobbies: zod_1.z.array(zod_1.z.string()),
+    favourite_music: zod_1.z.array(zod_1.z.string()),
+    sports: zod_1.z.array(zod_1.z.string()),
+    favourite_food: zod_1.z.array(zod_1.z.string()),
+    country: zod_1.z.string().nullable(),
+    state: zod_1.z.string().nullable(),
+    city: zod_1.z.string().nullable(),
+    submitted_at: zod_1.z.string().datetime(),
+    approved_at: zod_1.z.string().datetime().nullable(),
+    rejected_at: zod_1.z.string().datetime().nullable(),
+    rejection_reason: zod_1.z.string().nullable(),
+    updated_at: zod_1.z.string().datetime(),
+})
+    .strict();
+/**
+ * Correcting a profile from the console.
+ *
+ * Every field is optional: this is a correction, not a re-entry of the whole
+ * profile, and an absent key means "leave it alone" exactly as the member's own
+ * PATCH does. The master-list-backed columns (education, profession, community)
+ * are intentionally absent — they are ids that have to be resolved against their
+ * lists — and so are gender and photographs, which are not support corrections.
+ *
+ * The reason is mandatory because the write is audited (`profile:update` is a
+ * sensitive permission): an edit that changes a member's visible data without a
+ * recorded explanation is indistinguishable from a mistake.
+ */
+exports.AdminProfileUpdateSchema = zod_1.z
+    .object({
+    reason: zod_1.z.string().trim().min(1).max(500),
+    first_name: zod_1.z.string().trim().min(1).max(80).optional(),
+    last_name: nullableText(80).optional(),
+    date_of_birth: zod_1.z
+        .string()
+        .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be an ISO date (YYYY-MM-DD)')
+        .optional(),
+    height_cm: zod_1.z.number().int().min(90).max(250).nullable().optional(),
+    weight_kg: zod_1.z.number().int().min(25).max(300).nullable().optional(),
+    marital_status: zod_1.z.enum(enums_js_1.MARITAL_STATUSES).nullable().optional(),
+    physical_status: zod_1.z.enum(profile_details_js_1.PHYSICAL_STATUSES).nullable().optional(),
+    religion: nullableText(80).optional(),
+    sub_caste: nullableText(80).optional(),
+    mother_tongue: nullableText(60).optional(),
+    languages_known: profile_details_js_1.ProfileDetailListSchema.optional(),
+    swagotra: nullableText(60).optional(),
+    maternal_gothra: nullableText(60).optional(),
+    rashi: nullableText(40).optional(),
+    nakshatra: nullableText(40).optional(),
+    gan: nullableText(60).optional(),
+    manglik_status: zod_1.z.enum(profile_details_js_1.KUJA_DOSHAM_VALUES).nullable().optional(),
+    employed_in: zod_1.z.enum(profile_details_js_1.EMPLOYED_IN).nullable().optional(),
+    company: nullableText(120).optional(),
+    annual_income: nullableText(60).optional(),
+    work_location: nullableText(120).optional(),
+    fathers_occupation: nullableText(120).optional(),
+    mothers_occupation: nullableText(120).optional(),
+    siblings: nullableText(120).optional(),
+    family_location: nullableText(120).optional(),
+    family_description: nullableText(2000).optional(),
+    family_value: zod_1.z.enum(profile_details_js_1.FAMILY_VALUES).nullable().optional(),
+    family_type: zod_1.z.enum(profile_details_js_1.FAMILY_TYPES).nullable().optional(),
+    family_status: zod_1.z.enum(profile_details_js_1.FAMILY_STATUSES).nullable().optional(),
+    native_place: nullableText(120).optional(),
+    brothers_count: zod_1.z.number().int().min(0).max(20).nullable().optional(),
+    brothers_married_count: zod_1.z.number().int().min(0).max(20).nullable().optional(),
+    sisters_count: zod_1.z.number().int().min(0).max(20).nullable().optional(),
+    sisters_married_count: zod_1.z.number().int().min(0).max(20).nullable().optional(),
+    food_preference: zod_1.z.enum(profile_details_js_1.EATING_HABITS).nullable().optional(),
+    smoking: zod_1.z.enum(profile_details_js_1.SMOKING_HABITS).nullable().optional(),
+    drinking: zod_1.z.enum(profile_details_js_1.DRINKING_HABITS).nullable().optional(),
+    about_me: zod_1.z
+        .string()
+        .trim()
+        .min(50, 'must be at least 50 characters')
+        .max(2000)
+        .nullable()
+        .optional(),
+    hobbies: profile_details_js_1.ProfileDetailListSchema.optional(),
+    favourite_music: profile_details_js_1.ProfileDetailListSchema.optional(),
+    sports: profile_details_js_1.ProfileDetailListSchema.optional(),
+    favourite_food: profile_details_js_1.ProfileDetailListSchema.optional(),
+    country: zod_1.z
+        .string()
+        .trim()
+        .length(2)
+        .transform((v) => v.toUpperCase())
+        .nullable()
+        .optional(),
+    state: nullableText(80).optional(),
+    city: nullableText(80).optional(),
 })
     .strict();
 /**

@@ -317,10 +317,15 @@ export class DiscoveryService {
         is: {
           id: { not: viewerId },
           networthCategory: { in: scope },
-          // Eligibility. Verified, paid and active, plus not deleted or
-          // anonymised — a suspended or purged account is never browsable.
+          // Eligibility. Paid and active, plus not deleted or anonymised — a
+          // suspended or purged account is never browsable.
+          //
+          // Identity verification is deliberately absent: an administrator's
+          // approval of the profile is the review that matters, and requiring a
+          // DigiLocker pass on top of it locked out every member whose check
+          // could not complete. The profile still has to be APPROVED above, so
+          // this does not make unreviewed profiles discoverable.
           status: 'ACTIVE',
-          identityVerifiedAt: { not: null },
           setupFeePaidAt: { not: null },
           isAnonymised: false,
           deletedAt: null,

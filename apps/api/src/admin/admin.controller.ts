@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -21,6 +22,7 @@ import {
   AdminListReportsQuerySchema,
   AdminListUsersQuerySchema,
   AdminListVerificationsQuerySchema,
+  AdminProfileUpdateSchema,
   AdminPublishPricingSchema,
   AdminRejectProfileSchema,
   AdminResolveDataRequestSchema,
@@ -44,7 +46,9 @@ import {
   type AdminPhotoListResponse,
   type AdminPhotoView,
   type AdminPricingView,
+  type AdminProfileDetail,
   type AdminProfileListResponse,
+  type AdminProfileUpdateInput,
   type AdminProfileView,
   type AdminListProfilesQuery,
   type AdminRejectProfileInput,
@@ -204,6 +208,36 @@ export class AdminController {
   @RequirePermission('user:read')
   async getUser(@Param('id') id: string): Promise<AdminUserDetailView> {
     return this.adminService.getUser(id);
+  }
+
+  /**
+   * The profile behind an account, in full.
+   *
+   * Behind `profile:read`, like the review queue, and for the same reason: the
+   * account view carries no profile content, so reading one is a deliberate act
+   * with its own grant.
+   */
+  @Get('users/:id/profile')
+  @RequirePermission('profile:read')
+  async getProfileDetail(@Param('id') id: string): Promise<AdminProfileDetail> {
+    return this.adminService.getProfileDetail(id);
+  }
+
+  /**
+   * Corrects a profile from the console (`profile:update`, always audited).
+   *
+   * PATCH rather than PUT: an administrator fixing a typo should not have to
+   * resend, and therefore restate, the rest of the profile.
+   */
+  @Patch('users/:id/profile')
+  @RequirePermission('profile:update')
+  @HttpCode(200)
+  async updateProfileDetail(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminProfileUpdateSchema)) body: AdminProfileUpdateInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminProfileDetail> {
+    return this.adminService.updateProfileDetail(id, body, principal.id);
   }
 
   /**

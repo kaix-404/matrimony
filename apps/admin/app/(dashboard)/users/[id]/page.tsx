@@ -73,7 +73,7 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
               <dt>Identity check</dt>
               <dd>
                 {member.identityVerifiedAt === null
-                  ? 'Not verified - cannot browse or be found'
+                  ? 'Not verified - optional, and no longer gates browsing or being found'
                   : `Verified ${formatDateTime(member.identityVerifiedAt)}`}
               </dd>
               <dt>Setup fee</dt>
@@ -121,14 +121,19 @@ export default async function MemberPage({ params }: { params: Promise<{ id: str
                 No profile yet, so there is nothing for discovery or for an unlock to point at.
               </p>
             ) : (
-              <dl className="meta">
-                <dt>Moderation</dt>
-                <dd>{member.profile.status}</dd>
-                <dt>Visibility</dt>
-                <dd>{member.profile.visibility}</dd>
-                <dt>Profile</dt>
-                <dd className="mono">{member.profile.id}</dd>
-              </dl>
+              <>
+                <dl className="meta">
+                  <dt>Moderation</dt>
+                  <dd>{member.profile.status}</dd>
+                  <dt>Visibility</dt>
+                  <dd>{member.profile.visibility}</dd>
+                  <dt>Profile</dt>
+                  <dd className="mono">{member.profile.id}</dd>
+                </dl>
+                <p>
+                  <Link href={`/users/${member.id}/profile`}>Open the profile and correct it</Link>
+                </p>
+              </>
             )}
           </div>
 

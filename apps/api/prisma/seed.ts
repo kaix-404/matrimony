@@ -369,6 +369,9 @@ const ROLE_GRANTS = {
     'profile:approve',
     'profile:reject',
     'profile:suspend',
+    // Correcting a member's own details is review work, and every write is
+    // audited with a reason.
+    'profile:update',
     'photo:review',
     'report:review',
     'unlock:read',

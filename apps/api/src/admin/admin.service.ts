@@ -27,7 +27,9 @@ import type {
   AdminPhotoView,
   AdminPricingView,
   AdminPrincipal,
+  AdminProfileDetail,
   AdminProfileListResponse,
+  AdminProfileUpdateInput,
   AdminProfileView,
   AdminRejectProfileInput,
   AdminPublishPricingInput,
@@ -403,6 +405,97 @@ function toPricingView(row: PricingRow): AdminPricingView {
     createdByAdminId: row.createdByAdminId,
     createdAt: row.createdAt.toISOString(),
   };
+}
+
+/**
+ * The console's own profile page: every column a support correction can touch,
+ * plus the moderation state it must not change.
+ */
+const PROFILE_DETAIL_SELECT = {
+  id: true,
+  userId: true,
+  status: true,
+  visibility: true,
+  firstName: true,
+  lastName: true,
+  gender: true,
+  dateOfBirth: true,
+  timeOfBirth: true,
+  placeOfBirth: true,
+  heightCm: true,
+  weightKg: true,
+  maritalStatus: true,
+  physicalStatus: true,
+  religion: true,
+  subCaste: true,
+  communityValue: { select: { value: true } },
+  motherTongue: true,
+  languagesKnown: true,
+  swagotra: true,
+  maternalGothra: true,
+  rashi: true,
+  nakshatra: true,
+  gan: true,
+  manglikStatus: true,
+  educationValue: { select: { value: true } },
+  professionValue: { select: { value: true } },
+  employedIn: true,
+  company: true,
+  annualIncome: true,
+  workLocation: true,
+  fathersOccupation: true,
+  mothersOccupation: true,
+  siblings: true,
+  familyLocation: true,
+  familyDescription: true,
+  familyValue: true,
+  familyType: true,
+  familyStatus: true,
+  nativePlace: true,
+  brothersCount: true,
+  brothersMarriedCount: true,
+  sistersCount: true,
+  sistersMarriedCount: true,
+  foodPreference: true,
+  smoking: true,
+  drinking: true,
+  aboutMe: true,
+  hobbies: true,
+  favouriteMusic: true,
+  sports: true,
+  favouriteFood: true,
+  country: true,
+  state: true,
+  city: true,
+  createdAt: true,
+  approvedAt: true,
+  rejectedAt: true,
+  rejectionReason: true,
+  updatedAt: true,
+} satisfies Prisma.ProfileSelect;
+
+/**
+ * The previous value of each column an edit is about to change.
+ *
+ * Only the touched keys: an audit row records the decision, and a full copy of
+ * the profile would make the log a second store of member data.
+ */
+function previousValues(row: object, columns: string[]): Prisma.InputJsonObject {
+  const source = row as Record<string, unknown>;
+  const snapshot: Record<string, string | number | boolean | string[] | null> = {};
+  for (const column of columns) {
+    const value = source[column];
+    if (value === null || typeof value === 'string' || typeof value === 'number') {
+      snapshot[column] = value;
+    } else if (typeof value === 'boolean') {
+      snapshot[column] = value;
+    } else if (value instanceof Date) {
+      snapshot[column] = value.toISOString();
+    } else if (Array.isArray(value)) {
+      snapshot[column] = value.map(String);
+    }
+  }
+  return snapshot as Prisma.InputJsonObject;
 }
 
 @Injectable()
@@ -1157,6 +1250,191 @@ export class AdminService {
 
   // -- profile review (section 26) -----------------------------------------
 
+  // -- one profile in depth (support correction) ---------------------------
+
+  /** The full profile behind an account. `profile:read` gates this route. */
+  async getProfileDetail(userId: string): Promise<AdminProfileDetail> {
+    const row = await this.loadProfileDetail(userId);
+    if (!row) {
+      throw new NotFoundException('Profile not found');
+    }
+    return this.toProfileDetail(row);
+  }
+
+  /**
+   * Corrects a member's profile from the console.
+   *
+   * The member's own PATCH rules apply (an absent key leaves the column alone),
+   * but the moderation state does not move: an administrator editing a profile is
+   * not the profile being re-reviewed, and dropping an APPROVED profile back to
+   * DRAFT would silently hide a member who did nothing.
+   *
+   * The audit row records the previous value of each key that is being changed —
+   * not the whole profile, because the audit log is not a second copy of member
+   * data — with the reason that is mandatory in the request.
+   */
+  async updateProfileDetail(
+    userId: string,
+    input: AdminProfileUpdateInput,
+    actingAdminId: string,
+  ): Promise<AdminProfileDetail> {
+    const row = await this.loadProfileDetail(userId);
+    if (!row) {
+      throw new NotFoundException('Profile not found');
+    }
+
+    const data: Record<string, unknown> = {};
+    const set = (column: string, value: unknown): void => {
+      if (value !== undefined) data[column] = value;
+    };
+
+    set('firstName', input.first_name);
+    set('lastName', input.last_name);
+    if (input.date_of_birth !== undefined) {
+      data['dateOfBirth'] = new Date(`${input.date_of_birth}T00:00:00.000Z`);
+    }
+    set('heightCm', input.height_cm);
+    set('weightKg', input.weight_kg);
+    set('maritalStatus', input.marital_status);
+    set('physicalStatus', input.physical_status);
+    set('religion', input.religion);
+    set('subCaste', input.sub_caste);
+    set('motherTongue', input.mother_tongue);
+    set('languagesKnown', input.languages_known);
+    set('swagotra', input.swagotra);
+    set('maternalGothra', input.maternal_gothra);
+    set('rashi', input.rashi);
+    set('nakshatra', input.nakshatra);
+    set('gan', input.gan);
+    set('manglikStatus', input.manglik_status);
+    set('employedIn', input.employed_in);
+    set('company', input.company);
+    set('annualIncome', input.annual_income);
+    set('workLocation', input.work_location);
+    set('fathersOccupation', input.fathers_occupation);
+    set('mothersOccupation', input.mothers_occupation);
+    set('siblings', input.siblings);
+    set('familyLocation', input.family_location);
+    set('familyDescription', input.family_description);
+    set('familyValue', input.family_value);
+    set('familyType', input.family_type);
+    set('familyStatus', input.family_status);
+    set('nativePlace', input.native_place);
+    set('brothersCount', input.brothers_count);
+    set('brothersMarriedCount', input.brothers_married_count);
+    set('sistersCount', input.sisters_count);
+    set('sistersMarriedCount', input.sisters_married_count);
+    set('foodPreference', input.food_preference);
+    set('smoking', input.smoking);
+    set('drinking', input.drinking);
+    set('aboutMe', input.about_me);
+    set('hobbies', input.hobbies);
+    set('favouriteMusic', input.favourite_music);
+    set('sports', input.sports);
+    set('favouriteFood', input.favourite_food);
+    set('country', input.country);
+    set('state', input.state);
+    set('city', input.city);
+
+    if (Object.keys(data).length === 0) {
+      // Only the reason was sent: the schema allows it, but a write with nothing
+      // to write is a client bug worth naming rather than a silent no-op.
+      throw new BadRequestException('Nothing to update');
+    }
+
+    const updated = await this.prisma.profile.update({
+      where: { userId },
+      data,
+      select: PROFILE_DETAIL_SELECT,
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'profile:update',
+      resourceType: 'Profile',
+      resourceId: row.id,
+      previousValue: previousValues(row, Object.keys(data)),
+      newValue: { fields: Object.keys(data).sort() },
+      reason: input.reason,
+    });
+
+    return this.toProfileDetail(updated);
+  }
+
+  private loadProfileDetail(userId: string) {
+    return this.prisma.profile.findUnique({
+      where: { userId },
+      select: PROFILE_DETAIL_SELECT,
+    });
+  }
+
+  private toProfileDetail(
+    row: NonNullable<Awaited<ReturnType<AdminService['loadProfileDetail']>>>,
+  ): AdminProfileDetail {
+    return {
+      id: row.id,
+      user_id: row.userId,
+      status: row.status as AdminProfileDetail['status'],
+      visibility: row.visibility as AdminProfileDetail['visibility'],
+      first_name: row.firstName,
+      last_name: row.lastName,
+      gender: row.gender as AdminProfileDetail['gender'],
+      date_of_birth: row.dateOfBirth.toISOString().slice(0, 10),
+      time_of_birth: row.timeOfBirth,
+      place_of_birth: row.placeOfBirth,
+      height_cm: row.heightCm,
+      weight_kg: row.weightKg,
+      marital_status: row.maritalStatus,
+      physical_status: row.physicalStatus,
+      religion: row.religion,
+      sub_caste: row.subCaste,
+      community: row.communityValue?.value ?? null,
+      mother_tongue: row.motherTongue,
+      languages_known: row.languagesKnown,
+      swagotra: row.swagotra,
+      maternal_gothra: row.maternalGothra,
+      rashi: row.rashi,
+      nakshatra: row.nakshatra,
+      gan: row.gan,
+      manglik_status: row.manglikStatus,
+      education: row.educationValue?.value ?? null,
+      profession: row.professionValue?.value ?? null,
+      employed_in: row.employedIn,
+      company: row.company,
+      annual_income: row.annualIncome,
+      work_location: row.workLocation,
+      fathers_occupation: row.fathersOccupation,
+      mothers_occupation: row.mothersOccupation,
+      siblings: row.siblings,
+      family_location: row.familyLocation,
+      family_description: row.familyDescription,
+      family_value: row.familyValue,
+      family_type: row.familyType,
+      family_status: row.familyStatus,
+      native_place: row.nativePlace,
+      brothers_count: row.brothersCount,
+      brothers_married_count: row.brothersMarriedCount,
+      sisters_count: row.sistersCount,
+      sisters_married_count: row.sistersMarriedCount,
+      food_preference: row.foodPreference,
+      smoking: row.smoking,
+      drinking: row.drinking,
+      about_me: row.aboutMe,
+      hobbies: row.hobbies,
+      favourite_music: row.favouriteMusic,
+      sports: row.sports,
+      favourite_food: row.favouriteFood,
+      country: row.country,
+      state: row.state,
+      city: row.city,
+      submitted_at: row.createdAt.toISOString(),
+      approved_at: row.approvedAt ? row.approvedAt.toISOString() : null,
+      rejected_at: row.rejectedAt ? row.rejectedAt.toISOString() : null,
+      rejection_reason: row.rejectionReason,
+      updated_at: row.updatedAt.toISOString(),
+    };
+  }
+
   /**
    * The section 26 queue.
    *
@@ -1400,10 +1678,10 @@ export class AdminService {
     }
 
     const now = this.clock.now();
-    const status =
-      row.identityVerifiedAt !== null && row.setupFeePaidAt !== null
-        ? 'ACTIVE'
-        : 'PENDING_VERIFICATION';
+    // Identity verification no longer gates browsing — approval of the profile
+    // does — so the fee is what separates an active account from one that still
+    // has to pay.
+    const status = row.setupFeePaidAt !== null ? 'ACTIVE' : 'PENDING_VERIFICATION';
 
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({

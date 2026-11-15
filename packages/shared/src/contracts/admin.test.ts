@@ -15,6 +15,7 @@ import {
   AdminMfaCodeSchema,
   AdminMfaDisableSchema,
   AdminMfaVerifySchema,
+  AdminProfileUpdateSchema,
   AdminPublishPricingSchema,
   AdminResolveDataRequestSchema,
   AdminReviewReportSchema,
@@ -31,6 +32,35 @@ import { ADMIN_ROLE_SLUGS } from '../enums.js';
  * resource and an action, sensitive keys are marked, and the derived seed rows
  * are a faithful projection of the catalogue.
  */
+
+describe('AdminProfileUpdateSchema', () => {
+  it('requires a reason for an audited correction', () => {
+    expect(() => AdminProfileUpdateSchema.parse({ first_name: 'Asha' })).toThrow();
+    expect(() =>
+      AdminProfileUpdateSchema.parse({ reason: '   ', first_name: 'Asha' }),
+    ).toThrow();
+  });
+
+  it('keeps the member form’s rules on the fields it shares', () => {
+    // A short About me is refused here for the same reason the member's own form
+    // refuses it: the console must not be able to save what the app cannot.
+    expect(() =>
+      AdminProfileUpdateSchema.parse({ reason: 'fix', about_me: 'too short' }),
+    ).toThrow(/50 characters/);
+    expect(
+      AdminProfileUpdateSchema.parse({ reason: 'fix', about_me: 'x'.repeat(60) }).about_me,
+    ).toHaveLength(60);
+  });
+
+  it('uppercases a country code and accepts clearing a field', () => {
+    expect(AdminProfileUpdateSchema.parse({ reason: 'fix', country: 'in' }).country).toBe('IN');
+    expect(AdminProfileUpdateSchema.parse({ reason: 'fix', city: null }).city).toBeNull();
+  });
+
+  it('refuses a field it does not allow an administrator to change', () => {
+    expect(() => AdminProfileUpdateSchema.parse({ reason: 'fix', gender: 'MALE' })).toThrow();
+  });
+});
 
 describe('ADMIN_PERMISSIONS catalogue', () => {
   it('has an entry for each permission the API is allowed to require', () => {
@@ -53,6 +83,7 @@ describe('ADMIN_PERMISSIONS catalogue', () => {
         'profile:read',
         'profile:reject',
         'profile:suspend',
+      'profile:update',
         'report:review',
         'system:read',
         'unlock:grant',

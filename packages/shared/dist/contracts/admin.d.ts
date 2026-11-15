@@ -91,6 +91,12 @@ export declare const ADMIN_PERMISSIONS: {
         readonly sensitive: true;
         readonly description: "Suspend a profile";
     };
+    readonly 'profile:update': {
+        readonly resource: "profile";
+        readonly action: "update";
+        readonly sensitive: true;
+        readonly description: "Correct a member profile's details (always audited)";
+    };
     readonly 'photo:review': {
         readonly resource: "photo";
         readonly action: "review";
@@ -196,7 +202,7 @@ export declare const ADMIN_PERMISSIONS: {
 };
 /** Every valid permission key. A guard can require nothing outside this union. */
 export type AdminPermissionKey = keyof typeof ADMIN_PERMISSIONS;
-export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[]]>;
+export declare const AdminPermissionKeySchema: z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[]]>;
 export declare const AdminRoleSlugSchema: z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>;
 /** The resolved `Permission` rows the seed should create. */
 export declare function permissionCatalogueRows(): Array<{
@@ -423,19 +429,19 @@ export declare const AdminSessionViewSchema: z.ZodObject<{
     email: z.ZodString;
     name: z.ZodString;
     roles: z.ZodArray<z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>, "many">;
-    permissions: z.ZodArray<z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[]]>, "many">;
+    permissions: z.ZodArray<z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[]]>, "many">;
 }, "strict", z.ZodTypeAny, {
     email: string;
     id: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
     name: string;
-    permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
+    permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
 }, {
     email: string;
     id: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
     name: string;
-    permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
+    permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
 }>;
 export type AdminSessionView = z.infer<typeof AdminSessionViewSchema>;
 /**
@@ -933,23 +939,23 @@ export declare const AdminPhotoViewSchema: z.ZodObject<{
     rejection_reason: z.ZodNullable<z.ZodString>;
     reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
-    profile_id: string;
     status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-    url: string;
-    photo_type: "SINGLE" | "FAMILY";
     id: string;
+    profile_id: string;
     profile_name: string | null;
+    photo_type: "SINGLE" | "FAMILY";
+    url: string;
     uploaded_at: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
     reviewed_by_admin_id: string | null;
 }, {
-    profile_id: string;
     status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-    url: string;
-    photo_type: "SINGLE" | "FAMILY";
     id: string;
+    profile_id: string;
     profile_name: string | null;
+    photo_type: "SINGLE" | "FAMILY";
+    url: string;
     uploaded_at: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
@@ -969,23 +975,23 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
         rejection_reason: z.ZodNullable<z.ZodString>;
         reviewed_by_admin_id: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
-        profile_id: string;
         status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        url: string;
-        photo_type: "SINGLE" | "FAMILY";
         id: string;
+        profile_id: string;
         profile_name: string | null;
+        photo_type: "SINGLE" | "FAMILY";
+        url: string;
         uploaded_at: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
         reviewed_by_admin_id: string | null;
     }, {
-        profile_id: string;
         status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        url: string;
-        photo_type: "SINGLE" | "FAMILY";
         id: string;
+        profile_id: string;
         profile_name: string | null;
+        photo_type: "SINGLE" | "FAMILY";
+        url: string;
         uploaded_at: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -995,12 +1001,12 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
     hasMore: z.ZodBoolean;
 }, "strict", z.ZodTypeAny, {
     photos: {
-        profile_id: string;
         status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        url: string;
-        photo_type: "SINGLE" | "FAMILY";
         id: string;
+        profile_id: string;
         profile_name: string | null;
+        photo_type: "SINGLE" | "FAMILY";
+        url: string;
         uploaded_at: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1010,12 +1016,12 @@ export declare const AdminPhotoListResponseSchema: z.ZodObject<{
     hasMore: boolean;
 }, {
     photos: {
-        profile_id: string;
         status: "REJECTED" | "PENDING_REVIEW" | "APPROVED";
-        url: string;
-        photo_type: "SINGLE" | "FAMILY";
         id: string;
+        profile_id: string;
         profile_name: string | null;
+        photo_type: "SINGLE" | "FAMILY";
+        url: string;
         uploaded_at: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
@@ -1182,6 +1188,355 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
     }[];
 }>;
 export type AdminProfileListResponse = z.infer<typeof AdminProfileListResponseSchema>;
+/**
+ * A member profile as the console's own page shows it.
+ *
+ * Wider than the review queue on purpose: an administrator correcting a member's
+ * details has to see what is actually stored. `profile:read` already gates
+ * profile content, and the account's contact details stay on the user view —
+ * this is the profile, not the account.
+ */
+export declare const AdminProfileDetailSchema: z.ZodObject<{
+    id: z.ZodString;
+    user_id: z.ZodString;
+    status: z.ZodEnum<["DRAFT", "PENDING_REVIEW", "APPROVED", "REJECTED", "SUSPENDED", "DELETED"]>;
+    visibility: z.ZodEnum<["ACTIVE", "PAUSED", "HIDDEN"]>;
+    first_name: z.ZodString;
+    last_name: z.ZodNullable<z.ZodString>;
+    gender: z.ZodEnum<["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"]>;
+    date_of_birth: z.ZodString;
+    time_of_birth: z.ZodNullable<z.ZodString>;
+    place_of_birth: z.ZodNullable<z.ZodString>;
+    height_cm: z.ZodNullable<z.ZodNumber>;
+    weight_kg: z.ZodNullable<z.ZodNumber>;
+    marital_status: z.ZodNullable<z.ZodString>;
+    physical_status: z.ZodNullable<z.ZodString>;
+    religion: z.ZodNullable<z.ZodString>;
+    sub_caste: z.ZodNullable<z.ZodString>;
+    community: z.ZodNullable<z.ZodString>;
+    mother_tongue: z.ZodNullable<z.ZodString>;
+    languages_known: z.ZodArray<z.ZodString, "many">;
+    swagotra: z.ZodNullable<z.ZodString>;
+    maternal_gothra: z.ZodNullable<z.ZodString>;
+    rashi: z.ZodNullable<z.ZodString>;
+    nakshatra: z.ZodNullable<z.ZodString>;
+    gan: z.ZodNullable<z.ZodString>;
+    manglik_status: z.ZodNullable<z.ZodString>;
+    education: z.ZodNullable<z.ZodString>;
+    profession: z.ZodNullable<z.ZodString>;
+    employed_in: z.ZodNullable<z.ZodString>;
+    company: z.ZodNullable<z.ZodString>;
+    annual_income: z.ZodNullable<z.ZodString>;
+    work_location: z.ZodNullable<z.ZodString>;
+    fathers_occupation: z.ZodNullable<z.ZodString>;
+    mothers_occupation: z.ZodNullable<z.ZodString>;
+    siblings: z.ZodNullable<z.ZodString>;
+    family_location: z.ZodNullable<z.ZodString>;
+    family_description: z.ZodNullable<z.ZodString>;
+    family_value: z.ZodNullable<z.ZodString>;
+    family_type: z.ZodNullable<z.ZodString>;
+    family_status: z.ZodNullable<z.ZodString>;
+    native_place: z.ZodNullable<z.ZodString>;
+    brothers_count: z.ZodNullable<z.ZodNumber>;
+    brothers_married_count: z.ZodNullable<z.ZodNumber>;
+    sisters_count: z.ZodNullable<z.ZodNumber>;
+    sisters_married_count: z.ZodNullable<z.ZodNumber>;
+    food_preference: z.ZodNullable<z.ZodString>;
+    smoking: z.ZodNullable<z.ZodString>;
+    drinking: z.ZodNullable<z.ZodString>;
+    about_me: z.ZodNullable<z.ZodString>;
+    hobbies: z.ZodArray<z.ZodString, "many">;
+    favourite_music: z.ZodArray<z.ZodString, "many">;
+    sports: z.ZodArray<z.ZodString, "many">;
+    favourite_food: z.ZodArray<z.ZodString, "many">;
+    country: z.ZodNullable<z.ZodString>;
+    state: z.ZodNullable<z.ZodString>;
+    city: z.ZodNullable<z.ZodString>;
+    submitted_at: z.ZodString;
+    approved_at: z.ZodNullable<z.ZodString>;
+    rejected_at: z.ZodNullable<z.ZodString>;
+    rejection_reason: z.ZodNullable<z.ZodString>;
+    updated_at: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    id: string;
+    rejection_reason: string | null;
+    user_id: string;
+    city: string | null;
+    submitted_at: string;
+    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
+    first_name: string;
+    last_name: string | null;
+    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    date_of_birth: string;
+    time_of_birth: string | null;
+    place_of_birth: string | null;
+    height_cm: number | null;
+    weight_kg: number | null;
+    marital_status: string | null;
+    physical_status: string | null;
+    religion: string | null;
+    sub_caste: string | null;
+    community: string | null;
+    mother_tongue: string | null;
+    languages_known: string[];
+    swagotra: string | null;
+    maternal_gothra: string | null;
+    rashi: string | null;
+    nakshatra: string | null;
+    gan: string | null;
+    manglik_status: string | null;
+    education: string | null;
+    profession: string | null;
+    employed_in: string | null;
+    company: string | null;
+    annual_income: string | null;
+    work_location: string | null;
+    fathers_occupation: string | null;
+    mothers_occupation: string | null;
+    siblings: string | null;
+    family_location: string | null;
+    family_description: string | null;
+    family_value: string | null;
+    family_type: string | null;
+    family_status: string | null;
+    native_place: string | null;
+    brothers_count: number | null;
+    brothers_married_count: number | null;
+    sisters_count: number | null;
+    sisters_married_count: number | null;
+    food_preference: string | null;
+    smoking: string | null;
+    drinking: string | null;
+    about_me: string | null;
+    hobbies: string[];
+    favourite_music: string[];
+    sports: string[];
+    favourite_food: string[];
+    country: string | null;
+    state: string | null;
+    approved_at: string | null;
+    rejected_at: string | null;
+    updated_at: string;
+}, {
+    status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    id: string;
+    rejection_reason: string | null;
+    user_id: string;
+    city: string | null;
+    submitted_at: string;
+    visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
+    first_name: string;
+    last_name: string | null;
+    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
+    date_of_birth: string;
+    time_of_birth: string | null;
+    place_of_birth: string | null;
+    height_cm: number | null;
+    weight_kg: number | null;
+    marital_status: string | null;
+    physical_status: string | null;
+    religion: string | null;
+    sub_caste: string | null;
+    community: string | null;
+    mother_tongue: string | null;
+    languages_known: string[];
+    swagotra: string | null;
+    maternal_gothra: string | null;
+    rashi: string | null;
+    nakshatra: string | null;
+    gan: string | null;
+    manglik_status: string | null;
+    education: string | null;
+    profession: string | null;
+    employed_in: string | null;
+    company: string | null;
+    annual_income: string | null;
+    work_location: string | null;
+    fathers_occupation: string | null;
+    mothers_occupation: string | null;
+    siblings: string | null;
+    family_location: string | null;
+    family_description: string | null;
+    family_value: string | null;
+    family_type: string | null;
+    family_status: string | null;
+    native_place: string | null;
+    brothers_count: number | null;
+    brothers_married_count: number | null;
+    sisters_count: number | null;
+    sisters_married_count: number | null;
+    food_preference: string | null;
+    smoking: string | null;
+    drinking: string | null;
+    about_me: string | null;
+    hobbies: string[];
+    favourite_music: string[];
+    sports: string[];
+    favourite_food: string[];
+    country: string | null;
+    state: string | null;
+    approved_at: string | null;
+    rejected_at: string | null;
+    updated_at: string;
+}>;
+export type AdminProfileDetail = z.infer<typeof AdminProfileDetailSchema>;
+/**
+ * Correcting a profile from the console.
+ *
+ * Every field is optional: this is a correction, not a re-entry of the whole
+ * profile, and an absent key means "leave it alone" exactly as the member's own
+ * PATCH does. The master-list-backed columns (education, profession, community)
+ * are intentionally absent — they are ids that have to be resolved against their
+ * lists — and so are gender and photographs, which are not support corrections.
+ *
+ * The reason is mandatory because the write is audited (`profile:update` is a
+ * sensitive permission): an edit that changes a member's visible data without a
+ * recorded explanation is indistinguishable from a mistake.
+ */
+export declare const AdminProfileUpdateSchema: z.ZodObject<{
+    reason: z.ZodString;
+    first_name: z.ZodOptional<z.ZodString>;
+    last_name: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    date_of_birth: z.ZodOptional<z.ZodString>;
+    height_cm: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    weight_kg: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    marital_status: z.ZodOptional<z.ZodNullable<z.ZodEnum<["NEVER_MARRIED", "DIVORCED", "WIDOWED", "AWAITING_DIVORCE", "ANNULLED"]>>>;
+    physical_status: z.ZodOptional<z.ZodNullable<z.ZodEnum<["NORMAL", "PHYSICALLY_CHALLENGED"]>>>;
+    religion: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    sub_caste: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    mother_tongue: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    languages_known: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    swagotra: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    maternal_gothra: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    rashi: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    nakshatra: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    gan: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    manglik_status: z.ZodOptional<z.ZodNullable<z.ZodEnum<["YES", "NO", "DONT_KNOW"]>>>;
+    employed_in: z.ZodOptional<z.ZodNullable<z.ZodEnum<["Government", "Private", "Business", "Self-employed", "Not working"]>>>;
+    company: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    annual_income: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    work_location: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    fathers_occupation: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    mothers_occupation: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    siblings: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    family_location: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    family_description: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    family_value: z.ZodOptional<z.ZodNullable<z.ZodEnum<["ORTHODOX", "TRADITIONAL", "MODERATE", "LIBERAL"]>>>;
+    family_type: z.ZodOptional<z.ZodNullable<z.ZodEnum<["JOINT", "NUCLEAR"]>>>;
+    family_status: z.ZodOptional<z.ZodNullable<z.ZodEnum<["MIDDLE_CLASS", "UPPER_MIDDLE_CLASS", "RICH_AFFLUENT"]>>>;
+    native_place: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    brothers_count: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    brothers_married_count: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    sisters_count: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    sisters_married_count: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    food_preference: z.ZodOptional<z.ZodNullable<z.ZodEnum<["Vegetarian", "Non-vegetarian", "Eggetarian", "Vegan"]>>>;
+    smoking: z.ZodOptional<z.ZodNullable<z.ZodEnum<["Non-smoker", "Light smoker", "Social smoker", "Regular smoker"]>>>;
+    drinking: z.ZodOptional<z.ZodNullable<z.ZodEnum<["Non-drinker", "Light drinker", "Social drinker", "Regular drinker"]>>>;
+    about_me: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    hobbies: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    favourite_music: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    sports: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    favourite_food: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    country: z.ZodOptional<z.ZodNullable<z.ZodEffects<z.ZodString, string, string>>>;
+    state: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    city: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+}, "strict", z.ZodTypeAny, {
+    reason: string;
+    city?: string | null | undefined;
+    first_name?: string | undefined;
+    last_name?: string | null | undefined;
+    date_of_birth?: string | undefined;
+    height_cm?: number | null | undefined;
+    weight_kg?: number | null | undefined;
+    marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
+    physical_status?: "NORMAL" | "PHYSICALLY_CHALLENGED" | null | undefined;
+    religion?: string | null | undefined;
+    sub_caste?: string | null | undefined;
+    mother_tongue?: string | null | undefined;
+    languages_known?: string[] | undefined;
+    swagotra?: string | null | undefined;
+    maternal_gothra?: string | null | undefined;
+    rashi?: string | null | undefined;
+    nakshatra?: string | null | undefined;
+    gan?: string | null | undefined;
+    manglik_status?: "YES" | "NO" | "DONT_KNOW" | null | undefined;
+    employed_in?: "Government" | "Private" | "Business" | "Self-employed" | "Not working" | null | undefined;
+    company?: string | null | undefined;
+    annual_income?: string | null | undefined;
+    work_location?: string | null | undefined;
+    fathers_occupation?: string | null | undefined;
+    mothers_occupation?: string | null | undefined;
+    siblings?: string | null | undefined;
+    family_location?: string | null | undefined;
+    family_description?: string | null | undefined;
+    family_value?: "ORTHODOX" | "TRADITIONAL" | "MODERATE" | "LIBERAL" | null | undefined;
+    family_type?: "JOINT" | "NUCLEAR" | null | undefined;
+    family_status?: "MIDDLE_CLASS" | "UPPER_MIDDLE_CLASS" | "RICH_AFFLUENT" | null | undefined;
+    native_place?: string | null | undefined;
+    brothers_count?: number | null | undefined;
+    brothers_married_count?: number | null | undefined;
+    sisters_count?: number | null | undefined;
+    sisters_married_count?: number | null | undefined;
+    food_preference?: "Vegetarian" | "Non-vegetarian" | "Eggetarian" | "Vegan" | null | undefined;
+    smoking?: "Non-smoker" | "Light smoker" | "Social smoker" | "Regular smoker" | null | undefined;
+    drinking?: "Non-drinker" | "Light drinker" | "Social drinker" | "Regular drinker" | null | undefined;
+    about_me?: string | null | undefined;
+    hobbies?: string[] | undefined;
+    favourite_music?: string[] | undefined;
+    sports?: string[] | undefined;
+    favourite_food?: string[] | undefined;
+    country?: string | null | undefined;
+    state?: string | null | undefined;
+}, {
+    reason: string;
+    city?: string | null | undefined;
+    first_name?: string | undefined;
+    last_name?: string | null | undefined;
+    date_of_birth?: string | undefined;
+    height_cm?: number | null | undefined;
+    weight_kg?: number | null | undefined;
+    marital_status?: "NEVER_MARRIED" | "DIVORCED" | "WIDOWED" | "AWAITING_DIVORCE" | "ANNULLED" | null | undefined;
+    physical_status?: "NORMAL" | "PHYSICALLY_CHALLENGED" | null | undefined;
+    religion?: string | null | undefined;
+    sub_caste?: string | null | undefined;
+    mother_tongue?: string | null | undefined;
+    languages_known?: string[] | undefined;
+    swagotra?: string | null | undefined;
+    maternal_gothra?: string | null | undefined;
+    rashi?: string | null | undefined;
+    nakshatra?: string | null | undefined;
+    gan?: string | null | undefined;
+    manglik_status?: "YES" | "NO" | "DONT_KNOW" | null | undefined;
+    employed_in?: "Government" | "Private" | "Business" | "Self-employed" | "Not working" | null | undefined;
+    company?: string | null | undefined;
+    annual_income?: string | null | undefined;
+    work_location?: string | null | undefined;
+    fathers_occupation?: string | null | undefined;
+    mothers_occupation?: string | null | undefined;
+    siblings?: string | null | undefined;
+    family_location?: string | null | undefined;
+    family_description?: string | null | undefined;
+    family_value?: "ORTHODOX" | "TRADITIONAL" | "MODERATE" | "LIBERAL" | null | undefined;
+    family_type?: "JOINT" | "NUCLEAR" | null | undefined;
+    family_status?: "MIDDLE_CLASS" | "UPPER_MIDDLE_CLASS" | "RICH_AFFLUENT" | null | undefined;
+    native_place?: string | null | undefined;
+    brothers_count?: number | null | undefined;
+    brothers_married_count?: number | null | undefined;
+    sisters_count?: number | null | undefined;
+    sisters_married_count?: number | null | undefined;
+    food_preference?: "Vegetarian" | "Non-vegetarian" | "Eggetarian" | "Vegan" | null | undefined;
+    smoking?: "Non-smoker" | "Light smoker" | "Social smoker" | "Regular smoker" | null | undefined;
+    drinking?: "Non-drinker" | "Light drinker" | "Social drinker" | "Regular drinker" | null | undefined;
+    about_me?: string | null | undefined;
+    hobbies?: string[] | undefined;
+    favourite_music?: string[] | undefined;
+    sports?: string[] | undefined;
+    favourite_food?: string[] | undefined;
+    country?: string | null | undefined;
+    state?: string | null | undefined;
+}>;
+export type AdminProfileUpdateInput = z.infer<typeof AdminProfileUpdateSchema>;
 /**
  * Refusing a profile.
  *

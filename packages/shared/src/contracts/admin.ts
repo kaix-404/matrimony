@@ -21,8 +21,12 @@ import type { IdentityVerificationProvider, IdentityVerificationVendor } from '.
 import {
   ADMIN_ROLE_SLUGS,
   DATA_REQUEST_STATUSES,
+  GENDERS,
+  MARITAL_STATUSES,
   PHOTO_STATUSES,
   PHOTO_TYPES,
+  PROFILE_STATUSES,
+  PROFILE_VISIBILITIES,
   REPORT_ACTION_TYPES,
   REPORT_STATUSES,
   type AdminRoleSlug,
@@ -31,6 +35,18 @@ import {
   type ReportActionType,
   type ReportStatus,
 } from '../enums.js';
+import {
+  DRINKING_HABITS,
+  EATING_HABITS,
+  EMPLOYED_IN,
+  FAMILY_STATUSES,
+  FAMILY_TYPES,
+  FAMILY_VALUES,
+  KUJA_DOSHAM_VALUES,
+  PHYSICAL_STATUSES,
+  ProfileDetailListSchema,
+  SMOKING_HABITS,
+} from './profile-details.js';
 import { MasterListKeySchema } from './master-data.js';
 
 export interface AdminPermissionDescriptor {
@@ -106,6 +122,12 @@ export const ADMIN_PERMISSIONS = {
     action: 'suspend',
     sensitive: true,
     description: 'Suspend a profile',
+  },
+  'profile:update': {
+    resource: 'profile',
+    action: 'update',
+    sensitive: true,
+    description: "Correct a member profile's details (always audited)",
   },
   'photo:review': {
     resource: 'photo',
@@ -931,6 +953,166 @@ export const AdminProfileListResponseSchema = z
   })
   .strict();
 export type AdminProfileListResponse = z.infer<typeof AdminProfileListResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// One profile in depth (support correction)
+// ---------------------------------------------------------------------------
+
+const nullableText = (max: number) => z.string().max(max).nullable();
+
+/**
+ * A member profile as the console's own page shows it.
+ *
+ * Wider than the review queue on purpose: an administrator correcting a member's
+ * details has to see what is actually stored. `profile:read` already gates
+ * profile content, and the account's contact details stay on the user view —
+ * this is the profile, not the account.
+ */
+export const AdminProfileDetailSchema = z
+  .object({
+    id: z.string().min(1),
+    user_id: z.string().min(1),
+    status: z.enum(PROFILE_STATUSES),
+    visibility: z.enum(PROFILE_VISIBILITIES),
+    first_name: z.string(),
+    last_name: z.string().nullable(),
+    gender: z.enum(GENDERS),
+    date_of_birth: z.string(),
+    time_of_birth: z.string().nullable(),
+    place_of_birth: z.string().nullable(),
+    height_cm: z.number().int().nullable(),
+    weight_kg: z.number().int().nullable(),
+    marital_status: z.string().nullable(),
+    physical_status: z.string().nullable(),
+    religion: z.string().nullable(),
+    sub_caste: z.string().nullable(),
+    community: z.string().nullable(),
+    mother_tongue: z.string().nullable(),
+    languages_known: z.array(z.string()),
+    swagotra: z.string().nullable(),
+    maternal_gothra: z.string().nullable(),
+    rashi: z.string().nullable(),
+    nakshatra: z.string().nullable(),
+    gan: z.string().nullable(),
+    manglik_status: z.string().nullable(),
+    education: z.string().nullable(),
+    profession: z.string().nullable(),
+    employed_in: z.string().nullable(),
+    company: z.string().nullable(),
+    annual_income: z.string().nullable(),
+    work_location: z.string().nullable(),
+    fathers_occupation: z.string().nullable(),
+    mothers_occupation: z.string().nullable(),
+    siblings: z.string().nullable(),
+    family_location: z.string().nullable(),
+    family_description: z.string().nullable(),
+    family_value: z.string().nullable(),
+    family_type: z.string().nullable(),
+    family_status: z.string().nullable(),
+    native_place: z.string().nullable(),
+    brothers_count: z.number().int().nullable(),
+    brothers_married_count: z.number().int().nullable(),
+    sisters_count: z.number().int().nullable(),
+    sisters_married_count: z.number().int().nullable(),
+    food_preference: z.string().nullable(),
+    smoking: z.string().nullable(),
+    drinking: z.string().nullable(),
+    about_me: z.string().nullable(),
+    hobbies: z.array(z.string()),
+    favourite_music: z.array(z.string()),
+    sports: z.array(z.string()),
+    favourite_food: z.array(z.string()),
+    country: z.string().nullable(),
+    state: z.string().nullable(),
+    city: z.string().nullable(),
+    submitted_at: z.string().datetime(),
+    approved_at: z.string().datetime().nullable(),
+    rejected_at: z.string().datetime().nullable(),
+    rejection_reason: z.string().nullable(),
+    updated_at: z.string().datetime(),
+  })
+  .strict();
+export type AdminProfileDetail = z.infer<typeof AdminProfileDetailSchema>;
+
+/**
+ * Correcting a profile from the console.
+ *
+ * Every field is optional: this is a correction, not a re-entry of the whole
+ * profile, and an absent key means "leave it alone" exactly as the member's own
+ * PATCH does. The master-list-backed columns (education, profession, community)
+ * are intentionally absent — they are ids that have to be resolved against their
+ * lists — and so are gender and photographs, which are not support corrections.
+ *
+ * The reason is mandatory because the write is audited (`profile:update` is a
+ * sensitive permission): an edit that changes a member's visible data without a
+ * recorded explanation is indistinguishable from a mistake.
+ */
+export const AdminProfileUpdateSchema = z
+  .object({
+    reason: z.string().trim().min(1).max(500),
+    first_name: z.string().trim().min(1).max(80).optional(),
+    last_name: nullableText(80).optional(),
+    date_of_birth: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be an ISO date (YYYY-MM-DD)')
+      .optional(),
+    height_cm: z.number().int().min(90).max(250).nullable().optional(),
+    weight_kg: z.number().int().min(25).max(300).nullable().optional(),
+    marital_status: z.enum(MARITAL_STATUSES).nullable().optional(),
+    physical_status: z.enum(PHYSICAL_STATUSES).nullable().optional(),
+    religion: nullableText(80).optional(),
+    sub_caste: nullableText(80).optional(),
+    mother_tongue: nullableText(60).optional(),
+    languages_known: ProfileDetailListSchema.optional(),
+    swagotra: nullableText(60).optional(),
+    maternal_gothra: nullableText(60).optional(),
+    rashi: nullableText(40).optional(),
+    nakshatra: nullableText(40).optional(),
+    gan: nullableText(60).optional(),
+    manglik_status: z.enum(KUJA_DOSHAM_VALUES).nullable().optional(),
+    employed_in: z.enum(EMPLOYED_IN).nullable().optional(),
+    company: nullableText(120).optional(),
+    annual_income: nullableText(60).optional(),
+    work_location: nullableText(120).optional(),
+    fathers_occupation: nullableText(120).optional(),
+    mothers_occupation: nullableText(120).optional(),
+    siblings: nullableText(120).optional(),
+    family_location: nullableText(120).optional(),
+    family_description: nullableText(2000).optional(),
+    family_value: z.enum(FAMILY_VALUES).nullable().optional(),
+    family_type: z.enum(FAMILY_TYPES).nullable().optional(),
+    family_status: z.enum(FAMILY_STATUSES).nullable().optional(),
+    native_place: nullableText(120).optional(),
+    brothers_count: z.number().int().min(0).max(20).nullable().optional(),
+    brothers_married_count: z.number().int().min(0).max(20).nullable().optional(),
+    sisters_count: z.number().int().min(0).max(20).nullable().optional(),
+    sisters_married_count: z.number().int().min(0).max(20).nullable().optional(),
+    food_preference: z.enum(EATING_HABITS).nullable().optional(),
+    smoking: z.enum(SMOKING_HABITS).nullable().optional(),
+    drinking: z.enum(DRINKING_HABITS).nullable().optional(),
+    about_me: z
+      .string()
+      .trim()
+      .min(50, 'must be at least 50 characters')
+      .max(2000)
+      .nullable()
+      .optional(),
+    hobbies: ProfileDetailListSchema.optional(),
+    favourite_music: ProfileDetailListSchema.optional(),
+    sports: ProfileDetailListSchema.optional(),
+    favourite_food: ProfileDetailListSchema.optional(),
+    country: z
+      .string()
+      .trim()
+      .length(2)
+      .transform((v) => v.toUpperCase())
+      .nullable()
+      .optional(),
+    state: nullableText(80).optional(),
+    city: nullableText(80).optional(),
+  })
+  .strict();
+export type AdminProfileUpdateInput = z.infer<typeof AdminProfileUpdateSchema>;
 
 /**
  * Refusing a profile.
