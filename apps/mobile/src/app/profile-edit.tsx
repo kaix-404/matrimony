@@ -2,6 +2,9 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import {
+  DRINKING_HABITS,
+  EATING_HABITS,
+  EMPLOYED_IN,
   FAMILY_STATUSES,
   FAMILY_TYPES,
   FAMILY_VALUES,
@@ -12,13 +15,14 @@ import {
   MARITAL_STATUSES,
   MUSIC_OPTIONS,
   PHYSICAL_STATUSES,
+  SMOKING_HABITS,
   SPORTS_OPTIONS,
   type MasterList,
   type MasterListsResponse,
   type MyProfile,
   type UpdateProfileInput,
 } from '@matrimony/shared';
-import { CheckboxList } from '../components/CheckboxList';
+import { CheckboxField } from '../components/CheckboxField';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { SelectField } from '../components/SelectField';
@@ -131,6 +135,8 @@ export default function ProfileEditScreen() {
    */
   const [multi, setMulti] = useState<Record<string, string[]>>({});
   const [initialMulti, setInitialMulti] = useState<Record<string, string[]> | null>(null);
+  /** The free-text "Others" box under each checkbox block, comma separated. */
+  const [others, setOthers] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -184,7 +190,10 @@ export default function ProfileEditScreen() {
 
   const dobValid = /^\d{4}-\d{2}-\d{2}$/.test(form.dateOfBirth ?? '');
   const nameValid = (form.firstName ?? '').trim().length > 0;
-  const changes = buildPatch(form, initial, multi, initialMulti);
+  const changes = buildPatch(form, initial, multi, initialMulti, others);
+  const aboutMe = (form.aboutMe ?? '').trim();
+  const aboutMeError =
+    aboutMe.length > 0 && aboutMe.length < 50 ? 'At least 50 characters' : null;
 
   async function save() {
     if (!token || !changes) return;
@@ -199,6 +208,7 @@ export default function ProfileEditScreen() {
       setForm(snapshot);
       setInitialMulti(listsSnapshot);
       setMulti(listsSnapshot);
+      setOthers({});
       await refreshUser();
       router.back();
     } catch (e) {
@@ -245,7 +255,7 @@ export default function ProfileEditScreen() {
         <PrimaryButton
           label="Save changes"
           onPress={save}
-          disabled={changes === null || !nameValid || !dobValid}
+          disabled={changes === null || !nameValid || !dobValid || aboutMeError !== null}
           loading={saving}
         />
       }
@@ -364,7 +374,7 @@ export default function ProfileEditScreen() {
             maxLength={spec.maxLength}
           />
         ))}
-        <Checklist
+        <CheckboxField
           label="Languages known"
           hint="Pick every language you can hold a conversation in."
           options={textOptions(motherTongueList).map((option) => option.value)}
@@ -387,10 +397,16 @@ export default function ProfileEditScreen() {
           onChange={(v) => set('educationId', v ?? '')}
         />
         <SelectField
-          label="Profession"
+          label="Occupation"
           options={idOptions(profession)}
           value={form.professionId || null}
           onChange={(v) => set('professionId', v ?? '')}
+        />
+        <SelectField
+          label="Employed in"
+          options={EMPLOYED_IN.map((value) => ({ value, label: value }))}
+          value={form.employedIn || null}
+          onChange={(v) => set('employedIn', v ?? '')}
         />
         {TEXT_FIELDS.filter((s) => ['company', 'annualIncome', 'workLocation'].includes(s.key)).map(
           (spec) => (
@@ -406,29 +422,59 @@ export default function ProfileEditScreen() {
       </Section>
 
       <Section title="Hobbies and interests">
-        <Checklist
+        {/* Each block is the client's checkbox list plus their "Others" box: the
+            list is closed, but members always have one answer it does not have. */}
+        <CheckboxField
           label="Hobbies and interests"
-          options={HOBBY_OPTIONS}
+          options={withExtras(HOBBY_OPTIONS, multi.hobbies ?? [])}
           selected={multi.hobbies ?? []}
           onChange={(next) => setMulti((prev) => ({ ...prev, hobbies: next }))}
         />
-        <Checklist
+        <TextField
+          label="Other hobbies (comma separated)"
+          value={others.hobbies ?? ''}
+          onChangeText={(v) => setOthers((prev) => ({ ...prev, hobbies: v }))}
+          maxLength={160}
+          autoCapitalize="words"
+        />
+        <CheckboxField
           label="Favourite music"
-          options={MUSIC_OPTIONS}
+          options={withExtras(MUSIC_OPTIONS, multi.favouriteMusic ?? [])}
           selected={multi.favouriteMusic ?? []}
           onChange={(next) => setMulti((prev) => ({ ...prev, favouriteMusic: next }))}
         />
-        <Checklist
+        <TextField
+          label="Other music (comma separated)"
+          value={others.favouriteMusic ?? ''}
+          onChangeText={(v) => setOthers((prev) => ({ ...prev, favouriteMusic: v }))}
+          maxLength={160}
+          autoCapitalize="words"
+        />
+        <CheckboxField
           label="Sports you like"
-          options={SPORTS_OPTIONS}
+          options={withExtras(SPORTS_OPTIONS, multi.sports ?? [])}
           selected={multi.sports ?? []}
           onChange={(next) => setMulti((prev) => ({ ...prev, sports: next }))}
         />
-        <Checklist
+        <TextField
+          label="Other sports (comma separated)"
+          value={others.sports ?? ''}
+          onChangeText={(v) => setOthers((prev) => ({ ...prev, sports: v }))}
+          maxLength={160}
+          autoCapitalize="words"
+        />
+        <CheckboxField
           label="Favourite food"
-          options={FOOD_OPTIONS}
+          options={withExtras(FOOD_OPTIONS, multi.favouriteFood ?? [])}
           selected={multi.favouriteFood ?? []}
           onChange={(next) => setMulti((prev) => ({ ...prev, favouriteFood: next }))}
+        />
+        <TextField
+          label="Other food (comma separated)"
+          value={others.favouriteFood ?? ''}
+          onChangeText={(v) => setOthers((prev) => ({ ...prev, favouriteFood: v }))}
+          maxLength={160}
+          autoCapitalize="words"
         />
       </Section>
 
@@ -496,23 +542,35 @@ export default function ProfileEditScreen() {
       </Section>
 
       <Section title="Lifestyle and about">
-        {TEXT_FIELDS.filter((s) => ['foodPreference', 'smoking', 'drinking'].includes(s.key)).map(
-          (spec) => (
-            <TextField
-              key={spec.key}
-              label={labelFor(spec.api)}
-              value={form[spec.key] ?? ''}
-              onChangeText={(v) => set(spec.key, v)}
-              maxLength={spec.maxLength}
-            />
-          ),
-        )}
+        {/* The client's habit questions are radio groups, so each is a picker over
+            their own wording rather than a box the member types into. */}
+        <SelectField
+          label="Eating habits"
+          options={EATING_HABITS.map((value) => ({ value, label: value }))}
+          value={form.foodPreference || null}
+          onChange={(v) => set('foodPreference', v ?? '')}
+        />
+        <SelectField
+          label="Smoking habits"
+          options={SMOKING_HABITS.map((value) => ({ value, label: value }))}
+          value={form.smoking || null}
+          onChange={(v) => set('smoking', v ?? '')}
+        />
+        <SelectField
+          label="Drinking habits"
+          options={DRINKING_HABITS.map((value) => ({ value, label: value }))}
+          value={form.drinking || null}
+          onChange={(v) => set('drinking', v ?? '')}
+        />
         <TextField
           label="About me"
           value={form.aboutMe ?? ''}
           onChangeText={(v) => set('aboutMe', v)}
           multiline
           maxLength={2000}
+          error={aboutMeError}
+          // The client's reference shows the counter under the box.
+          hint={`${(form.aboutMe ?? '').trim().length} characters (minimum 50)`}
         />
       </Section>
 
@@ -547,42 +605,23 @@ function labelled(
 }
 
 /**
- * A titled block of checkbox rows.
+ * A block's options plus whatever "Others" values the member already saved.
  *
- * `CheckboxList` is the app's multi-select control and the client's reference
- * uses checkbox blocks for exactly these four answers, so the only thing added
- * here is the heading each block needs.
+ * A saved custom answer is not in the client's list, so without this it would
+ * vanish from the screen on the next visit while still counting towards the
+ * profile.
  */
-function Checklist({
-  label,
-  options,
-  selected,
-  onChange,
-  hint,
-}: {
-  label: string;
-  options: readonly string[];
-  selected: string[];
-  onChange: (next: string[]) => void;
-  hint?: string;
-}) {
-  return (
-    <View style={styles.fieldGroup}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      {hint ? <Text style={styles.fieldHint}>{hint}</Text> : null}
-      <CheckboxList
-        options={options.map((value) => ({ value, label: value }))}
-        selected={selected}
-        onToggle={(value) =>
-          onChange(
-            selected.includes(value)
-              ? selected.filter((item) => item !== value)
-              : [...selected, value],
-          )
-        }
-      />
-    </View>
-  );
+function withExtras(base: readonly string[], selected: readonly string[]): string[] {
+  return [...base, ...selected.filter((value) => !base.includes(value))];
+}
+
+/** The "Others" box as answers: comma or newline separated, blanks dropped. */
+function extraValues(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(/[,\n]/)
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .slice(0, 12);
 }
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -611,6 +650,7 @@ function toForm(profile: MyProfile, lists: MasterList[]): Record<string, string>
     weightKg: profile.weight_kg === null ? '' : String(profile.weight_kg),
     physicalStatus: profile.physical_status ?? '',
     manglikStatus: profile.manglik_status ?? '',
+    employedIn: profile.employed_in ?? '',
     maritalStatus: profile.marital_status ?? '',
     religion: profile.religion ?? '',
     subCaste: profile.sub_caste ?? '',
@@ -667,6 +707,7 @@ function buildPatch(
   initial: Record<string, string> | null,
   multi: Record<string, string[]>,
   initialMulti: Record<string, string[]> | null,
+  others: Record<string, string> = {},
 ): UpdateProfileInput | null {
   if (initial === null) return null;
   const payload: Record<string, unknown> = {};
@@ -710,9 +751,17 @@ function buildPatch(
   text('mothersOccupation', 'mothers_occupation');
   text('siblings', 'siblings');
   text('familyLocation', 'family_location');
-  text('foodPreference', 'food_preference');
-  text('smoking', 'smoking');
-  text('drinking', 'drinking');
+  // The habit questions are now pickers over fixed answers, so they travel as
+  // enums rather than the free text this used to send.
+  for (const [key, api] of [
+    ['foodPreference', 'food_preference'],
+    ['smoking', 'smoking'],
+    ['drinking', 'drinking'],
+    ['employedIn', 'employed_in'],
+  ] as const) {
+    if ((form[key] ?? '') === (initial[key] ?? '')) continue;
+    payload[api] = (form[key] ?? '') === '' ? null : form[key];
+  }
   text('city', 'city');
   text('state', 'state');
   text('country', 'country');
@@ -771,7 +820,9 @@ function buildPatch(
     ['sports', 'sports'],
     ['favouriteFood', 'favourite_food'],
   ] as const) {
-    const next = multi[key] ?? [];
+    // The "Others" box is not a separate field: its answers join the set so the
+    // profile holds one list per block, whichever way the answer was added.
+    const next = [...new Set([...(multi[key] ?? []), ...extraValues(others[key])])];
     const before = initialMulti?.[key] ?? [];
     if (next.length === before.length && next.every((value, index) => value === before[index])) {
       continue;

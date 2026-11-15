@@ -79,6 +79,73 @@ export const FOOD_OPTIONS = [
 ] as const;
 
 /**
+ * The client's habit questions, worded as their reference radio groups have
+ * them. Stored as these labels rather than enum keys: the profile column was
+ * free text before this list existed, so a label keeps older rows readable next
+ * to new ones instead of stranding them as unset.
+ */
+export const EATING_HABITS = ['Vegetarian', 'Non-vegetarian', 'Eggetarian', 'Vegan'] as const;
+
+/** Client's four smoking answers (their reference: Non-smoker / Light / Social / Regular). */
+export const SMOKING_HABITS = [
+  'Non-smoker',
+  'Light smoker',
+  'Social smoker',
+  'Regular smoker',
+] as const;
+
+export const DRINKING_HABITS = [
+  'Non-drinker',
+  'Light drinker',
+  'Social drinker',
+  'Regular drinker',
+] as const;
+
+/** "Employed In" from the client's partner-preference reference. */
+export const EMPLOYED_IN = ['Government', 'Private', 'Business', 'Self-employed', 'Not working'] as const;
+
+/**
+ * Annual income, in bands.
+ *
+ * Bands rather than a number because members answer this in lakhs and the
+ * profile never held anything more precise; a band is also what a partner
+ * preference sensibly matches on.
+ */
+export const ANNUAL_INCOME_BANDS = [
+  'Below ₹5 lakh',
+  '₹5-10 lakh',
+  '₹10-20 lakh',
+  '₹20-35 lakh',
+  '₹35-50 lakh',
+  'Above ₹50 lakh',
+] as const;
+
+/**
+ * The country picker.
+ *
+ * The profile column is `VarChar(2)` ISO code and there is no COUNTRY master
+ * list, so the app carries the shortlist it offers. Codes, because that is what
+ * both the profile and the preference column can store.
+ */
+export const COUNTRY_OPTIONS = [
+  { code: 'IN', label: 'India' },
+  { code: 'US', label: 'United States' },
+  { code: 'GB', label: 'United Kingdom' },
+  { code: 'CA', label: 'Canada' },
+  { code: 'AU', label: 'Australia' },
+  { code: 'NZ', label: 'New Zealand' },
+  { code: 'AE', label: 'United Arab Emirates' },
+  { code: 'SG', label: 'Singapore' },
+  { code: 'MY', label: 'Malaysia' },
+  { code: 'DE', label: 'Germany' },
+  { code: 'IE', label: 'Ireland' },
+  { code: 'SA', label: 'Saudi Arabia' },
+  { code: 'QA', label: 'Qatar' },
+  { code: 'KW', label: 'Kuwait' },
+  { code: 'OM', label: 'Oman' },
+] as const;
+
+/**
  * One multi-select answer.
  *
  * Bounded like every other list in the contracts: a client that sends the whole

@@ -14,6 +14,8 @@ interface TextFieldProps {
   multiline?: boolean;
   /** Shown under the input in the error colour; clears the accessible hint too. */
   error?: string | null;
+  /** Muted helper text under the input, for counters and guidance. */
+  hint?: string;
   editable?: boolean;
 }
 
@@ -30,6 +32,7 @@ export function TextField({
   autoFocus,
   multiline,
   error,
+  hint,
   editable = true,
 }: TextFieldProps) {
   return (
@@ -51,7 +54,11 @@ export function TextField({
         multiline={multiline}
         editable={editable}
       />
-      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {error ? (
+        <Text style={styles.error}>{error}</Text>
+      ) : hint ? (
+        <Text style={styles.hint}>{hint}</Text>
+      ) : null}
     </View>
   );
 }
@@ -83,6 +90,10 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.6,
+  },
+  hint: {
+    color: colors.textMuted,
+    ...typography.caption,
   },
   error: {
     color: colors.primary,

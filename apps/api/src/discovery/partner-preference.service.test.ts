@@ -68,6 +68,14 @@ describe('partner preference columns', () => {
       preferredCountry: 'IN',
       preferredState: 'Karnataka',
       preferredCity: null,
+      physicalStatus: [],
+      eatingHabits: ['Vegetarian'],
+      drinkingHabits: [],
+      smokingHabits: [],
+      kujaDosham: [],
+      employedIn: [],
+      annualIncomeBands: [],
+      compulsoryFilters: ['eating'],
       updatedAt: new Date('2026-11-10T00:00:00Z'),
     });
 
@@ -79,6 +87,8 @@ describe('partner preference columns', () => {
       country: 'IN',
       state: 'Karnataka',
       city: null,
+      eating_habits: ['Vegetarian'],
+      compulsory: ['eating'],
     });
   });
 });
@@ -147,5 +157,51 @@ describe('partnerPreferenceWhere', () => {
   it('treats ANY as no gender filter', () => {
     expect(partnerPreferenceWhere(preference({ gender: 'ANY' }), NOW).gender).toBeUndefined();
     expect(partnerPreferenceWhere(preference({ gender: 'FEMALE' }), NOW).gender).toBe('FEMALE');
+  });
+
+  it("matches the client's added answers as sets", () => {
+    const where = partnerPreferenceWhere(
+      preference({
+        physical_status: ['NORMAL'],
+        eating_habits: ['Vegetarian', 'Eggetarian'],
+        drinking_habits: ['Non-drinker'],
+        smoking_habits: ['Non-smoker'],
+        kuja_dosham: ['NO'],
+        employed_in: ['Government', 'Private'],
+      }),
+      NOW,
+    );
+
+    // "Any of these" — the reference's set of acceptable answers, not one value.
+    expect(where.physicalStatus).toEqual({ in: ['NORMAL'] });
+    expect(where.foodPreference).toEqual({ in: ['Vegetarian', 'Eggetarian'] });
+    expect(where.drinking).toEqual({ in: ['Non-drinker'] });
+    expect(where.smoking).toEqual({ in: ['Non-smoker'] });
+    expect(where.manglikStatus).toEqual({ in: ['NO'] });
+    expect(where.employedIn).toEqual({ in: ['Government', 'Private'] });
+  });
+
+  it('applies only the ticked fields when a compulsory set is given', () => {
+    const saved = preference({ religion: 'Hindu', country: 'IN', eating_habits: ['Vegan'] });
+    const where = partnerPreferenceWhere(saved, NOW, new Set(['country']));
+
+    expect(where.country).toEqual({ equals: 'IN', mode: 'insensitive' });
+    expect(where.religion).toBeUndefined();
+    expect(where.foodPreference).toBeUndefined();
+  });
+
+  it('applies nothing when the compulsory set names a field that is unset', () => {
+    const saved = preference({ religion: 'Hindu' });
+    expect(partnerPreferenceWhere(saved, NOW, new Set(['country']))).toEqual({});
+  });
+
+  it('saves an income band without filtering on it', () => {
+    // Profile income is free text by the client's instruction (D3), so there is
+    // no band column to compare against; the answer is kept, not applied.
+    const where = partnerPreferenceWhere(
+      preference({ annual_income_bands: ['₹10-20 lakh'] }),
+      NOW,
+    );
+    expect(where.annualIncome).toBeUndefined();
   });
 });

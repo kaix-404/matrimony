@@ -19,6 +19,14 @@ const EMPTY_VALUES: PartnerPreferenceValues = {
   country: null,
   state: null,
   city: null,
+  physical_status: [],
+  eating_habits: [],
+  drinking_habits: [],
+  smoking_habits: [],
+  kuja_dosham: [],
+  employed_in: [],
+  annual_income_bands: [],
+  compulsory: [],
 };
 
 describe('PartnerPreferenceValuesSchema', () => {
@@ -52,6 +60,37 @@ describe('PartnerPreferenceValuesSchema', () => {
     expect(
       PartnerPreferenceValuesSchema.parse({ ...EMPTY_VALUES, education_id: '  ' }).education_id,
     ).toBeNull();
+  });
+
+  it('accepts the client\'s added preference answers and their compulsory ticks', () => {
+    const parsed = PartnerPreferenceValuesSchema.parse({
+      ...EMPTY_VALUES,
+      physical_status: ['NORMAL'],
+      eating_habits: ['Vegetarian', 'Eggetarian'],
+      drinking_habits: ['Non-drinker'],
+      smoking_habits: ['Non-smoker'],
+      kuja_dosham: ['NO', 'DONT_KNOW'],
+      employed_in: ['Government', 'Private'],
+      annual_income_bands: ['₹5-10 lakh'],
+      compulsory: ['eating', 'country'],
+    });
+    expect(parsed.compulsory).toEqual(['eating', 'country']);
+    expect(hasPartnerPreferenceConstraints(parsed)).toBe(true);
+  });
+
+  it('refuses an answer outside the lists the app offers', () => {
+    // A free-form habit would never match a profile, so it is refused at the
+    // contract rather than saved as a preference that silently does nothing.
+    expect(() =>
+      PartnerPreferenceValuesSchema.parse({ ...EMPTY_VALUES, eating_habits: ['Jain'] }),
+    ).toThrow();
+    expect(() =>
+      PartnerPreferenceValuesSchema.parse({ ...EMPTY_VALUES, compulsory: ['favourite_colour'] }),
+    ).toThrow();
+  });
+
+  it('does not count a compulsory tick as a constraint on its own', () => {
+    expect(hasPartnerPreferenceConstraints({ ...EMPTY_VALUES, compulsory: ['country'] })).toBe(false);
   });
 
   it('counts any set field as a constraint', () => {

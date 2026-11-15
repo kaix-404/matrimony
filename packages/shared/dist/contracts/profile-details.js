@@ -12,7 +12,7 @@
  * are labels rather than ids because nothing joins on them.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ProfileDetailListSchema = exports.FOOD_OPTIONS = exports.SPORTS_OPTIONS = exports.MUSIC_OPTIONS = exports.HOBBY_OPTIONS = exports.FAMILY_STATUSES = exports.FAMILY_TYPES = exports.FAMILY_VALUES = exports.KUJA_DOSHAM_VALUES = exports.PHYSICAL_STATUSES = void 0;
+exports.ProfileDetailListSchema = exports.COUNTRY_OPTIONS = exports.ANNUAL_INCOME_BANDS = exports.EMPLOYED_IN = exports.DRINKING_HABITS = exports.SMOKING_HABITS = exports.EATING_HABITS = exports.FOOD_OPTIONS = exports.SPORTS_OPTIONS = exports.MUSIC_OPTIONS = exports.HOBBY_OPTIONS = exports.FAMILY_STATUSES = exports.FAMILY_TYPES = exports.FAMILY_VALUES = exports.KUJA_DOSHAM_VALUES = exports.PHYSICAL_STATUSES = void 0;
 const zod_1 = require("zod");
 /** "Physically Challenged" is the client's wording; keep it verbatim. */
 exports.PHYSICAL_STATUSES = ['NORMAL', 'PHYSICALLY_CHALLENGED'];
@@ -71,6 +71,67 @@ exports.FOOD_OPTIONS = [
     'Spanish',
     'Sushi',
     'Rajasthani',
+];
+/**
+ * The client's habit questions, worded as their reference radio groups have
+ * them. Stored as these labels rather than enum keys: the profile column was
+ * free text before this list existed, so a label keeps older rows readable next
+ * to new ones instead of stranding them as unset.
+ */
+exports.EATING_HABITS = ['Vegetarian', 'Non-vegetarian', 'Eggetarian', 'Vegan'];
+/** Client's four smoking answers (their reference: Non-smoker / Light / Social / Regular). */
+exports.SMOKING_HABITS = [
+    'Non-smoker',
+    'Light smoker',
+    'Social smoker',
+    'Regular smoker',
+];
+exports.DRINKING_HABITS = [
+    'Non-drinker',
+    'Light drinker',
+    'Social drinker',
+    'Regular drinker',
+];
+/** "Employed In" from the client's partner-preference reference. */
+exports.EMPLOYED_IN = ['Government', 'Private', 'Business', 'Self-employed', 'Not working'];
+/**
+ * Annual income, in bands.
+ *
+ * Bands rather than a number because members answer this in lakhs and the
+ * profile never held anything more precise; a band is also what a partner
+ * preference sensibly matches on.
+ */
+exports.ANNUAL_INCOME_BANDS = [
+    'Below ₹5 lakh',
+    '₹5-10 lakh',
+    '₹10-20 lakh',
+    '₹20-35 lakh',
+    '₹35-50 lakh',
+    'Above ₹50 lakh',
+];
+/**
+ * The country picker.
+ *
+ * The profile column is `VarChar(2)` ISO code and there is no COUNTRY master
+ * list, so the app carries the shortlist it offers. Codes, because that is what
+ * both the profile and the preference column can store.
+ */
+exports.COUNTRY_OPTIONS = [
+    { code: 'IN', label: 'India' },
+    { code: 'US', label: 'United States' },
+    { code: 'GB', label: 'United Kingdom' },
+    { code: 'CA', label: 'Canada' },
+    { code: 'AU', label: 'Australia' },
+    { code: 'NZ', label: 'New Zealand' },
+    { code: 'AE', label: 'United Arab Emirates' },
+    { code: 'SG', label: 'Singapore' },
+    { code: 'MY', label: 'Malaysia' },
+    { code: 'DE', label: 'Germany' },
+    { code: 'IE', label: 'Ireland' },
+    { code: 'SA', label: 'Saudi Arabia' },
+    { code: 'QA', label: 'Qatar' },
+    { code: 'KW', label: 'Kuwait' },
+    { code: 'OM', label: 'Oman' },
 ];
 /**
  * One multi-select answer.

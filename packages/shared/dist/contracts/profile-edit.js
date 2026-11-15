@@ -128,10 +128,24 @@ exports.CreateProfileSchema = zod_1.z
     siblings: optionalText(120),
     family_location: optionalText(120),
     family_description: text(2000).nullable().optional(),
-    food_preference: optionalText(60),
-    smoking: optionalText(60),
-    drinking: optionalText(60),
-    about_me: text(2000).nullable().optional(),
+    // The client's habit questions are fixed radio groups, so they are enum-backed
+    // now. The column stays free text: rows written before this list existed still
+    // read back, they just have to be re-picked before they can be saved.
+    food_preference: zod_1.z.enum(profile_details_js_1.EATING_HABITS).nullable().optional(),
+    smoking: zod_1.z.enum(profile_details_js_1.SMOKING_HABITS).nullable().optional(),
+    drinking: zod_1.z.enum(profile_details_js_1.DRINKING_HABITS).nullable().optional(),
+    /// "Employed In", which the client's partner-preference page filters on.
+    employed_in: zod_1.z.enum(profile_details_js_1.EMPLOYED_IN).nullable().optional(),
+    // The client's reference asks for at least 50 characters here, and shows a
+    // live counter while the member types.
+    about_me: zod_1.z
+        .string()
+        .trim()
+        .min(50, 'must be at least 50 characters')
+        .max(2000)
+        .refine((v) => !NO_CONTROL_CHARS.test(v), 'must not contain control characters')
+        .nullable()
+        .optional(),
     // -- client feedback point 4: the Edit Profile data points -------------
     // Optional, because the reference marks only a few of them required and a
     // profile must still save while it is half-filled. `null` clears; an absent
@@ -197,10 +211,24 @@ exports.UpdateProfileSchema = zod_1.z
     siblings: optionalText(120),
     family_location: optionalText(120),
     family_description: text(2000).nullable().optional(),
-    food_preference: optionalText(60),
-    smoking: optionalText(60),
-    drinking: optionalText(60),
-    about_me: text(2000).nullable().optional(),
+    // The client's habit questions are fixed radio groups, so they are enum-backed
+    // now. The column stays free text: rows written before this list existed still
+    // read back, they just have to be re-picked before they can be saved.
+    food_preference: zod_1.z.enum(profile_details_js_1.EATING_HABITS).nullable().optional(),
+    smoking: zod_1.z.enum(profile_details_js_1.SMOKING_HABITS).nullable().optional(),
+    drinking: zod_1.z.enum(profile_details_js_1.DRINKING_HABITS).nullable().optional(),
+    /// "Employed In", which the client's partner-preference page filters on.
+    employed_in: zod_1.z.enum(profile_details_js_1.EMPLOYED_IN).nullable().optional(),
+    // The client's reference asks for at least 50 characters here, and shows a
+    // live counter while the member types.
+    about_me: zod_1.z
+        .string()
+        .trim()
+        .min(50, 'must be at least 50 characters')
+        .max(2000)
+        .refine((v) => !NO_CONTROL_CHARS.test(v), 'must not contain control characters')
+        .nullable()
+        .optional(),
     // -- client feedback point 4: the Edit Profile data points -------------
     // Optional, because the reference marks only a few of them required and a
     // profile must still save while it is half-filled. `null` clears; an absent
@@ -301,6 +329,7 @@ exports.MyProfileSchema = zod_1.z
     food_preference: zod_1.z.string().nullable(),
     smoking: zod_1.z.string().nullable(),
     drinking: zod_1.z.string().nullable(),
+    employed_in: zod_1.z.string().nullable(),
     about_me: zod_1.z.string().nullable(),
     weight_kg: zod_1.z.number().int().nullable(),
     physical_status: zod_1.z.enum(profile_details_js_1.PHYSICAL_STATUSES).nullable(),

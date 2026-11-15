@@ -4,6 +4,7 @@ import { PrismaClient } from '../prisma/prisma-client';
 import type {
   PartnerPreferenceState,
   PartnerPreferenceValues,
+  PreferenceFilterKey,
   UpdatePartnerPreferenceInput,
 } from '@matrimony/shared';
 import { hasPartnerPreferenceConstraints } from '@matrimony/shared';
@@ -30,6 +31,14 @@ export const EMPTY_PREFERENCE: PartnerPreferenceValues = {
   country: null,
   state: null,
   city: null,
+  physical_status: [],
+  eating_habits: [],
+  drinking_habits: [],
+  smoking_habits: [],
+  kuja_dosham: [],
+  employed_in: [],
+  annual_income_bands: [],
+  compulsory: [],
 };
 
 type PreferenceRow = {
@@ -47,6 +56,14 @@ type PreferenceRow = {
   preferredCountry: string | null;
   preferredState: string | null;
   preferredCity: string | null;
+  physicalStatus: string[];
+  eatingHabits: string[];
+  drinkingHabits: string[];
+  smokingHabits: string[];
+  kujaDosham: string[];
+  employedIn: string[];
+  annualIncomeBands: string[];
+  compulsoryFilters: string[];
   updatedAt: Date;
 };
 
@@ -74,6 +91,14 @@ export const PREFERENCE_SELECT = {
   preferredCountry: true,
   preferredState: true,
   preferredCity: true,
+  physicalStatus: true,
+  eatingHabits: true,
+  drinkingHabits: true,
+  smokingHabits: true,
+  kujaDosham: true,
+  employedIn: true,
+  annualIncomeBands: true,
+  compulsoryFilters: true,
   updatedAt: true,
 } as const satisfies Prisma.PartnerPreferenceSelect;
 
@@ -94,6 +119,15 @@ export function toPreferenceValues(row: PreferenceRow): PartnerPreferenceValues 
     country: row.preferredCountry,
     state: row.preferredState,
     city: row.preferredCity,
+    physical_status: row.physicalStatus as PartnerPreferenceValues['physical_status'],
+    eating_habits: row.eatingHabits as PartnerPreferenceValues['eating_habits'],
+    drinking_habits: row.drinkingHabits as PartnerPreferenceValues['drinking_habits'],
+    smoking_habits: row.smokingHabits as PartnerPreferenceValues['smoking_habits'],
+    kuja_dosham: row.kujaDosham as PartnerPreferenceValues['kuja_dosham'],
+    employed_in: row.employedIn as PartnerPreferenceValues['employed_in'],
+    annual_income_bands:
+      row.annualIncomeBands as PartnerPreferenceValues['annual_income_bands'],
+    compulsory: row.compulsoryFilters as PartnerPreferenceValues['compulsory'],
   };
 }
 
@@ -125,6 +159,14 @@ export function toPreferenceColumns(
     preferredCountry: input.country === null ? null : input.country.toUpperCase(),
     preferredState: input.state,
     preferredCity: input.city,
+    physicalStatus: input.physical_status,
+    eatingHabits: input.eating_habits,
+    drinkingHabits: input.drinking_habits,
+    smokingHabits: input.smoking_habits,
+    kujaDosham: input.kuja_dosham,
+    employedIn: input.employed_in,
+    annualIncomeBands: input.annual_income_bands,
+    compulsoryFilters: input.compulsory,
   };
 }
 
@@ -144,44 +186,89 @@ export function toPreferenceColumns(
 export function partnerPreferenceWhere(
   preference: PartnerPreferenceValues | null,
   now: Date = new Date(),
+  only?: ReadonlySet<PreferenceFilterKey>,
 ): Prisma.ProfileWhereInput {
   if (preference === null || !hasPartnerPreferenceConstraints(preference)) return {};
 
+  /** Whether this question takes part: everything, or only the ticked fields. */
+  const applies = (key: PreferenceFilterKey): boolean => only === undefined || only.has(key);
+
   const where: Prisma.ProfileWhereInput = {};
 
-  if (preference.gender !== 'ANY') where.gender = preference.gender;
+  if (applies('gender') && preference.gender !== 'ANY') where.gender = preference.gender;
 
-  const height: Prisma.IntNullableFilter = {};
-  if (preference.height_min_cm !== null) height.gte = preference.height_min_cm;
-  if (preference.height_max_cm !== null) height.lte = preference.height_max_cm;
-  if (height.gte !== undefined || height.lte !== undefined) where.heightCm = height;
+  if (applies('height')) {
+    const height: Prisma.IntNullableFilter = {};
+    if (preference.height_min_cm !== null) height.gte = preference.height_min_cm;
+    if (preference.height_max_cm !== null) height.lte = preference.height_max_cm;
+    if (height.gte !== undefined || height.lte !== undefined) where.heightCm = height;
+  }
 
-  const year = now.getUTCFullYear();
-  const birth: Prisma.DateTimeFilter = {};
-  // age_max bounds the oldest allowed: born on or after the start of that year.
-  if (preference.age_max !== null) birth.gte = new Date(Date.UTC(year - preference.age_max, 0, 1));
-  // age_min bounds the youngest allowed: born on or before the end of that year.
-  if (preference.age_min !== null)
-    birth.lte = new Date(Date.UTC(year - preference.age_min, 11, 31));
-  if (birth.gte !== undefined || birth.lte !== undefined) where.dateOfBirth = birth;
+  if (applies('age') && (preference.age_min !== null || preference.age_max !== null)) {
+    const year = now.getUTCFullYear();
+    const birth: Prisma.DateTimeFilter = {};
+    // age_max bounds the oldest allowed: born on or after the start of that year.
+    if (preference.age_max !== null)
+      birth.gte = new Date(Date.UTC(year - preference.age_max, 0, 1));
+    // age_min bounds the youngest allowed: born on or before the end of that year.
+    if (preference.age_min !== null)
+      birth.lte = new Date(Date.UTC(year - preference.age_min, 11, 31));
+    where.dateOfBirth = birth;
+  }
 
-  if (preference.marital_status !== null) where.maritalStatus = preference.marital_status;
-  if (preference.religion !== null) {
+  if (applies('marital_status') && preference.marital_status !== null) {
+    where.maritalStatus = preference.marital_status;
+  }
+  if (applies('religion') && preference.religion !== null) {
     where.religion = { equals: preference.religion, mode: 'insensitive' };
   }
-  if (preference.sub_caste !== null) {
+  if (applies('sub_caste') && preference.sub_caste !== null) {
     where.subCaste = { equals: preference.sub_caste, mode: 'insensitive' };
   }
-  if (preference.education_id !== null) where.educationId = preference.education_id;
-  if (preference.profession_id !== null) where.professionId = preference.profession_id;
-  if (preference.mother_tongue !== null) {
+  if (applies('education') && preference.education_id !== null) {
+    where.educationId = preference.education_id;
+  }
+  if (applies('occupation') && preference.profession_id !== null) {
+    where.professionId = preference.profession_id;
+  }
+  if (applies('mother_tongue') && preference.mother_tongue !== null) {
     where.motherTongue = { equals: preference.mother_tongue, mode: 'insensitive' };
   }
-  if (preference.country !== null) {
+  if (applies('country') && preference.country !== null) {
     where.country = { equals: preference.country.toUpperCase(), mode: 'insensitive' };
   }
-  if (preference.state !== null) where.state = { equals: preference.state, mode: 'insensitive' };
-  if (preference.city !== null) where.city = { equals: preference.city, mode: 'insensitive' };
+  if (applies('state') && preference.state !== null) {
+    where.state = { equals: preference.state, mode: 'insensitive' };
+  }
+  if (applies('city') && preference.city !== null) {
+    where.city = { equals: preference.city, mode: 'insensitive' };
+  }
+
+  // The client's added questions. Sets rather than single values, so "any of
+  // these is fine" — the reference's "Doesn't matter" row beside a chosen answer.
+  if (applies('physical_status') && preference.physical_status.length > 0) {
+    where.physicalStatus = { in: preference.physical_status };
+  }
+  if (applies('eating') && preference.eating_habits.length > 0) {
+    where.foodPreference = { in: preference.eating_habits };
+  }
+  if (applies('drinking') && preference.drinking_habits.length > 0) {
+    where.drinking = { in: preference.drinking_habits };
+  }
+  if (applies('smoking') && preference.smoking_habits.length > 0) {
+    where.smoking = { in: preference.smoking_habits };
+  }
+  if (applies('kuja_dosham') && preference.kuja_dosham.length > 0) {
+    where.manglikStatus = { in: preference.kuja_dosham };
+  }
+  if (applies('employed_in') && preference.employed_in.length > 0) {
+    where.employedIn = { in: preference.employed_in };
+  }
+
+  // Annual income is deliberately not applied: the client instructed that income
+  // stays free text on the profile (D3), so there is no band column to compare
+  // these bands against. Storing the answer keeps it on the screen the reference
+  // shows; filtering on it waits for a structured income column.
 
   return where;
 }

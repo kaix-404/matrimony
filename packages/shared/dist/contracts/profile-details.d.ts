@@ -30,6 +30,79 @@ export declare const MUSIC_OPTIONS: readonly ["Film songs", "Indian Classical", 
 export declare const SPORTS_OPTIONS: readonly ["Badminton", "Carrom", "Chess", "Cricket", "Football", "Jogging", "Swimming"];
 export declare const FOOD_OPTIONS: readonly ["Arabic", "Bengali", "Chinese", "Continental", "Fast food", "Gujarati", "Italian", "Konkan", "Mexican", "Mughlai", "Marathi", "Punjabi", "South Indian", "Spanish", "Sushi", "Rajasthani"];
 /**
+ * The client's habit questions, worded as their reference radio groups have
+ * them. Stored as these labels rather than enum keys: the profile column was
+ * free text before this list existed, so a label keeps older rows readable next
+ * to new ones instead of stranding them as unset.
+ */
+export declare const EATING_HABITS: readonly ["Vegetarian", "Non-vegetarian", "Eggetarian", "Vegan"];
+/** Client's four smoking answers (their reference: Non-smoker / Light / Social / Regular). */
+export declare const SMOKING_HABITS: readonly ["Non-smoker", "Light smoker", "Social smoker", "Regular smoker"];
+export declare const DRINKING_HABITS: readonly ["Non-drinker", "Light drinker", "Social drinker", "Regular drinker"];
+/** "Employed In" from the client's partner-preference reference. */
+export declare const EMPLOYED_IN: readonly ["Government", "Private", "Business", "Self-employed", "Not working"];
+/**
+ * Annual income, in bands.
+ *
+ * Bands rather than a number because members answer this in lakhs and the
+ * profile never held anything more precise; a band is also what a partner
+ * preference sensibly matches on.
+ */
+export declare const ANNUAL_INCOME_BANDS: readonly ["Below ₹5 lakh", "₹5-10 lakh", "₹10-20 lakh", "₹20-35 lakh", "₹35-50 lakh", "Above ₹50 lakh"];
+/**
+ * The country picker.
+ *
+ * The profile column is `VarChar(2)` ISO code and there is no COUNTRY master
+ * list, so the app carries the shortlist it offers. Codes, because that is what
+ * both the profile and the preference column can store.
+ */
+export declare const COUNTRY_OPTIONS: readonly [{
+    readonly code: "IN";
+    readonly label: "India";
+}, {
+    readonly code: "US";
+    readonly label: "United States";
+}, {
+    readonly code: "GB";
+    readonly label: "United Kingdom";
+}, {
+    readonly code: "CA";
+    readonly label: "Canada";
+}, {
+    readonly code: "AU";
+    readonly label: "Australia";
+}, {
+    readonly code: "NZ";
+    readonly label: "New Zealand";
+}, {
+    readonly code: "AE";
+    readonly label: "United Arab Emirates";
+}, {
+    readonly code: "SG";
+    readonly label: "Singapore";
+}, {
+    readonly code: "MY";
+    readonly label: "Malaysia";
+}, {
+    readonly code: "DE";
+    readonly label: "Germany";
+}, {
+    readonly code: "IE";
+    readonly label: "Ireland";
+}, {
+    readonly code: "SA";
+    readonly label: "Saudi Arabia";
+}, {
+    readonly code: "QA";
+    readonly label: "Qatar";
+}, {
+    readonly code: "KW";
+    readonly label: "Kuwait";
+}, {
+    readonly code: "OM";
+    readonly label: "Oman";
+}];
+/**
  * One multi-select answer.
  *
  * Bounded like every other list in the contracts: a client that sends the whole

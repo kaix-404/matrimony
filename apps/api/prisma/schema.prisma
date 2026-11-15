@@ -714,6 +714,10 @@ model Profile {
   sports         String[] @default([])
   favouriteFood  String[] @default([])
 
+  /// "Employed In", collected because the client's partner-preference page
+  /// filters on it; without it here that preference could match nobody.
+  employedIn           String?
+
   familyValue          String?
   familyType           String?
   familyStatus         String?
@@ -865,6 +869,21 @@ model PartnerPreference {
   rashi         String?
   nakshatra     String?
   manglikStatus String?
+
+  // -- client feedback point 4: the preference rows our form was missing -----
+  // Multi-select sets, because "any of these" is what the client's "Doesn't
+  // matter" row means alongside a chosen answer. Empty means no constraint.
+  physicalStatus    String[] @default([])
+  eatingHabits      String[] @default([])
+  drinkingHabits    String[] @default([])
+  smokingHabits     String[] @default([])
+  kujaDosham        String[] @default([])
+  employedIn        String[] @default([])
+  annualIncomeBands String[] @default([])
+
+  /// The preferences the member ticked "Compulsory" against. A ticked
+  /// preference is a hard filter; an unticked one is only stated.
+  compulsoryFilters String[] @default([])
 
   /// Admin-managed matching criteria; not user-editable directly.
   criteria Json?

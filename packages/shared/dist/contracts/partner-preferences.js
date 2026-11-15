@@ -11,12 +11,21 @@
  * visibility flags. It is split into two contracts on purpose: visibility is
  * about exposure (who may see me), preferences are about the feed (whom I want
  * to see), and they are read by different screens.
+ *
+ * COMPULSORY FILTERS
+ * ------------------
+ * The client's reference puts a "Compulsory" tick beside each preference: a
+ * ticked preference is a hard filter, and the page warns that turning it on is
+ * what makes matches drop away. `compulsory` names the fields that carry a tick,
+ * so the screen can render the state and the feed can tell a hard filter from a
+ * merely-stated preference.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.UpdatePartnerPreferenceSchema = exports.PartnerPreferenceStateSchema = exports.PartnerPreferenceValuesSchema = void 0;
+exports.UpdatePartnerPreferenceSchema = exports.PartnerPreferenceStateSchema = exports.PartnerPreferenceValuesSchema = exports.PREFERENCE_FILTER_KEYS = void 0;
 exports.hasPartnerPreferenceConstraints = hasPartnerPreferenceConstraints;
 const zod_1 = require("zod");
 const enums_1 = require("../enums");
+const profile_details_js_1 = require("./profile-details.js");
 const optionalText = (max) => zod_1.z
     .string()
     .trim()
@@ -37,6 +46,36 @@ const optionalListId = zod_1.z
     .transform((value) => (value === '' ? null : value));
 const optionalAge = zod_1.z.number().int().min(18).max(100).nullable();
 const optionalHeight = zod_1.z.number().int().min(120).max(250).nullable();
+/**
+ * Every preference a member can tick as compulsory.
+ *
+ * Named for the question rather than the column, because the tick is a product
+ * concept and the columns have changed names before: `eating` is stored in
+ * `foodPreference` and `occupation` in `professionId`.
+ */
+exports.PREFERENCE_FILTER_KEYS = [
+    'gender',
+    'age',
+    'height',
+    'marital_status',
+    'religion',
+    'sub_caste',
+    'mother_tongue',
+    'physical_status',
+    'eating',
+    'drinking',
+    'smoking',
+    'kuja_dosham',
+    'education',
+    'employed_in',
+    'occupation',
+    'annual_income',
+    'country',
+    'state',
+    'city',
+];
+/** A set of acceptable answers; an empty set is "any". */
+const habitSet = (values) => zod_1.z.array(zod_1.z.enum(values)).max(values.length);
 /** The stored preference, as the screen reads and writes it. */
 exports.PartnerPreferenceValuesSchema = zod_1.z
     .object({
@@ -51,12 +90,23 @@ exports.PartnerPreferenceValuesSchema = zod_1.z
     sub_caste: optionalText(120),
     /** Master-list ids from `EDUCATION` and `PROFESSION`. */
     education_id: optionalListId,
+    /** The client calls this "Occupation"; it is the profile's `professionId`. */
     profession_id: optionalListId,
     mother_tongue: optionalText(60),
     /** ISO 3166-1 alpha-2, matching how profiles store a country. */
     country: optionalText(2),
     state: optionalText(80),
     city: optionalText(80),
+    // -- client feedback point 4: the preference rows our form was missing ----
+    physical_status: habitSet(profile_details_js_1.PHYSICAL_STATUSES),
+    eating_habits: habitSet(profile_details_js_1.EATING_HABITS),
+    drinking_habits: habitSet(profile_details_js_1.DRINKING_HABITS),
+    smoking_habits: habitSet(profile_details_js_1.SMOKING_HABITS),
+    kuja_dosham: habitSet(profile_details_js_1.KUJA_DOSHAM_VALUES),
+    employed_in: habitSet(profile_details_js_1.EMPLOYED_IN),
+    annual_income_bands: habitSet(profile_details_js_1.ANNUAL_INCOME_BANDS),
+    /** The preferences this member wants applied as hard filters. */
+    compulsory: zod_1.z.array(zod_1.z.enum(exports.PREFERENCE_FILTER_KEYS)).max(exports.PREFERENCE_FILTER_KEYS.length),
 })
     .strict()
     .superRefine((value, ctx) => {
@@ -97,7 +147,13 @@ exports.PartnerPreferenceStateSchema = zod_1.z
  * indistinguishable from "did not mention religion".
  */
 exports.UpdatePartnerPreferenceSchema = exports.PartnerPreferenceValuesSchema;
-/** What has been saved, regardless of whether it narrows anything today. */
+/**
+ * What has been saved, regardless of whether it narrows anything today.
+ *
+ * The compulsory list is not counted: a tick with nothing to apply underneath it
+ * does not narrow a feed, and reporting it as a constraint would claim the member
+ * had restricted something they had not.
+ */
 function hasPartnerPreferenceConstraints(preference) {
     return (preference.gender !== 'ANY' ||
         preference.age_min !== null ||
@@ -112,6 +168,13 @@ function hasPartnerPreferenceConstraints(preference) {
         preference.mother_tongue !== null ||
         preference.country !== null ||
         preference.state !== null ||
-        preference.city !== null);
+        preference.city !== null ||
+        preference.physical_status.length > 0 ||
+        preference.eating_habits.length > 0 ||
+        preference.drinking_habits.length > 0 ||
+        preference.smoking_habits.length > 0 ||
+        preference.kuja_dosham.length > 0 ||
+        preference.employed_in.length > 0 ||
+        preference.annual_income_bands.length > 0);
 }
 //# sourceMappingURL=partner-preferences.js.map

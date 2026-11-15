@@ -76,10 +76,17 @@ export class DiscoveryService {
     // be opened directly, and the preference is never applied in the other
     // direction (it does not make anyone less discoverable).
     const partnerPreference = await this.partnerPreferences.get(viewerId);
+    // The client's "Compulsory Filters" rule: a preference the member ticked is
+    // a hard filter, and one they only stated does not remove anybody. With no
+    // ticks at all every saved preference still applies, which is both the
+    // behaviour this feed had before the ticks existed and what a member who has
+    // never opened the new control expects.
+    const compulsory = partnerPreference.preference.compulsory;
+    const ticked = compulsory.length > 0 ? new Set(compulsory) : undefined;
     const rows = await this.prisma.profile.findMany({
       where: {
         ...this.candidateWhere(viewerId, viewerBand, scope),
-        ...partnerPreferenceWhere(partnerPreference.preference),
+        ...partnerPreferenceWhere(partnerPreference.preference, new Date(), ticked),
         ...this.temporaryFilter(query),
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],

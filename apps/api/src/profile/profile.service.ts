@@ -122,6 +122,7 @@ export class ProfileService {
         favouriteMusic: input.favourite_music ?? [],
         sports: input.sports ?? [],
         favouriteFood: input.favourite_food ?? [],
+        employedIn: input.employed_in ?? null,
         familyValue: input.family_value ?? null,
         familyType: input.family_type ?? null,
         familyStatus: input.family_status ?? null,
@@ -258,6 +259,7 @@ export class ProfileService {
     set('favouriteMusic', input.favourite_music);
     set('sports', input.sports);
     set('favouriteFood', input.favourite_food);
+    set('employedIn', input.employed_in);
     set('familyValue', input.family_value);
     set('familyType', input.family_type);
     set('familyStatus', input.family_status);
@@ -570,6 +572,7 @@ export class ProfileService {
         favouriteMusic: true,
         sports: true,
         favouriteFood: true,
+        employedIn: true,
         familyValue: true,
         familyType: true,
         familyStatus: true,
@@ -641,6 +644,7 @@ export class ProfileService {
       favourite_music: row.favouriteMusic ?? [],
       sports: row.sports ?? [],
       favourite_food: row.favouriteFood ?? [],
+      employed_in: row.employedIn,
       family_value: row.familyValue as MyProfile['family_value'],
       family_type: row.familyType as MyProfile['family_type'],
       family_status: row.familyStatus as MyProfile['family_status'],

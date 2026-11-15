@@ -789,6 +789,14 @@ describe('DiscoveryService', () => {
         preferredCountry: null,
         preferredState: null,
         preferredCity: null,
+        physicalStatus: [],
+        eatingHabits: [],
+        drinkingHabits: [],
+        smokingHabits: [],
+        kujaDosham: [],
+        employedIn: [],
+        annualIncomeBands: [],
+        compulsoryFilters: [],
       };
 
       const result = await service.search('viewer', query());
@@ -820,10 +828,85 @@ describe('DiscoveryService', () => {
         preferredCountry: null,
         preferredState: null,
         preferredCity: null,
+        physicalStatus: [],
+        eatingHabits: [],
+        drinkingHabits: [],
+        smokingHabits: [],
+        kujaDosham: [],
+        employedIn: [],
+        annualIncomeBands: [],
+        compulsoryFilters: [],
       };
 
       const result = await service.search('viewer', query());
       expect(result.items).toEqual([]);
+    });
+
+    it('leaves an unticked preference stated rather than filtering on it', async () => {
+      // The client's rule: only the rows with a "Compulsory" tick remove
+      // profiles. Religion is saved here but not ticked, so both candidates stay.
+      both();
+      prisma.partnerPreferenceRow = {
+        gender: 'ANY',
+        ageMin: null,
+        ageMax: null,
+        heightMinCm: null,
+        heightMaxCm: null,
+        maritalStatus: null,
+        religion: 'Hindu',
+        subCaste: null,
+        educationId: null,
+        professionId: null,
+        motherTongue: null,
+        preferredCountry: null,
+        preferredState: null,
+        preferredCity: null,
+        physicalStatus: [],
+        eatingHabits: [],
+        drinkingHabits: [],
+        smokingHabits: [],
+        kujaDosham: [],
+        employedIn: [],
+        annualIncomeBands: [],
+        compulsoryFilters: ['country'],
+      };
+
+      const result = await service.search('viewer', query());
+      expect(result.items.map((item) => item.profile_id).sort()).toEqual([
+        pid('hindu'),
+        pid('other'),
+      ]);
+    });
+
+    it('filters on a preference once it is ticked', async () => {
+      both();
+      prisma.partnerPreferenceRow = {
+        gender: 'ANY',
+        ageMin: null,
+        ageMax: null,
+        heightMinCm: null,
+        heightMaxCm: null,
+        maritalStatus: null,
+        religion: 'Hindu',
+        subCaste: null,
+        educationId: null,
+        professionId: null,
+        motherTongue: null,
+        preferredCountry: null,
+        preferredState: null,
+        preferredCity: null,
+        physicalStatus: [],
+        eatingHabits: [],
+        drinkingHabits: [],
+        smokingHabits: [],
+        kujaDosham: [],
+        employedIn: [],
+        annualIncomeBands: [],
+        compulsoryFilters: ['religion'],
+      };
+
+      const result = await service.search('viewer', query());
+      expect(result.items.map((item) => item.profile_id)).toEqual([pid('hindu')]);
     });
   });
 
