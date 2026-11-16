@@ -1864,9 +1864,11 @@ describe('AdminService.restoreProfile', () => {
 
     expect(view.status).toBe('APPROVED');
     expect(profiles[0]?.status).toBe('APPROVED');
+    // Its own action: the audit trail has to say a sanction was lifted, not that
+    // the profile was suspended a second time.
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
-        action: 'profile:suspend',
+        action: 'profile:restore',
         resourceType: 'Profile',
         resourceId: 'profile_row_1',
         actorAdminId: 'admin_actor',

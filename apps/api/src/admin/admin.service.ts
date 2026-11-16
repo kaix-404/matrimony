@@ -1510,7 +1510,7 @@ export class AdminService {
     actingAdminId: string,
   ): Promise<AdminProfileView> {
     const row = await this.requireReviewable(id);
-    return this.setModerationStatus(row, 'SUSPENDED', reason, actingAdminId);
+    return this.setModerationStatus(row, 'SUSPENDED', 'profile:suspend', reason, actingAdminId);
   }
 
   /**
@@ -1537,7 +1537,7 @@ export class AdminService {
     if (row.status !== 'SUSPENDED') {
       throw new ConflictException('Only a suspended profile can be restored');
     }
-    return this.setModerationStatus(row, 'APPROVED', reason, actingAdminId);
+    return this.setModerationStatus(row, 'APPROVED', 'profile:restore', reason, actingAdminId);
   }
 
   /**
@@ -1548,6 +1548,8 @@ export class AdminService {
   private async setModerationStatus(
     row: ProfileReviewRow,
     status: 'APPROVED' | 'SUSPENDED',
+    /** The audited action: lifting a sanction is not the same act as imposing it. */
+    action: 'profile:suspend' | 'profile:restore',
     reason: string,
     actingAdminId: string,
   ): Promise<AdminProfileView> {
@@ -1562,7 +1564,7 @@ export class AdminService {
 
     await this.audit.record({
       actorAdminId: actingAdminId,
-      action: 'profile:suspend',
+      action,
       resourceType: 'Profile',
       resourceId: row.id,
       previousValue: { status: previousStatus },
