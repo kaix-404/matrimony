@@ -1544,7 +1544,15 @@ export class AdminService {
     reason: string,
     actingAdminId: string,
   ): Promise<AdminProfileView> {
-    const row = await this.requireReviewable(id);
+    // Not `requireReviewable`: that guard refuses a suspended profile by design,
+    // which is exactly the row this action exists to lift.
+    const row = await this.prisma.profile.findUnique({
+      where: { id },
+      select: PROFILE_REVIEW_SELECT,
+    });
+    if (!row || row.status === 'DELETED') {
+      throw new NotFoundException('Profile not found');
+    }
     if (row.status !== 'SUSPENDED') {
       throw new ConflictException('Only a suspended profile can be restored');
     }
