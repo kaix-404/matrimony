@@ -92,7 +92,10 @@ export async function suspendProfileAction(
   try {
     await adminFetch(`/admin/profiles/${profileId}/suspend`, {
       method: 'POST',
-      body: JSON.stringify({ reason }),
+      // A plain object: `adminFetch` stringifies the body itself, so handing it a
+      // string here sent the API a quoted blob and every suspension failed with a
+      // JSON parse error.
+      body: { reason },
     });
   } catch (caught) {
     return { ok: false, error: describeError(caught) };
