@@ -48,6 +48,21 @@ export async function POST(request: Request): Promise<NextResponse> {
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
+    // Same distinction as the password step: an API that is unwell is a gateway
+    // failure, not a rejected code, and a bare 500 from this route would read as
+    // the console being broken.
+    if (response.status >= 500) {
+      const detail = extractMessage(body) ?? `HTTP ${response.status}`;
+      console.error(
+        `[admin-session] the API failed the MFA check: ${response.status} ${detail} (${API_BASE_URL})`,
+      );
+      return NextResponse.json(
+        {
+          message: `The API failed to verify the code (${response.status}: ${detail}). Check the API's logs.`,
+        },
+        { status: 502 },
+      );
+    }
     return NextResponse.json(
       { message: extractMessage(body) ?? 'That code was not accepted.' },
       { status: response.status },

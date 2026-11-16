@@ -45,7 +45,7 @@ function seeOther(path: string): NextResponse {
 
 /** Sends a form post back to the sign-in page, with the reason and no credentials. */
 function backToLogin(
-  problem: 'invalid' | 'rejected' | 'unreachable' | 'mfa' | 'unexpected',
+  problem: 'invalid' | 'rejected' | 'unreachable' | 'apifailed' | 'mfa' | 'unexpected',
 ): NextResponse {
   return seeOther(`/login?problem=${problem}`);
 }
@@ -83,6 +83,29 @@ export async function POST(request: Request): Promise<NextResponse> {
   const body: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
+    // A 5xx is the API failing, not the credentials: relaying that status made a
+    // broken API look like a broken console (the browser saw the console's own
+    // 500 and the API's "Internal server error" named neither side), which is
+    // exactly how a local sign-in was misdiagnosed as a cookie-write bug. The
+    // upstream detail is logged here, where an operator can act on it, and the
+    // browser gets 502 Bad Gateway: the one status that means "the next hop
+    // failed".
+    if (response.status >= 500) {
+      const detail = extractMessage(body) ?? `HTTP ${response.status}`;
+      console.error(
+        `[admin-session] the API failed the sign-in: ${response.status} ${detail} (${API_BASE_URL})`,
+      );
+      if (formPost) {
+        return backToLogin('apifailed');
+      }
+      return NextResponse.json(
+        {
+          message: `The API failed to process the sign-in (${response.status}: ${detail}). Check the API's logs.`,
+        },
+        { status: 502 },
+      );
+    }
+
     // A wrong password and an unknown email are reported identically, so the
     // dashboard cannot be used to discover which administrator addresses exist.
     if (formPost) {

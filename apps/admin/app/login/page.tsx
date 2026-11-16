@@ -18,6 +18,7 @@ const PROBLEMS: Record<string, string> = {
   invalid: 'Enter a valid email address and a password of at least 8 characters.',
   rejected: 'Email or password is incorrect.',
   unreachable: 'Could not reach the server. Is the API running?',
+  apifailed: 'The API is running but failed the sign-in. Check its logs for the error.',
   mfa: 'This account uses multi-factor authentication, so signing in needs JavaScript enabled. Enable it and try again.',
   unexpected: 'The server returned an unexpected sign-in response.',
 };
