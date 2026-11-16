@@ -11,8 +11,7 @@ import {
 import { readParam } from '@/lib/query';
 import { Pager } from '../pager';
 import { ProfileReviewControls } from './review-controls';
-import { RestoreProfileButton } from './restore-button';
-import { SuspendProfileButton } from './suspend-button';
+import { ReasonActionButton } from './reason-action-button';
 
 /**
  * The profile review queue (section 26).
@@ -174,11 +173,10 @@ export default async function ProfilesPage({
                     ) : null}
                   </div>
                   <ProfileReviewControls profileId={profile.id} status={profile.status} />
-                  {profile.status === 'SUSPENDED' ? (
-                    <RestoreProfileButton profileId={profile.id} />
-                  ) : (
-                    <SuspendProfileButton profileId={profile.id} />
-                  )}
+                  <ReasonActionButton
+                    profileId={profile.id}
+                    action={profile.status === 'SUSPENDED' ? 'restore' : 'suspend'}
+                  />
                 </div>
               ))}
             </div>

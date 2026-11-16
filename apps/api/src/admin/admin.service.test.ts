@@ -1800,3 +1800,108 @@ describe('AdminService.rejectProfile', () => {
     );
   });
 });
+
+describe('AdminService.suspendProfile', () => {
+  it('takes an approved profile out of discovery and keeps the reason', async () => {
+    const { service, profiles, audit } = setup();
+    profiles[0]!.status = 'APPROVED';
+
+    const view = await service.suspendProfile('profile_row_1', 'Chargeback fraud', 'admin_actor');
+
+    expect(view.status).toBe('SUSPENDED');
+    expect(profiles[0]?.status).toBe('SUSPENDED');
+    // The reason is the audit column the panel renders, not a field buried in
+    // newValue: a suspension nobody can explain is not an auditable decision.
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'profile:suspend',
+        resourceType: 'Profile',
+        resourceId: 'profile_row_1',
+        actorAdminId: 'admin_actor',
+        reason: 'Chargeback fraud',
+        previousValue: { status: 'APPROVED' },
+        newValue: { status: 'SUSPENDED' },
+      }),
+    );
+  });
+
+  it('does not undo the approval, only the visibility', async () => {
+    const { service, profiles } = setup();
+    profiles[0]!.status = 'APPROVED';
+    profiles[0]!.approvedAt = new Date('2026-10-01T00:00:00.000Z');
+
+    await service.suspendProfile('profile_row_1', 'Under review', 'admin_actor');
+
+    // Lifting the suspension later must not send the profile back through the
+    // queue: the reviewed content never changed.
+    expect(profiles[0]?.approvedAt).toEqual(new Date('2026-10-01T00:00:00.000Z'));
+  });
+
+  it('refuses a profile that is already suspended', async () => {
+    const { service, profiles, audit } = setup();
+    profiles[0]!.status = 'SUSPENDED';
+
+    await expect(
+      service.suspendProfile('profile_row_1', 'Twice', 'admin_actor'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing profile', async () => {
+    const { service } = setup();
+    await expect(
+      service.suspendProfile('nobody', 'Missing profile', 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminService.restoreProfile', () => {
+  it('puts a suspended profile back to approved', async () => {
+    const { service, profiles, audit } = setup();
+    profiles[0]!.status = 'SUSPENDED';
+
+    const view = await service.restoreProfile('profile_row_1', 'Cleared by review', 'admin_actor');
+
+    expect(view.status).toBe('APPROVED');
+    expect(profiles[0]?.status).toBe('APPROVED');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'profile:suspend',
+        resourceType: 'Profile',
+        resourceId: 'profile_row_1',
+        actorAdminId: 'admin_actor',
+        reason: 'Cleared by review',
+        previousValue: { status: 'SUSPENDED' },
+        newValue: { status: 'APPROVED' },
+      }),
+    );
+  });
+
+  it('is not blocked by the review guard that refuses suspended profiles', async () => {
+    const { service, profiles } = setup();
+    profiles[0]!.status = 'SUSPENDED';
+
+    // The guard exists so nothing else can "review" a suspended profile; the
+    // restore is the one action that has to get past it.
+    await expect(
+      service.restoreProfile('profile_row_1', 'Lifting it', 'admin_actor'),
+    ).resolves.toMatchObject({ status: 'APPROVED' });
+  });
+
+  it('refuses a profile that is not suspended', async () => {
+    const { service, profiles, audit } = setup();
+    profiles[0]!.status = 'APPROVED';
+
+    await expect(
+      service.restoreProfile('profile_row_1', 'Nothing to lift', 'admin_actor'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('reports a missing profile', async () => {
+    const { service } = setup();
+    await expect(
+      service.restoreProfile('nobody', 'Missing profile', 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});

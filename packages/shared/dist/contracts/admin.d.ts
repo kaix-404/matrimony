@@ -1089,15 +1089,6 @@ export declare const AdminSuspendProfileSchema: z.ZodObject<{
     reason: string;
 }>;
 export type AdminSuspendProfileInput = z.infer<typeof AdminSuspendProfileSchema>;
-/** Lifting a suspension: the reason is kept on the audit trail. */
-export declare const AdminRestoreProfileSchema: z.ZodObject<{
-    reason: z.ZodString;
-}, "strict", z.ZodTypeAny, {
-    reason: string;
-}, {
-    reason: string;
-}>;
-export type AdminRestoreProfileInput = AdminSuspendProfileInput;
 /**
  * A profile as the review queue shows it.
  *

@@ -931,10 +931,6 @@ export const AdminSuspendProfileSchema = z
   .strict();
 export type AdminSuspendProfileInput = z.infer<typeof AdminSuspendProfileSchema>;
 
-/** Lifting a suspension: the reason is kept on the audit trail. */
-export const AdminRestoreProfileSchema = AdminSuspendProfileSchema;
-export type AdminRestoreProfileInput = AdminSuspendProfileInput;
-
 /**
  * A profile as the review queue shows it.
  *

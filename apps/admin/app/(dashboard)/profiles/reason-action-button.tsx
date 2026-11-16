@@ -3,25 +3,47 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
-import { suspendProfileAction } from './actions';
+import { restoreProfileAction, suspendProfileAction } from './actions';
 
 /**
- * Suspends a profile from the review queue.
+ * Suspend, or lift a suspension, from the review queue.
  *
- * The reason is asked for inline rather than through `window.prompt`: a browser
- * prompt blocks the page, cannot be styled, and is dismissed by anything that
- * declines dialogs — including a tester's automation — which made the button
- * look inert. It is also what gets audited and what the member is told, so it
- * belongs in the page, not in a modal string.
+ * Both moves are the same interaction with a different meaning, so they share one
+ * component: a reason box that opens in place, records the explanation the audit
+ * log keeps, and closes only when the API accepted it. `window.prompt` was tried
+ * first and was dismissed by anything that declines dialogs, which left the
+ * button looking inert and a cancel indistinguishable from a dismissal.
  */
-export function SuspendProfileButton({ profileId }: { profileId: string }) {
+const COPY = {
+  suspend: {
+    open: 'Suspend account',
+    confirm: 'Confirm suspension',
+    busy: 'Suspending…',
+    className: 'button danger',
+  },
+  restore: {
+    open: 'Lift suspension',
+    confirm: 'Confirm restore',
+    busy: 'Restoring…',
+    className: 'button',
+  },
+} as const;
+
+export function ReasonActionButton({
+  profileId,
+  action,
+}: {
+  profileId: string;
+  action: 'suspend' | 'restore';
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const copy = COPY[action];
 
-  async function suspend() {
+  async function submit() {
     const trimmed = reason.trim();
     if (trimmed.length < 5) {
       setError('Give a reason of at least 5 characters.');
@@ -30,7 +52,10 @@ export function SuspendProfileButton({ profileId }: { profileId: string }) {
 
     setBusy(true);
     setError(null);
-    const result = await suspendProfileAction(profileId, trimmed);
+    const result =
+      action === 'suspend'
+        ? await suspendProfileAction(profileId, trimmed)
+        : await restoreProfileAction(profileId, trimmed);
     setBusy(false);
 
     if (!result.ok) {
@@ -47,11 +72,11 @@ export function SuspendProfileButton({ profileId }: { profileId: string }) {
       <div style={{ display: 'grid', gap: 4 }}>
         <button
           type="button"
-          className="button danger"
+          className={copy.className}
           onClick={() => setOpen(true)}
           style={{ justifySelf: 'start' }}
         >
-          Suspend account
+          {copy.open}
         </button>
         {error !== null ? <div className="error">{error}</div> : null}
       </div>
@@ -60,11 +85,11 @@ export function SuspendProfileButton({ profileId }: { profileId: string }) {
 
   return (
     <div style={{ display: 'grid', gap: 6 }}>
-      <label htmlFor={`suspend-reason-${profileId}`} className="mono">
+      <label htmlFor={`${action}-reason-${profileId}`} className="mono">
         Reason (recorded in the audit log)
       </label>
       <textarea
-        id={`suspend-reason-${profileId}`}
+        id={`${action}-reason-${profileId}`}
         value={reason}
         onChange={(event) => setReason(event.target.value)}
         rows={2}
@@ -73,8 +98,8 @@ export function SuspendProfileButton({ profileId }: { profileId: string }) {
         aria-invalid={error !== null}
       />
       <div style={{ display: 'flex', gap: 8 }}>
-        <button type="button" className="button danger" onClick={suspend} disabled={busy}>
-          {busy ? 'Suspending…' : 'Confirm suspension'}
+        <button type="button" className={copy.className} onClick={submit} disabled={busy}>
+          {busy ? copy.busy : copy.confirm}
         </button>
         <button
           type="button"

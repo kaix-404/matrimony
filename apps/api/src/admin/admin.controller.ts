@@ -25,9 +25,7 @@ import {
   AdminProfileUpdateSchema,
   AdminPublishPricingSchema,
   AdminRejectProfileSchema,
-  AdminRestoreProfileSchema,
   AdminSuspendProfileSchema,
-  type AdminRestoreProfileInput,
   type AdminSuspendProfileInput,
   AdminResolveDataRequestSchema,
   AdminRestoreUserSchema,
@@ -414,7 +412,8 @@ export class AdminController {
   @HttpCode(200)
   async restoreProfile(
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(AdminRestoreProfileSchema)) body: AdminRestoreProfileInput,
+    // Lifting a suspension takes the same reason payload as imposing one.
+  @Body(new ZodValidationPipe(AdminSuspendProfileSchema)) body: AdminSuspendProfileInput,
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminProfileView> {
     return this.adminService.restoreProfile(id, body.reason, principal.id);

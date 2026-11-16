@@ -1510,26 +1510,7 @@ export class AdminService {
     actingAdminId: string,
   ): Promise<AdminProfileView> {
     const row = await this.requireReviewable(id);
-    const updated = await this.prisma.profile.update({
-      where: { id },
-      data: { status: 'SUSPENDED' as never },
-      select: PROFILE_REVIEW_SELECT,
-    });
-
-    await this.audit.record({
-      actorAdminId: actingAdminId,
-      action: 'profile:suspend',
-      resourceType: 'Profile',
-      resourceId: id,
-      previousValue: { status: row.status },
-      newValue: { status: 'SUSPENDED', reason },
-    });
-
-    return toProfileReviewView(
-      updated,
-      await this.photoUrl(updated.photos[0]?.objectKey),
-      this.clock.now(),
-    );
+    return this.setModerationStatus(row, 'SUSPENDED', reason, actingAdminId);
   }
 
   /**
@@ -1556,10 +1537,26 @@ export class AdminService {
     if (row.status !== 'SUSPENDED') {
       throw new ConflictException('Only a suspended profile can be restored');
     }
+    return this.setModerationStatus(row, 'APPROVED', reason, actingAdminId);
+  }
 
+  /**
+   * Moves a profile between the two statuses an administrator sets by hand, and
+   * writes the one audit line that records the move. Shared so a suspension and
+   * its lifting cannot drift apart in what they record.
+   */
+  private async setModerationStatus(
+    row: ProfileReviewRow,
+    status: 'APPROVED' | 'SUSPENDED',
+    reason: string,
+    actingAdminId: string,
+  ): Promise<AdminProfileView> {
+    // Read before the write: the audit line states what the status was, and a
+    // row object that the update happens to mutate would rewrite its own history.
+    const previousStatus = row.status;
     const updated = await this.prisma.profile.update({
-      where: { id },
-      data: { status: 'APPROVED' as never },
+      where: { id: row.id },
+      data: { status: status as never },
       select: PROFILE_REVIEW_SELECT,
     });
 
@@ -1567,9 +1564,11 @@ export class AdminService {
       actorAdminId: actingAdminId,
       action: 'profile:suspend',
       resourceType: 'Profile',
-      resourceId: id,
-      previousValue: { status: row.status },
-      newValue: { status: 'APPROVED', reason },
+      resourceId: row.id,
+      previousValue: { status: previousStatus },
+      newValue: { status },
+      // `reason` is the audit column the panel renders, as rejection uses.
+      reason,
     });
 
     return toProfileReviewView(
