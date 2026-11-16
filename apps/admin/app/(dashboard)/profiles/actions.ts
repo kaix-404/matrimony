@@ -104,3 +104,30 @@ export async function suspendProfileAction(
   revalidatePath('/profiles');
   return { ok: true };
 }
+
+/**
+ * Lifts a suspension, putting the profile back to approved (section 30).
+ *
+ * The inverse of `suspendProfileAction`, with the same audit trail: lifting a
+ * sanction is as consequential as imposing one, so it carries a reason too.
+ */
+export async function restoreProfileAction(
+  profileId: string,
+  reason: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (profileId.length === 0) {
+    return { ok: false, error: 'Missing profile id.' };
+  }
+
+  try {
+    await adminFetch(`/admin/profiles/${profileId}/restore`, {
+      method: 'POST',
+      body: { reason },
+    });
+  } catch (caught) {
+    return { ok: false, error: describeError(caught) };
+  }
+
+  revalidatePath('/profiles');
+  return { ok: true };
+}

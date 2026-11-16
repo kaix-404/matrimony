@@ -27,7 +27,13 @@ describe('rejectionReasonFrom', () => {
 
 describe('PROFILE_STATUS_LABELS', () => {
   it('names every status the queue can filter by', () => {
-    expect(PROFILE_REVIEW_STATUSES).toEqual(['PENDING_REVIEW', 'APPROVED', 'REJECTED']);
+    expect(PROFILE_REVIEW_STATUSES).toEqual([
+      'PENDING_REVIEW',
+      'APPROVED',
+      'REJECTED',
+      // Suspended profiles left the queue with no way back until this tab existed.
+      'SUSPENDED',
+    ]);
     expect(Object.keys(PROFILE_STATUS_LABELS)).toEqual([...PROFILE_REVIEW_STATUSES]);
   });
 });

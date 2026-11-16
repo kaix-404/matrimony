@@ -25,7 +25,9 @@ import {
   AdminProfileUpdateSchema,
   AdminPublishPricingSchema,
   AdminRejectProfileSchema,
+  AdminRestoreProfileSchema,
   AdminSuspendProfileSchema,
+  type AdminRestoreProfileInput,
   type AdminSuspendProfileInput,
   AdminResolveDataRequestSchema,
   AdminRestoreUserSchema,
@@ -404,6 +406,18 @@ export class AdminController {
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminProfileView> {
     return this.adminService.suspendProfile(id, body.reason, principal.id);
+  }
+
+  /** Section 30: lift a suspension, putting the profile back to approved. */
+  @Post('profiles/:id/restore')
+  @RequirePermission('profile:suspend')
+  @HttpCode(200)
+  async restoreProfile(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminRestoreProfileSchema)) body: AdminRestoreProfileInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminProfileView> {
+    return this.adminService.restoreProfile(id, body.reason, principal.id);
   }
 
   /** Section 30: the moderation queue, optionally filtered by status. */

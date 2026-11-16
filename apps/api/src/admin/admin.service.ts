@@ -1533,6 +1533,45 @@ export class AdminService {
   }
 
   /**
+   * Lifts a suspension (§30).
+   *
+   * The profile returns to APPROVED, the state it held when it was suspended: a
+   * suspension never touched the reviewed content, so re-reviewing it would only
+   * ask a reviewer to read the same profile twice.
+   */
+  async restoreProfile(
+    id: string,
+    reason: string,
+    actingAdminId: string,
+  ): Promise<AdminProfileView> {
+    const row = await this.requireReviewable(id);
+    if (row.status !== 'SUSPENDED') {
+      throw new ConflictException('Only a suspended profile can be restored');
+    }
+
+    const updated = await this.prisma.profile.update({
+      where: { id },
+      data: { status: 'APPROVED' as never },
+      select: PROFILE_REVIEW_SELECT,
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'profile:suspend',
+      resourceType: 'Profile',
+      resourceId: id,
+      previousValue: { status: row.status },
+      newValue: { status: 'APPROVED', reason },
+    });
+
+    return toProfileReviewView(
+      updated,
+      await this.photoUrl(updated.photos[0]?.objectKey),
+      this.clock.now(),
+    );
+  }
+
+  /**
    * Approves a profile, making it discoverable for the first time.
    *
    * Re-approving an approved profile is a no-op rather than an error: a reviewer
