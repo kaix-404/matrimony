@@ -75,6 +75,7 @@ function setup() {
       name: 'Actor',
       status: 'ACTIVE',
       mfaSecret: null as string | null,
+      phone: null as string | null,
       lastLoginAt: null as Date | null,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       roles: [{ role: { slug: 'SUPER_ADMIN' } }],
@@ -85,6 +86,7 @@ function setup() {
       name: 'Target',
       status: 'ACTIVE',
       mfaSecret: 'v1.iv.tag.ciphertext' as string | null,
+      phone: null as string | null,
       lastLoginAt: null as Date | null,
       createdAt: new Date('2026-02-01T00:00:00.000Z'),
       roles: [{ role: { slug: 'FINANCE_ADMIN' } }],
@@ -1905,5 +1907,41 @@ describe('AdminService.restoreProfile', () => {
     await expect(
       service.restoreProfile('nobody', 'Missing profile', 'admin_actor'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminService.setAdminPhone', () => {
+  it('stores the number SMS sign-in codes go to, and audits the change', async () => {
+    const { service, admins, audit } = setup();
+
+    const view = await service.setAdminPhone('admin_actor', '9876543210', 'admin_actor');
+
+    expect(view.phone).toBe('9876543210');
+    expect(admins.find((a) => a.id === 'admin_actor')?.phone).toBe('9876543210');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'admin:phone:set',
+        resourceType: 'AdminUser',
+        resourceId: 'admin_actor',
+        previousValue: { phone: null },
+        newValue: { phone: '9876543210' },
+      }),
+    );
+  });
+
+  it('clears the number, which is the way back for a lost SIM', async () => {
+    const { service, admins } = setup();
+    admins.find((a) => a.id === 'admin_actor')!.phone = '9876543210';
+
+    const view = await service.setAdminPhone('admin_actor', null, 'admin_other');
+
+    expect(view.phone).toBeNull();
+  });
+
+  it('reports a missing administrator', async () => {
+    const { service } = setup();
+    await expect(service.setAdminPhone('nobody', '9876543210', 'admin_actor')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

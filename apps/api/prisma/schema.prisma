@@ -168,6 +168,8 @@ enum OtpPurpose {
   CHANGE_MOBILE
   /// A code sent to the mailbox an account is adding or moving to.
   CHANGE_EMAIL
+  /// A second-factor sign-in code for an administrator.
+  ADMIN_LOGIN
 }
 
 /// Section 40. Amounts are snapshotted at order creation and are thereafter

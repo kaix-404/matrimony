@@ -12,6 +12,8 @@ import {
 } from '@nestjs/common';
 import {
   AdminAssignRoleSchema,
+  AdminSetPhoneSchema,
+  type AdminSetPhoneInput,
   AdminChangeCategorySchema,
   AdminCreateSchema,
   AdminGrantUnlockSchema,
@@ -192,6 +194,23 @@ export class AdminController {
     @AdminUser() principal: AdminPrincipal,
   ): Promise<AdminUserView> {
     return this.adminService.revokeRole(id, role, principal.id);
+  }
+
+  /**
+   * Sets or clears the number an administrator's SMS sign-in codes go to.
+   *
+   * The switch for SMS sign-in: an account with a number and no authenticator is
+   * asked for a texted code after its password.
+   */
+  @Post('admins/:id/phone')
+  @RequirePermission('admin:manage')
+  @HttpCode(200)
+  async setAdminPhone(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminSetPhoneSchema)) body: AdminSetPhoneInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminUserView> {
+    return this.adminService.setAdminPhone(id, body.phone, principal.id);
   }
 
   /** Recovers an administrator who has lost their authenticator (always audited). */

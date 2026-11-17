@@ -55,8 +55,34 @@ export const OTP_PURPOSES = [
   // number purposes: a code sent to a mailbox must never be redeemable as a
   // sign-in, and this deployment's members sign in by number only.
   'CHANGE_EMAIL',
+  /**
+   * A sign-in code for an administrator.
+   *
+   * Its own purpose, and not `LOGIN`, because a member's code and an
+   * administrator's code must never be interchangeable: both are six digits sent
+   * to a number, and the only thing separating "sign me in as a member" from
+   * "sign me in as an administrator" is which purpose the row was issued for.
+   */
+  'ADMIN_LOGIN',
 ] as const;
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
+
+/**
+ * The purposes a member may mint or redeem through `/auth/otp`.
+ *
+ * `ADMIN_LOGIN` is absent on purpose. It exists for an administrator's own second
+ * factor; if the member endpoint accepted it, a member could ask for a code to
+ * their number and that code would answer an administrator's challenge — or an
+ * administrator's code would be spendable by a member flow.
+ */
+export const MEMBER_OTP_PURPOSES = [
+  'REGISTRATION',
+  'LOGIN',
+  'DELETE_ACCOUNT',
+  'CATEGORY_REVIEW',
+  'CHANGE_MOBILE',
+  'CHANGE_EMAIL',
+] as const satisfies readonly OtpPurpose[];
 
 // ---------------------------------------------------------------------------
 // Requests
@@ -73,7 +99,7 @@ export type OtpPurpose = (typeof OTP_PURPOSES)[number];
 export const RequestOtpSchema = z
   .object({
     mobile: IndianMobileSchema,
-    purpose: z.enum(OTP_PURPOSES),
+    purpose: z.enum(MEMBER_OTP_PURPOSES),
     /** Free-form device identifier; recorded for rate-limit auditing only. */
     device_id: z.string().max(128).optional(),
   })
@@ -199,7 +225,7 @@ export const EMAIL_UNAVAILABLE_CODE = 'EMAIL_UNAVAILABLE';
 export const VerifyOtpSchema = z
   .object({
     mobile: IndianMobileSchema,
-    purpose: z.enum(OTP_PURPOSES),
+    purpose: z.enum(MEMBER_OTP_PURPOSES),
     code: z
       .string()
       .trim()

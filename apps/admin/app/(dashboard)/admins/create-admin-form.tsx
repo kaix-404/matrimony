@@ -20,6 +20,7 @@ export function CreateAdminForm({ roles }: { roles: AdminRoleView[] }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [created, setCreated] = useState<string | null>(null);
 
@@ -30,6 +31,7 @@ export function CreateAdminForm({ roles }: { roles: AdminRoleView[] }) {
     setName('');
     setEmail('');
     setPassword('');
+    setPhone('');
     setSelected([]);
   });
 
@@ -42,7 +44,7 @@ export function CreateAdminForm({ roles }: { roles: AdminRoleView[] }) {
   function handleSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     setCreated(null);
-    run({ name, email, password, roles: selected });
+    run({ name, email, password, phone, roles: selected });
   }
 
   return (
@@ -86,6 +88,21 @@ export function CreateAdminForm({ roles }: { roles: AdminRoleView[] }) {
           autoComplete="new-password"
         />
         <p className="notice">At least {ADMIN_PASSWORD_MIN_LENGTH} characters.</p>
+
+        <label htmlFor="new-phone">Mobile number (optional)</label>
+        <input
+          id="new-phone"
+          name="phone"
+          inputMode="tel"
+          autoComplete="off"
+          placeholder="10-digit Indian mobile"
+          value={phone}
+          onChange={(event) => setPhone(event.target.value)}
+        />
+        <p className="notice">
+          With a number here and no authenticator enrolled, this administrator signs in with
+          the password plus a code texted to it. Leave it empty for a password-only account.
+        </p>
 
         <fieldset>
           <legend>Roles</legend>

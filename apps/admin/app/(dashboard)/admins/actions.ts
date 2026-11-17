@@ -5,6 +5,7 @@ import {
   AdminAssignRoleSchema,
   AdminCreateSchema,
   AdminRoleSlugSchema,
+  AdminSetPhoneSchema,
   type AdminUserView,
 } from '@matrimony/shared';
 import { adminFetch } from '@/lib/api';
@@ -30,11 +31,15 @@ export async function createAdminAction(
   formData: FormData,
 ): Promise<AdminActionState> {
   const roles = formData.getAll('roles').map((value) => String(value));
+  const phone = String(formData.get('phone') ?? '').trim();
   const parsed = AdminCreateSchema.safeParse({
     name: String(formData.get('name') ?? ''),
     email: String(formData.get('email') ?? ''),
     password: String(formData.get('password') ?? ''),
     roles,
+    // Absent rather than empty: an empty string is not a number, and the field is
+    // optional so an administrator without SMS sign-in is still valid.
+    ...(phone.length === 0 ? {} : { phone }),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? 'The new administrator was not valid.' };
@@ -116,6 +121,40 @@ export async function resetMfaAction(
   try {
     await adminFetch<AdminUserView>(`/admin/admins/${encodeURIComponent(id)}/mfa/reset`, {
       method: 'POST',
+    });
+  } catch (caught) {
+    return { error: describeError(caught) };
+  }
+
+  revalidatePath('/admins');
+  return { error: null };
+}
+
+/**
+ * Sets or clears an administrator's SMS sign-in number.
+ *
+ * An empty field clears it, which is the documented way back for a lost SIM. The
+ * API validates the number itself and records the change in the audit log.
+ */
+export async function setPhoneAction(
+  _previous: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  const id = readId(formData);
+  if (id.length === 0) {
+    return { error: 'Missing administrator id.' };
+  }
+
+  const raw = String(formData.get('phone') ?? '').trim();
+  const parsed = AdminSetPhoneSchema.safeParse({ phone: raw.length === 0 ? null : raw });
+  if (!parsed.success) {
+    return { error: 'Enter a 10-digit Indian mobile number, or leave it empty to clear it.' };
+  }
+
+  try {
+    await adminFetch<AdminUserView>(`/admin/admins/${encodeURIComponent(id)}/phone`, {
+      method: 'POST',
+      body: parsed.data,
     });
   } catch (caught) {
     return { error: describeError(caught) };

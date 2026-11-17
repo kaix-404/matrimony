@@ -17,6 +17,7 @@
  */
 
 import { z } from 'zod';
+import { IndianMobileSchema } from './auth.js';
 import type { IdentityVerificationProvider, IdentityVerificationVendor } from './verification.js';
 import {
   ADMIN_ROLE_SLUGS,
@@ -318,8 +319,17 @@ export type AdminMfaCode = z.infer<typeof AdminMfaCodeSchema>;
 export const AdminMfaChallengeSchema = z
   .object({
     mfa_required: z.literal(true),
+    /**
+     * Which second factor is waiting. `totp` is the authenticator app; `sms` is a
+     * code texted to the number on the administrator's record, used when no
+     * authenticator is enrolled. The console needs this to ask for the right code
+     * in the right words.
+     */
+    method: z.enum(['totp', 'sms']).default('totp'),
     challenge_token: z.string().min(1),
     expires_in: z.number().int().positive(),
+    /** Masked destination, e.g. `••••••3210`; null for the authenticator factor. */
+    phone_hint: z.string().nullable().default(null),
   })
   .strict();
 export type AdminMfaChallenge = z.infer<typeof AdminMfaChallengeSchema>;
@@ -566,6 +576,11 @@ export const AdminCreateSchema = z
     name: z.string().trim().min(1).max(120),
     password: z.string().min(12).max(200),
     roles: z.array(AdminRoleSlugSchema).min(1).max(ADMIN_ROLE_SLUGS.length),
+    /**
+     * Optional: with a number on file and no authenticator enrolled, this
+     * administrator signs in with a password plus a texted code.
+     */
+    phone: IndianMobileSchema.optional(),
   })
   .strict()
   .refine((value) => new Set(value.roles).size === value.roles.length, {
@@ -573,6 +588,15 @@ export const AdminCreateSchema = z
     path: ['roles'],
   });
 export type AdminCreateInput = z.infer<typeof AdminCreateSchema>;
+
+/**
+ * Sets, replaces or clears an administrator's sign-in number.
+ *
+ * `null` is allowed so the number can be removed: without a way back, an
+ * administrator whose SIM is gone would be stuck behind a code nobody can read.
+ */
+export const AdminSetPhoneSchema = z.object({ phone: IndianMobileSchema.nullable() }).strict();
+export type AdminSetPhoneInput = z.infer<typeof AdminSetPhoneSchema>;
 
 export const AdminAssignRoleSchema = z.object({ role: AdminRoleSlugSchema }).strict();
 export type AdminAssignRoleInput = z.infer<typeof AdminAssignRoleSchema>;
@@ -606,6 +630,12 @@ export interface AdminUserView {
   roles: AdminRoleSlug[];
   /** True once TOTP enrollment is confirmed; the secret itself never leaves the server. */
   mfaEnabled: boolean;
+  /**
+   * The number an SMS sign-in code is sent to, or null. Kept masked in views is
+   * not possible — the administrator (and the Super Admin managing them) has to
+   * see which number is on file.
+   */
+  phone: string | null;
   lastLoginAt: string | null;
   createdAt: string;
 }

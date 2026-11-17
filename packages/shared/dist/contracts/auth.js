@@ -18,7 +18,7 @@
  * another.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CurrentUserSchema = exports.RefreshSchema = exports.TokenPairSchema = exports.CompleteRegistrationSchema = exports.VerifyOtpSchema = exports.EMAIL_UNAVAILABLE_CODE = exports.RequestEmailOtpSchema = exports.ChangeEmailSchema = exports.EmailAddressSchema = exports.ChangeMobileSchema = exports.SMS_UNAVAILABLE_CODE = exports.OtpRequestedSchema = exports.RequestOtpSchema = exports.OTP_PURPOSES = exports.IndianMobileSchema = exports.OTP_CODE_LENGTH = void 0;
+exports.CurrentUserSchema = exports.RefreshSchema = exports.TokenPairSchema = exports.CompleteRegistrationSchema = exports.VerifyOtpSchema = exports.EMAIL_UNAVAILABLE_CODE = exports.RequestEmailOtpSchema = exports.ChangeEmailSchema = exports.EmailAddressSchema = exports.ChangeMobileSchema = exports.SMS_UNAVAILABLE_CODE = exports.OtpRequestedSchema = exports.RequestOtpSchema = exports.MEMBER_OTP_PURPOSES = exports.OTP_PURPOSES = exports.IndianMobileSchema = exports.OTP_CODE_LENGTH = void 0;
 const zod_1 = require("zod");
 /** Digit count for OTP codes. Mirrors `OTP_CODE_LENGTH` in the OTP service. */
 exports.OTP_CODE_LENGTH = 6;
@@ -52,6 +52,31 @@ exports.OTP_PURPOSES = [
     // number purposes: a code sent to a mailbox must never be redeemable as a
     // sign-in, and this deployment's members sign in by number only.
     'CHANGE_EMAIL',
+    /**
+     * A sign-in code for an administrator.
+     *
+     * Its own purpose, and not `LOGIN`, because a member's code and an
+     * administrator's code must never be interchangeable: both are six digits sent
+     * to a number, and the only thing separating "sign me in as a member" from
+     * "sign me in as an administrator" is which purpose the row was issued for.
+     */
+    'ADMIN_LOGIN',
+];
+/**
+ * The purposes a member may mint or redeem through `/auth/otp`.
+ *
+ * `ADMIN_LOGIN` is absent on purpose. It exists for an administrator's own second
+ * factor; if the member endpoint accepted it, a member could ask for a code to
+ * their number and that code would answer an administrator's challenge — or an
+ * administrator's code would be spendable by a member flow.
+ */
+exports.MEMBER_OTP_PURPOSES = [
+    'REGISTRATION',
+    'LOGIN',
+    'DELETE_ACCOUNT',
+    'CATEGORY_REVIEW',
+    'CHANGE_MOBILE',
+    'CHANGE_EMAIL',
 ];
 // ---------------------------------------------------------------------------
 // Requests
@@ -67,7 +92,7 @@ exports.OTP_PURPOSES = [
 exports.RequestOtpSchema = zod_1.z
     .object({
     mobile: exports.IndianMobileSchema,
-    purpose: zod_1.z.enum(exports.OTP_PURPOSES),
+    purpose: zod_1.z.enum(exports.MEMBER_OTP_PURPOSES),
     /** Free-form device identifier; recorded for rate-limit auditing only. */
     device_id: zod_1.z.string().max(128).optional(),
 })
@@ -173,7 +198,7 @@ exports.EMAIL_UNAVAILABLE_CODE = 'EMAIL_UNAVAILABLE';
 exports.VerifyOtpSchema = zod_1.z
     .object({
     mobile: exports.IndianMobileSchema,
-    purpose: zod_1.z.enum(exports.OTP_PURPOSES),
+    purpose: zod_1.z.enum(exports.MEMBER_OTP_PURPOSES),
     code: zod_1.z
         .string()
         .trim()

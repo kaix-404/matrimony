@@ -74,6 +74,7 @@ interface AdminRow {
   name: string;
   status: string;
   mfaSecret: string | null;
+  phone: string | null;
   lastLoginAt: Date | null;
   createdAt: Date;
   roles: Array<{ role: { slug: string } }>;
@@ -85,6 +86,7 @@ const ADMIN_SELECT = {
   name: true,
   status: true,
   mfaSecret: true,
+  phone: true,
   lastLoginAt: true,
   createdAt: true,
   roles: { select: { role: { select: { slug: true } } } },
@@ -104,6 +106,7 @@ function toAdminView(row: AdminRow): AdminUserView {
     status: row.status,
     roles: row.roles.map((assignment) => assignment.role.slug as AdminRoleSlug),
     mfaEnabled: row.mfaSecret !== null,
+    phone: row.phone,
     lastLoginAt: row.lastLoginAt ? row.lastLoginAt.toISOString() : null,
     createdAt: row.createdAt.toISOString(),
   };
@@ -732,6 +735,7 @@ export class AdminService {
           email: input.email,
           name: input.name,
           passwordHash: hashPassword(input.password),
+          phone: input.phone ?? null,
           roles: {
             create: roleRows.map((role) => ({
               role: { connect: { id: role.id } },
@@ -755,7 +759,11 @@ export class AdminService {
       action: 'admin:create',
       resourceType: 'AdminUser',
       resourceId: created.id,
-      newValue: { email: created.email, roles: created.roles.map((a) => a.role.slug) },
+      newValue: {
+        email: created.email,
+        roles: created.roles.map((a) => a.role.slug),
+        phone: created.phone,
+      },
     });
 
     return toAdminView(created);
@@ -1962,6 +1970,49 @@ export class AdminService {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Could not record the review notifications: ${message}`);
     }
+  }
+
+  /**
+   * Sets, replaces or clears the number an administrator's sign-in codes go to.
+   *
+   * This is how SMS sign-in is switched on for an account: with a number here and
+   * no authenticator enrolled, the password step is followed by a texted code.
+   * `null` clears it, which is the way back for a lost SIM — otherwise the only
+   * recovery would be another administrator clearing it anyway. Self-service is
+   * allowed on purpose: a Super Admin needs to be able to enrol their own number.
+   */
+  async setAdminPhone(
+    adminId: string,
+    phone: string | null,
+    actingAdminId: string,
+  ): Promise<AdminUserView> {
+    const admin = await this.prisma.adminUser.findUnique({
+      where: { id: adminId },
+      select: { id: true, phone: true, mfaSecret: true },
+    });
+    if (!admin) {
+      throw new NotFoundException('Administrator not found');
+    }
+
+    // Read before the write, for the same reason the moderation status does: the
+    // audit line must state what the number was, not what it became.
+    const previousPhone = admin.phone;
+    const updated = await this.prisma.adminUser.update({
+      where: { id: adminId },
+      data: { phone },
+      select: ADMIN_SELECT,
+    });
+
+    await this.audit.record({
+      actorAdminId: actingAdminId,
+      action: 'admin:phone:set',
+      resourceType: 'AdminUser',
+      resourceId: adminId,
+      previousValue: { phone: previousPhone },
+      newValue: { phone },
+    });
+
+    return toAdminView(updated);
   }
 
   /**

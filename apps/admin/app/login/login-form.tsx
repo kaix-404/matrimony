@@ -16,6 +16,10 @@ import { useRouter } from 'next/navigation';
 interface LoginResponse {
   ok?: boolean;
   mfa_required?: boolean;
+  /** Which second factor the API is waiting for; absent on older responses. */
+  method?: 'totp' | 'sms';
+  /** Masked number the code was texted to, for `method: 'sms'`. */
+  phone_hint?: string | null;
   challenge_token?: string;
   message?: string;
 }
@@ -37,6 +41,10 @@ export function LoginForm({ initialError = null }: { initialError?: string | nul
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
   const [challengeToken, setChallengeToken] = useState('');
+  const [factor, setFactor] = useState<{ method: 'totp' | 'sms'; hint: string | null }>({
+    method: 'totp',
+    hint: null,
+  });
   const [error, setError] = useState<string | null>(initialError);
   const [busy, setBusy] = useState(false);
 
@@ -59,6 +67,7 @@ export function LoginForm({ initialError = null }: { initialError?: string | nul
 
       if (data.mfa_required === true && data.challenge_token !== undefined) {
         setChallengeToken(data.challenge_token);
+        setFactor({ method: data.method ?? 'totp', hint: data.phone_hint ?? null });
         setStep('mfa');
         return;
       }
@@ -101,8 +110,14 @@ export function LoginForm({ initialError = null }: { initialError?: string | nul
   if (step === 'mfa') {
     return (
       <form method="post" action="/api/session/mfa" onSubmit={submitCode}>
-        <p className="notice">Enter the six-digit code from your authenticator app.</p>
-        <label htmlFor="code">Authentication code</label>
+        <p className="notice">
+          {factor.method === 'sms'
+            ? `We texted a six-digit code to ${factor.hint ?? 'the number on your record'}.`
+            : 'Enter the six-digit code from your authenticator app.'}
+        </p>
+        <label htmlFor="code">
+          {factor.method === 'sms' ? 'Texted code' : 'Authentication code'}
+        </label>
         <input
           id="code"
           name="code"

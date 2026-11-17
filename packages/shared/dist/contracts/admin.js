@@ -17,9 +17,10 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileUpdateSchema = exports.AdminProfileDetailSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminSuspendProfileSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminSessionViewSchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileUpdateSchema = exports.AdminProfileDetailSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminSuspendProfileSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminSetPhoneSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminSessionViewSchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
+const auth_js_1 = require("./auth.js");
 const enums_js_1 = require("../enums.js");
 const profile_details_js_1 = require("./profile-details.js");
 const master_data_js_1 = require("./master-data.js");
@@ -255,8 +256,17 @@ exports.AdminMfaCodeSchema = zod_1.z.string().regex(/^\d{6}$/, 'must be a six-di
 exports.AdminMfaChallengeSchema = zod_1.z
     .object({
     mfa_required: zod_1.z.literal(true),
+    /**
+     * Which second factor is waiting. `totp` is the authenticator app; `sms` is a
+     * code texted to the number on the administrator's record, used when no
+     * authenticator is enrolled. The console needs this to ask for the right code
+     * in the right words.
+     */
+    method: zod_1.z.enum(['totp', 'sms']).default('totp'),
     challenge_token: zod_1.z.string().min(1),
     expires_in: zod_1.z.number().int().positive(),
+    /** Masked destination, e.g. `••••••3210`; null for the authenticator factor. */
+    phone_hint: zod_1.z.string().nullable().default(null),
 })
     .strict();
 /** Login returns either a session or a challenge, never both. */
@@ -377,12 +387,24 @@ exports.AdminCreateSchema = zod_1.z
     name: zod_1.z.string().trim().min(1).max(120),
     password: zod_1.z.string().min(12).max(200),
     roles: zod_1.z.array(exports.AdminRoleSlugSchema).min(1).max(enums_js_1.ADMIN_ROLE_SLUGS.length),
+    /**
+     * Optional: with a number on file and no authenticator enrolled, this
+     * administrator signs in with a password plus a texted code.
+     */
+    phone: auth_js_1.IndianMobileSchema.optional(),
 })
     .strict()
     .refine((value) => new Set(value.roles).size === value.roles.length, {
     message: 'roles must not repeat',
     path: ['roles'],
 });
+/**
+ * Sets, replaces or clears an administrator's sign-in number.
+ *
+ * `null` is allowed so the number can be removed: without a way back, an
+ * administrator whose SIM is gone would be stuck behind a code nobody can read.
+ */
+exports.AdminSetPhoneSchema = zod_1.z.object({ phone: auth_js_1.IndianMobileSchema.nullable() }).strict();
 exports.AdminAssignRoleSchema = zod_1.z.object({ role: exports.AdminRoleSlugSchema }).strict();
 exports.AdminListAdminsQuerySchema = zod_1.z.object({
     limit: zod_1.z.coerce.number().int().positive().max(100).optional().default(20),

@@ -271,16 +271,29 @@ export type AdminMfaCode = z.infer<typeof AdminMfaCodeSchema>;
  */
 export declare const AdminMfaChallengeSchema: z.ZodObject<{
     mfa_required: z.ZodLiteral<true>;
+    /**
+     * Which second factor is waiting. `totp` is the authenticator app; `sms` is a
+     * code texted to the number on the administrator's record, used when no
+     * authenticator is enrolled. The console needs this to ask for the right code
+     * in the right words.
+     */
+    method: z.ZodDefault<z.ZodEnum<["totp", "sms"]>>;
     challenge_token: z.ZodString;
     expires_in: z.ZodNumber;
+    /** Masked destination, e.g. `••••••3210`; null for the authenticator factor. */
+    phone_hint: z.ZodDefault<z.ZodNullable<z.ZodString>>;
 }, "strict", z.ZodTypeAny, {
     expires_in: number;
     mfa_required: true;
+    method: "totp" | "sms";
     challenge_token: string;
+    phone_hint: string | null;
 }, {
     expires_in: number;
     mfa_required: true;
     challenge_token: string;
+    method?: "totp" | "sms" | undefined;
+    phone_hint?: string | null | undefined;
 }>;
 export type AdminMfaChallenge = z.infer<typeof AdminMfaChallengeSchema>;
 /** Login returns either a session or a challenge, never both. */
@@ -301,16 +314,29 @@ export declare const AdminLoginResponseSchema: z.ZodUnion<[z.ZodObject<{
     expires_in: number;
 }>, z.ZodObject<{
     mfa_required: z.ZodLiteral<true>;
+    /**
+     * Which second factor is waiting. `totp` is the authenticator app; `sms` is a
+     * code texted to the number on the administrator's record, used when no
+     * authenticator is enrolled. The console needs this to ask for the right code
+     * in the right words.
+     */
+    method: z.ZodDefault<z.ZodEnum<["totp", "sms"]>>;
     challenge_token: z.ZodString;
     expires_in: z.ZodNumber;
+    /** Masked destination, e.g. `••••••3210`; null for the authenticator factor. */
+    phone_hint: z.ZodDefault<z.ZodNullable<z.ZodString>>;
 }, "strict", z.ZodTypeAny, {
     expires_in: number;
     mfa_required: true;
+    method: "totp" | "sms";
     challenge_token: string;
+    phone_hint: string | null;
 }, {
     expires_in: number;
     mfa_required: true;
     challenge_token: string;
+    method?: "totp" | "sms" | undefined;
+    phone_hint?: string | null | undefined;
 }>]>;
 export type AdminLoginResponse = z.infer<typeof AdminLoginResponseSchema>;
 /** Completes an MFA login: the challenge from `/login` plus a current code. */
@@ -591,28 +617,51 @@ export declare const AdminCreateSchema: z.ZodEffects<z.ZodObject<{
     name: z.ZodString;
     password: z.ZodString;
     roles: z.ZodArray<z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>, "many">;
+    /**
+     * Optional: with a number on file and no authenticator enrolled, this
+     * administrator signs in with a password plus a texted code.
+     */
+    phone: z.ZodOptional<z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>>;
 }, "strict", z.ZodTypeAny, {
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
     name: string;
+    phone?: string | undefined;
 }, {
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
     name: string;
+    phone?: string | undefined;
 }>, {
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
     name: string;
+    phone?: string | undefined;
 }, {
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
     name: string;
+    phone?: string | undefined;
 }>;
 export type AdminCreateInput = z.infer<typeof AdminCreateSchema>;
+/**
+ * Sets, replaces or clears an administrator's sign-in number.
+ *
+ * `null` is allowed so the number can be removed: without a way back, an
+ * administrator whose SIM is gone would be stuck behind a code nobody can read.
+ */
+export declare const AdminSetPhoneSchema: z.ZodObject<{
+    phone: z.ZodNullable<z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>>;
+}, "strict", z.ZodTypeAny, {
+    phone: string | null;
+}, {
+    phone: string | null;
+}>;
+export type AdminSetPhoneInput = z.infer<typeof AdminSetPhoneSchema>;
 export declare const AdminAssignRoleSchema: z.ZodObject<{
     role: z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>;
 }, "strict", z.ZodTypeAny, {
@@ -654,6 +703,12 @@ export interface AdminUserView {
     roles: AdminRoleSlug[];
     /** True once TOTP enrollment is confirmed; the secret itself never leaves the server. */
     mfaEnabled: boolean;
+    /**
+     * The number an SMS sign-in code is sent to, or null. Kept masked in views is
+     * not possible — the administrator (and the Super Admin managing them) has to
+     * see which number is on file.
+     */
+    phone: string | null;
     lastLoginAt: string | null;
     createdAt: string;
 }

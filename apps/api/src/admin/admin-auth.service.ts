@@ -1,5 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { BadRequestException, Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import type {
   AdminLoginResponse,
@@ -20,6 +27,8 @@ import { hashPassword, verifyPassword } from '../common/crypto/password';
 import { SecretBox } from '../common/crypto/secret-box';
 import { generateTotpSecret, otpauthUri, verifyTotp } from '../common/crypto/totp';
 import { parseDurationSeconds } from '../auth/token.service';
+import { OtpService } from '../auth/otp.service';
+import { SmsGateway } from '../sms/sms.gateway';
 import type { Env } from '../config/env';
 
 /** Failed verifications tolerated before an admin account is locked. */
@@ -53,6 +62,7 @@ const MFA_ISSUER = 'Networth Matrimony';
 @Injectable()
 export class AdminAuthService {
   private readonly env: Env;
+  private readonly logger = new Logger(AdminAuthService.name);
 
   /**
    * A valid-but-unmatchable hash used to spend the same scrypt work when the
@@ -75,6 +85,8 @@ export class AdminAuthService {
     private readonly tokens: AdminTokenService,
     private readonly jwt: JwtService,
     private readonly audit: AuditService,
+    private readonly otp: OtpService,
+    private readonly sms: SmsGateway,
     @Inject('ENV') env: Env,
   ) {
     this.env = env;
@@ -97,6 +109,7 @@ export class AdminAuthService {
         status: true,
         passwordHash: true,
         mfaSecret: true,
+        phone: true,
         lockedUntil: true,
         roles: { select: { role: { select: { slug: true } } } },
       },
@@ -128,7 +141,14 @@ export class AdminAuthService {
     // and `lastLoginAt` are only reset once the code is verified, so a stolen
     // password cannot clear the lockout trail or fake a completed sign-in.
     if (admin.mfaSecret) {
-      return this.issueMfaChallenge(admin.id);
+      return this.issueMfaChallenge(admin.id, 'totp');
+    }
+
+    // No authenticator, but a number on file: the second factor is a code texted
+    // to it. An administrator with neither still signs in with the password
+    // alone, which is what every account did before this existed.
+    if (admin.phone) {
+      return this.issueSmsChallenge(admin.id, admin.phone);
     }
 
     await this.prisma.adminUser.update({
@@ -159,21 +179,36 @@ export class AdminAuthService {
         id: true,
         status: true,
         mfaSecret: true,
+        phone: true,
         lockedUntil: true,
         roles: { select: { role: { select: { slug: true } } } },
       },
     });
 
     const now = this.clock.now();
-    if (!admin || admin.status !== UserStatus.ACTIVE || !admin.mfaSecret) {
+    // The challenge says which factor it was issued for. A TOTP challenge cannot
+    // be answered with a texted code, or the weaker channel would become a way
+    // to satisfy the stronger one.
+    const method = claims['method'] === 'sms' ? 'sms' : 'totp';
+
+    if (!admin || admin.status !== UserStatus.ACTIVE) {
       throw new UnauthorizedException('Invalid or expired MFA challenge');
     }
     if (admin.lockedUntil && admin.lockedUntil.getTime() > now.getTime()) {
       throw new UnauthorizedException('Account temporarily locked. Try again later.');
     }
 
-    const secret = this.tryDecryptSecret(admin.mfaSecret);
-    if (!secret || !verifyTotp(secret, input.code, now.getTime())) {
+    const accepted =
+      method === 'sms'
+        ? admin.phone !== null &&
+          (await this.otp.verify({
+            mobile: admin.phone,
+            purpose: 'ADMIN_LOGIN',
+            code: input.code,
+          })) !== null
+        : this.totpAccepted(admin.mfaSecret, input.code, now.getTime());
+
+    if (!accepted) {
       await this.recordFailedLogin(admin.id);
       throw new UnauthorizedException('Invalid code');
     }
@@ -407,16 +442,63 @@ export class AdminAuthService {
   }
 
   /** Signs the short-lived challenge an MFA-enabled login returns. */
-  private async issueMfaChallenge(adminId: string): Promise<AdminMfaChallenge> {
+  private async signChallenge(
+    adminId: string,
+    method: 'totp' | 'sms',
+    phoneHint: string | null,
+  ): Promise<AdminMfaChallenge> {
     const challengeToken = await this.jwt.signAsync(
-      { sub: adminId, typ: 'mfa_challenge' },
+      { sub: adminId, typ: 'mfa_challenge', method },
       { expiresIn: MFA_CHALLENGE_TTL_SECONDS },
     );
     return {
       mfa_required: true,
+      method,
       challenge_token: challengeToken,
       expires_in: MFA_CHALLENGE_TTL_SECONDS,
+      phone_hint: phoneHint,
     };
+  }
+
+  private issueMfaChallenge(adminId: string, method: 'totp'): Promise<AdminMfaChallenge> {
+    return this.signChallenge(adminId, method, null);
+  }
+
+  /**
+   * Texts a sign-in code and returns the challenge that asks for it.
+   *
+   * The code is minted by the shared `OtpService` under its own purpose, so the
+   * six digits are hashed, expire, are attempt-limited and can never be spent by
+   * a member flow. Delivery is this service's job; when no provider is
+   * configured the code is written to the log instead of the response, which
+   * keeps the factor real in production and still testable locally.
+   */
+  private async issueSmsChallenge(adminId: string, phone: string): Promise<AdminMfaChallenge> {
+    const issued = await this.otp.issue({ mobile: phone, purpose: 'ADMIN_LOGIN' });
+
+    if (!this.sms.configured) {
+      this.logger.warn(
+        `[admin-sms-otp] SMS provider is unconfigured; sign-in code for administrator ${adminId} is ${issued.code}`,
+      );
+    } else {
+      try {
+        await this.sms.sendOtp({ mobile: phone, code: issued.code });
+      } catch (caught) {
+        // A code nobody received cannot be answered, so this is a gateway
+        // failure, not a credentials failure, and the password step says so.
+        this.logger.error(`[admin-sms-otp] could not send a sign-in code: ${String(caught)}`);
+        throw new BadGatewayException('Could not send the sign-in code. Check the SMS provider.');
+      }
+    }
+
+    return this.signChallenge(adminId, 'sms', maskPhone(phone));
+  }
+
+  /** A decrypted secret matches this code, or it does not. */
+  private totpAccepted(secret: string | null, code: string, now: number): boolean {
+    if (!secret) return false;
+    const decrypted = this.tryDecryptSecret(secret);
+    return decrypted !== null && verifyTotp(decrypted, code, now);
   }
 
   /**
@@ -499,4 +581,14 @@ export class AdminAuthService {
   private refreshTtlMs(): number {
     return parseDurationSeconds(this.env.JWT_REFRESH_TTL) * 1000;
   }
+}
+
+/**
+ * The last four digits of a number, for the "we texted …" prompt.
+ *
+ * The prompt has to say where the code went without printing the number back
+ * into a page anyone at the keyboard can read.
+ */
+function maskPhone(phone: string): string {
+  return `••••••${phone.slice(-4)}`;
 }

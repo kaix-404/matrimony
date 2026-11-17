@@ -75,6 +75,7 @@ export default async function AdminsPage({
                   <th>Name</th>
                   <th>Roles</th>
                   <th>MFA</th>
+                  <th>Sign-in number</th>
                   <th>Last sign-in</th>
                   <th />
                 </tr>
@@ -94,6 +95,7 @@ export default async function AdminsPage({
                         {admin.mfaEnabled ? 'Enrolled' : 'Not enrolled'}
                       </span>
                     </td>
+                    <td>{admin.phone === null ? '-' : admin.phone}</td>
                     <td>{formatDateTime(admin.lastLoginAt)}</td>
                     <td>
                       <AdminActions admin={admin} roles={roles ?? []} selfId={selfId} />

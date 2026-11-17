@@ -125,7 +125,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       // cookie just to finish a second step that needs JavaScript anyway.
       return backToLogin('mfa');
     }
-    return NextResponse.json({ mfa_required: true, challenge_token: challenge.data.challenge_token });
+    // `method` and `phone_hint` travel with the challenge: the console asks for a
+    // code either way, but "from your authenticator app" is the wrong sentence
+    // for a code that was texted to a number.
+    return NextResponse.json({
+      mfa_required: true,
+      method: challenge.data.method,
+      phone_hint: challenge.data.phone_hint,
+      challenge_token: challenge.data.challenge_token,
+    });
   }
 
   const pair = AdminTokenPairSchema.safeParse(body);

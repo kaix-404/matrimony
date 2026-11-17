@@ -30,8 +30,17 @@ export declare const OTP_CODE_LENGTH = 6;
  */
 export declare const IndianMobileSchema: z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>;
 export type IndianMobile = z.infer<typeof IndianMobileSchema>;
-export declare const OTP_PURPOSES: readonly ["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE", "CHANGE_EMAIL"];
+export declare const OTP_PURPOSES: readonly ["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE", "CHANGE_EMAIL", "ADMIN_LOGIN"];
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
+/**
+ * The purposes a member may mint or redeem through `/auth/otp`.
+ *
+ * `ADMIN_LOGIN` is absent on purpose. It exists for an administrator's own second
+ * factor; if the member endpoint accepted it, a member could ask for a code to
+ * their number and that code would answer an administrator's challenge — or an
+ * administrator's code would be spendable by a member flow.
+ */
+export declare const MEMBER_OTP_PURPOSES: readonly ["REGISTRATION", "LOGIN", "DELETE_ACCOUNT", "CATEGORY_REVIEW", "CHANGE_MOBILE", "CHANGE_EMAIL"];
 /**
  * Requesting a code never reveals whether the mobile is already registered.
  *

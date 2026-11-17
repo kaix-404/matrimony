@@ -28,7 +28,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   const parsed = AdminMfaVerifySchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { message: 'Enter the six-digit code from your authenticator app.' },
+      // Neutral: the same endpoint answers for an authenticator code and for one
+      // texted to a number, and naming the wrong source reads as a broken console.
+      { message: 'Enter the six-digit code you were given.' },
       { status: 400 },
     );
   }

@@ -1,5 +1,5 @@
 import { JwtService } from '@nestjs/jwt';
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import type { AdminLoginResponse, AdminMfaChallenge, AdminTokenPair } from '@matrimony/shared';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminTokenService } from './admin-token.service';
@@ -24,6 +24,9 @@ import type { Env } from '../config/env';
 const SECRET = 'test-secret-value-not-a-placeholder';
 const PASSWORD = 'correct horse battery staple';
 const MFA_KEY = 'test-mfa-encryption-key-not-used-for-anything-real';
+const PHONE = '9876543210';
+/** What the fake OTP store says it minted. */
+const TEXTED_CODE = '424242';
 
 // Only the fields the service reads; the rest of `Env` is irrelevant here.
 const env = {
@@ -38,6 +41,7 @@ interface AdminRow {
   passwordHash: string;
   status: string;
   mfaSecret: string | null;
+  phone: string | null;
   failedLoginCount: number;
   lockedUntil: Date | null;
   lastLoginAt: Date | null;
@@ -159,7 +163,32 @@ function setup() {
   const jwt = new JwtService({ secret: SECRET, signOptions: { expiresIn: 900 } });
   const tokens = new AdminTokenService(jwt);
   const audit = { record: jest.fn(async () => undefined) };
-  const service = new AdminAuthService(prisma as never, clock, tokens, jwt, audit as never, env);
+  // The OTP store and the SMS gateway are faked rather than exercised: what is
+  // under test is which factor the sign-in asks for and what it accepts, not the
+  // hashing and expiry rules, which `OtpService`'s own tests cover.
+  const otp = {
+    issue: jest.fn(async () => ({
+      id: 'otp_1',
+      code: TEXTED_CODE,
+      resendAfterAt: new Date('2026-01-01T00:01:00.000Z'),
+      expiresAt: new Date('2026-01-01T00:05:00.000Z'),
+    })),
+    verify: jest.fn(async (_input: { mobile: string; purpose: string; code: string }) => 'otp_1' as string | null),
+  };
+  const sms = {
+    configured: true,
+    sendOtp: jest.fn(async () => ({ providerMessageId: 'msg_1', reportedZeroBalance: false })),
+  };
+  const service = new AdminAuthService(
+    prisma as never,
+    clock,
+    tokens,
+    jwt,
+    audit as never,
+    otp as never,
+    sms as never,
+    env,
+  );
 
   function addAdmin(overrides: Partial<AdminRow> = {}): AdminRow {
     const admin: AdminRow = {
@@ -168,6 +197,7 @@ function setup() {
       passwordHash: hashPassword(PASSWORD),
       status: 'ACTIVE',
       mfaSecret: null,
+      phone: null,
       failedLoginCount: 0,
       lockedUntil: null,
       lastLoginAt: null,
@@ -178,7 +208,7 @@ function setup() {
     return admin;
   }
 
-  return { clock, tokens, service, addAdmin, admins, refreshes, audit };
+  return { clock, tokens, service, addAdmin, admins, refreshes, audit, otp, sms };
 }
 
 /** An admin row already enrolled, with the plaintext secret for computing codes. */
@@ -468,5 +498,124 @@ describe('AdminAuthService.logout', () => {
     await expect(service.refresh(second.refresh_token)).resolves.not.toBeNull();
     // And logging out the same token again reports that nothing changed.
     await expect(service.logout(first.refresh_token)).resolves.toBe(false);
+  });
+});
+
+describe('AdminAuthService.login with an SMS sign-in number', () => {
+  it('texts a code and asks for it when no authenticator is enrolled', async () => {
+    const { service, addAdmin, otp, sms } = setup();
+    addAdmin({ phone: PHONE });
+
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
+
+    expect(challenge.method).toBe('sms');
+    // The prompt names where the code went without printing the number back.
+    expect(challenge.phone_hint).toBe('••••••3210');
+    expect(otp.issue).toHaveBeenCalledWith({ mobile: PHONE, purpose: 'ADMIN_LOGIN' });
+    expect(sms.sendOtp).toHaveBeenCalledWith({ mobile: PHONE, code: TEXTED_CODE });
+  });
+
+  it('signs nothing in before the code is answered', async () => {
+    const { service, addAdmin, admins } = setup();
+    addAdmin({ phone: PHONE });
+
+    await service.login({ email: 'boss@example.com', password: PASSWORD });
+
+    // A correct password alone must not look like a completed sign-in.
+    expect(admins[0]!.lastLoginAt).toBeNull();
+  });
+
+  it('prefers the authenticator when the account has both', async () => {
+    const { service, addAdmin, otp, sms } = setup();
+    addAdmin({ phone: PHONE, mfaSecret: new SecretBox(MFA_KEY).encrypt(generateTotpSecret()) });
+
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
+
+    // TOTP works offline and costs nothing to deliver, so it stays the factor for
+    // an account that has one; the number is not a second, weaker door.
+    expect(challenge.method).toBe('totp');
+    expect(challenge.phone_hint).toBeNull();
+    expect(otp.issue).not.toHaveBeenCalled();
+    expect(sms.sendOtp).not.toHaveBeenCalled();
+  });
+
+  it('answers a gateway error when the code cannot be sent', async () => {
+    const { service, addAdmin, sms } = setup();
+    addAdmin({ phone: PHONE });
+    sms.sendOtp.mockRejectedValueOnce(new Error('provider unreachable'));
+
+    // A code nobody received is not a credential failure: reporting "invalid
+    // credentials" would send the operator to reset a password that is fine.
+    await expect(
+      service.login({ email: 'boss@example.com', password: PASSWORD }),
+    ).rejects.toBeInstanceOf(BadGatewayException);
+  });
+
+  it('still signs in with the password alone when no factor is enrolled', async () => {
+    const { service, addAdmin } = setup();
+    addAdmin();
+
+    const pair = asPair(await service.login({ email: 'boss@example.com', password: PASSWORD }));
+
+    expect(pair.token_type).toBe('Bearer');
+  });
+});
+
+describe('AdminAuthService.verifyMfa with a texted code', () => {
+  async function smsChallenge() {
+    const ctx = setup();
+    ctx.addAdmin({ phone: PHONE });
+    const challenge = asChallenge(
+      await ctx.service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
+    return { ...ctx, challenge };
+  }
+
+  it('accepts the code the OTP store vouches for', async () => {
+    const { service, challenge, otp, admins } = await smsChallenge();
+
+    const pair = await service.verifyMfa({
+      challenge_token: challenge.challenge_token,
+      code: TEXTED_CODE,
+    });
+
+    expect(pair.token_type).toBe('Bearer');
+    expect(otp.verify).toHaveBeenCalledWith({
+      mobile: PHONE,
+      purpose: 'ADMIN_LOGIN',
+      code: TEXTED_CODE,
+    });
+    expect(admins[0]!.lastLoginAt).not.toBeNull();
+  });
+
+  it('charges a rejected code to the lockout counter', async () => {
+    const { service, challenge, otp, admins } = await smsChallenge();
+    otp.verify.mockResolvedValueOnce(null);
+
+    await expect(
+      service.verifyMfa({ challenge_token: challenge.challenge_token, code: '000000' }),
+    ).rejects.toThrow('Invalid code');
+
+    expect(admins[0]!.failedLoginCount).toBe(1);
+  });
+
+  it('cannot answer an authenticator challenge with a texted code', async () => {
+    const { service, addAdmin, otp } = setup();
+    const secret = generateTotpSecret();
+    addAdmin({ phone: PHONE, mfaSecret: new SecretBox(MFA_KEY).encrypt(secret) });
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
+
+    await expect(
+      service.verifyMfa({ challenge_token: challenge.challenge_token, code: TEXTED_CODE }),
+    ).rejects.toThrow('Invalid code');
+
+    // The weaker channel is not consulted at all for a TOTP challenge.
+    expect(otp.verify).not.toHaveBeenCalled();
   });
 });

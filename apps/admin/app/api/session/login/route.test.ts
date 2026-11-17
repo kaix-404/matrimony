@@ -163,6 +163,27 @@ describe('POST /api/session/login', () => {
       expect(writeSessionCookies).toHaveBeenCalledWith(pair, CREDENTIALS.email);
     });
 
+    it('tells the console which factor is waiting', async () => {
+      upstream(200, {
+        mfa_required: true,
+        method: 'sms',
+        challenge_token: 'challenge_sms',
+        expires_in: 300,
+        phone_hint: '••••••3210',
+      });
+
+      const response = await POST(jsonRequest());
+
+      // Without these two fields the console asks for "the code from your
+      // authenticator app" to somebody waiting for a text message.
+      await expect(response.json()).resolves.toEqual({
+        mfa_required: true,
+        method: 'sms',
+        phone_hint: '••••••3210',
+        challenge_token: 'challenge_sms',
+      });
+    });
+
     it('turns an MFA challenge into a redirect for a form post', async () => {
       upstream(200, { mfa_required: true, challenge_token: 'challenge_1', expires_in: 300 });
 
