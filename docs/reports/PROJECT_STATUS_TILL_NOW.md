@@ -13,7 +13,7 @@ The platform is feature-complete end to end, and the client's first feedback rou
 | Automated Tests       | 1232 (809 API + 81 Admin + 299 Shared + 43 Mobile) |
 | Test Suites           | 85 (50 API + 12 Admin + 16 Shared + 7 Mobile)      |
 | Admin Permission Keys | 27                                                 |
-| Current Commit        | 3ea3dd2                                            |
+| Current Commit        | f3f21c6                                            |
 | Status                | All Gates Green                                    |
 
 ## Implementation Status by Phase
@@ -171,3 +171,4 @@ The platform is feature-complete end to end, and the client's first feedback rou
 - Live provider checks: a real Razorpay payment and webhook, a real FCM push, and a real MSG91 SMS/email round trip. SMS is fully configured — key, sender and template — so what is missing there is a delivery test, not a credential; the DLT entity ids sit outside the gateway's check, which is why an SMS can report configured and still be dropped by the operator. Razorpay's key pair and webhook secret are both present — readiness reports `payments` and `paymentWebhooks` configured on the live instance — so payments are blocked only on an end-to-end test with a real card and a real webhook delivery, not on a credential. Email is not configured and answers 503 until `EMAIL_PROVIDER_API_KEY`, `EMAIL_FROM_ADDRESS` and `EMAIL_TEMPLATE_ID` are set
 - Flip `FEATURE_AI_RECOMMENDATIONS` on after a gradual rollout decision. It is declared `false` in `render.yaml`, so For You is off in production and the endpoint answers `{ enabled: false }` rather than erroring; a rollout is that value set to a percentage (for example `"10"`) plus a redeploy, which is why it lives in the blueprint instead of in a dashboard-only setting.
 - Client clarifications all closed: GAP-2 (net-worth boundaries) resolved, GAP-11 privacy wording accepted (R2 best-effort APAC), GAP-12 email via MSG91
+
