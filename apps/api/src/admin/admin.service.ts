@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
+  Inject,
+  ServiceUnavailableException,
   ConflictException,
   Injectable,
   Logger,
@@ -63,6 +65,8 @@ import {
 import { ClockService } from '../common/clock/clock.service';
 import { StorageService } from '../storage/s3.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { SmsGateway } from '../sms/sms.gateway';
+import type { Env } from '../config/env';
 import { AuditService } from './audit.service';
 import { resolvePermissionsForRoles } from './rbac/resolve-permissions';
 import { hashPassword } from '../common/crypto/password';
@@ -506,13 +510,19 @@ function previousValues(row: object, columns: string[]): Prisma.InputJsonObject 
 export class AdminService {
   private readonly logger = new Logger(AdminService.name);
 
+  private readonly env: Env;
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly audit: AuditService,
     private readonly clock: ClockService,
     private readonly notifications: NotificationsService,
     private readonly storage: StorageService,
-  ) {}
+    private readonly sms: SmsGateway,
+    @Inject('ENV') env: Env,
+  ) {
+    this.env = env;
+  }
 
   /**
    * One member account, for the support conversation about it.
@@ -1992,6 +2002,17 @@ export class AdminService {
     });
     if (!admin) {
       throw new NotFoundException('Administrator not found');
+    }
+
+    // A number turns on a factor whose code has to travel by SMS. In production,
+    // setting one while no provider is configured would leave that administrator
+    // at a code screen nothing can answer — including the only Super Admin. The
+    // check is at the switch, where somebody is looking, rather than at sign-in,
+    // where the only remaining move would be to weaken the factor silently.
+    if (phone !== null && !this.sms.configured && this.env.NODE_ENV === 'production') {
+      throw new ServiceUnavailableException(
+        'SMS delivery is not configured, so a texted code could not reach anybody. Set the SMS provider credentials first.',
+      );
     }
 
     // Read before the write, for the same reason the moderation status does: the

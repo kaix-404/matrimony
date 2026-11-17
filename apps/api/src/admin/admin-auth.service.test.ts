@@ -1,5 +1,10 @@
 import { JwtService } from '@nestjs/jwt';
-import { BadGatewayException, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { AdminLoginResponse, AdminMfaChallenge, AdminTokenPair } from '@matrimony/shared';
 import { AdminAuthService } from './admin-auth.service';
 import { AdminTokenService } from './admin-token.service';
@@ -72,7 +77,7 @@ function asChallenge(result: AdminLoginResponse): AdminMfaChallenge {
   return result;
 }
 
-function setup() {
+function setup(nodeEnv: string = 'test') {
   const clock = new FrozenClock(new Date('2026-10-14T00:00:00.000Z'));
   const admins: AdminRow[] = [];
   const refreshes: RefreshRow[] = [];
@@ -187,7 +192,7 @@ function setup() {
     audit as never,
     otp as never,
     sms as never,
-    env,
+    { ...env, NODE_ENV: nodeEnv } as unknown as Env,
   );
 
   function addAdmin(overrides: Partial<AdminRow> = {}): AdminRow {
@@ -541,6 +546,18 @@ describe('AdminAuthService.login with an SMS sign-in number', () => {
     expect(challenge.phone_hint).toBeNull();
     expect(otp.issue).not.toHaveBeenCalled();
     expect(sms.sendOtp).not.toHaveBeenCalled();
+  });
+
+  it('refuses the SMS step in production when SMS delivery is not configured', async () => {
+    const { service, addAdmin, sms } = setup('production');
+    addAdmin({ phone: PHONE });
+    sms.configured = false;
+
+    // Neither a lockout at a code screen nor a silent downgrade to the password
+    // alone: the sign-in says the factor is unavailable.
+    await expect(
+      service.login({ email: 'boss@example.com', password: PASSWORD }),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
   });
 
   it('answers a gateway error when the code cannot be sent', async () => {

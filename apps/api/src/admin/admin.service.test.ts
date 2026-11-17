@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ServiceUnavailableException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -557,20 +558,26 @@ function setup() {
   // Stands in for the bucket: the view's job is to carry a signed URL, and the
   // signing itself is covered by the storage tests.
   const storage = { presignDownload: async (key: string) => `https://cdn.test/${key}?sig=abc` };
-  const service = new AdminService(
-    prisma as never,
-    audit as never,
-    clock,
-    {
-      create: async (input: Record<string, unknown>) => {
-        notifications.created.push(input);
-        return { id: `notif_${notifications.created.length}` };
-      },
-    } as never,
-    storage as never,
-  );
+  const sms = { configured: true, sendOtp: jest.fn(async () => ({ providerMessageId: 'x' })) };
+  const build = (overrides: { smsConfigured?: boolean; nodeEnv?: string } = {}) =>
+    new AdminService(
+      prisma as never,
+      audit as never,
+      clock,
+      {
+        create: async (input: Record<string, unknown>) => {
+          notifications.created.push(input);
+          return { id: `notif_${notifications.created.length}` };
+        },
+      } as never,
+      storage as never,
+      { ...sms, configured: overrides.smsConfigured ?? true } as never,
+      { NODE_ENV: overrides.nodeEnv ?? 'test' } as never,
+    );
+  const service = build();
 
   return {
+    build,
     photos,
     profiles,
     service,
@@ -1943,5 +1950,29 @@ describe('AdminService.setAdminPhone', () => {
     await expect(service.setAdminPhone('nobody', '9876543210', 'admin_actor')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  it('refuses to switch the factor on in production when SMS cannot be sent', async () => {
+    const { build, admins } = setup();
+    const production = build({ smsConfigured: false, nodeEnv: 'production' });
+
+    // Turning the factor on while no code can be delivered would strand the
+    // administrator at a code screen, so the switch is refused where somebody is
+    // looking rather than at the next sign-in.
+    await expect(
+      production.setAdminPhone('admin_actor', '9876543210', 'admin_actor'),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(admins.find((a) => a.id === 'admin_actor')?.phone).toBeNull();
+  });
+
+  it('still allows clearing the number without an SMS provider', async () => {
+    const { build, admins } = setup();
+    const production = build({ smsConfigured: false, nodeEnv: 'production' });
+    admins.find((a) => a.id === 'admin_actor')!.phone = '9876543210';
+
+    const view = await production.setAdminPhone('admin_actor', null, 'admin_actor');
+
+    // The way back must never depend on the thing that is broken.
+    expect(view.phone).toBeNull();
   });
 });

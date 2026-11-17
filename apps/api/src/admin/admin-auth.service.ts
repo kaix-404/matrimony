@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -148,6 +149,17 @@ export class AdminAuthService {
     // to it. An administrator with neither still signs in with the password
     // alone, which is what every account did before this existed.
     if (admin.phone) {
+      // Production refuses the step it cannot complete. Silently dropping back to
+      // the password alone would remove a factor somebody asked for; this says so
+      // instead, and the way out is a Super Admin clearing the number.
+      if (!this.sms.configured && this.env.NODE_ENV === 'production') {
+        this.logger.error(
+          '[admin-sms-otp] SMS delivery is not configured; an administrator with a sign-in number cannot complete the second step',
+        );
+        throw new ServiceUnavailableException(
+          'SMS sign-in is temporarily unavailable. Ask another administrator to clear your sign-in number.',
+        );
+      }
       return this.issueSmsChallenge(admin.id, admin.phone);
     }
 
