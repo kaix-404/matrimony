@@ -168,10 +168,7 @@ export class AdminAuthService {
       data: { lastLoginAt: now, failedLoginCount: 0, lockedUntil: null },
     });
 
-    return this.issuePair(
-      admin.id,
-      admin.roles.map((assignment) => assignment.role.slug),
-    );
+    return this.issuePair(admin.id, admin.roles.map((assignment) => assignment.role.slug));
   }
 
   /**
@@ -233,10 +230,7 @@ export class AdminAuthService {
       data: { lastLoginAt: now, failedLoginCount: 0, lockedUntil: null },
     });
 
-    return this.issuePair(
-      admin.id,
-      admin.roles.map((assignment) => assignment.role.slug),
-    );
+    return this.issuePair(admin.id, admin.roles.map((assignment) => assignment.role.slug));
   }
 
   /**

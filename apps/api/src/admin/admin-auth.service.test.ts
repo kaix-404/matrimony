@@ -11,6 +11,7 @@ import { AdminTokenService } from './admin-token.service';
 import { FrozenClock } from '../common/clock/clock.service';
 import { hashPassword } from '../common/crypto/password';
 import { OtpService } from '../auth/otp.service';
+import { createFakeOtpTable } from '../testing/fake-otp-table';
 import { SecretBox } from '../common/crypto/secret-box';
 import { generateTotpSecret, totpCode } from '../common/crypto/totp';
 import type { Env } from '../config/env';
@@ -76,93 +77,6 @@ function asChallenge(result: AdminLoginResponse): AdminMfaChallenge {
     throw new Error('expected an MFA challenge, got a token pair');
   }
   return result;
-}
-
-/**
- * In-memory `otpRequest` table for the real `OtpService`.
- *
- * The rest of this file stands in for the OTP service, which is the right unit
- * for "which factor does the sign-in ask for". That also means nothing here
- * would notice if an ADMIN_LOGIN code were stored in plaintext, never expired,
- * were replayable, or answered a member flow — so the block at the end runs the
- * real service over this table, which applies the same conditional updates the
- * database does.
- */
-function createOtpTable() {
-  const rows: Record<string, unknown>[] = [];
-  let createdAt = 0;
-
-  const time = (value: unknown): number =>
-    value instanceof Date ? value.getTime() : Number(value);
-
-  function matches(row: Record<string, unknown>, where: Record<string, unknown>): boolean {
-    return Object.entries(where).every(([key, expected]) => {
-      if (expected !== null && typeof expected === 'object' && !(expected instanceof Date)) {
-        const bound = expected as { lt?: unknown; gt?: unknown };
-        if ('lt' in bound) return time(row[key]) < time(bound.lt);
-        if ('gt' in bound) return time(row[key]) > time(bound.gt);
-        return false;
-      }
-      if (expected instanceof Date) return time(row[key]) > time(expected);
-      return row[key] === expected;
-    });
-  }
-
-  function patch(row: Record<string, unknown>, data: Record<string, unknown>): void {
-    for (const [key, value] of Object.entries(data)) {
-      const change = value as { increment?: number } | null;
-      row[key] =
-        change !== null && typeof change === 'object' && 'increment' in change
-          ? (row[key] as number) + (change.increment as number)
-          : value;
-    }
-  }
-
-  return {
-    rows,
-    updateMany: async ({
-      where,
-      data,
-    }: {
-      where: Record<string, unknown>;
-      data: Record<string, unknown>;
-    }) => {
-      let count = 0;
-      for (const row of rows) {
-        if (matches(row, where)) {
-          patch(row, data);
-          count += 1;
-        }
-      }
-      return { count };
-    },
-    create: async ({ data }: { data: Record<string, unknown> }) => {
-      createdAt += 1;
-      const row = {
-        id: `otp_${createdAt}`,
-        attempts: 0,
-        verifiedAt: null,
-        consumedAt: null,
-        createdAt,
-        ...data,
-      };
-      rows.push(row);
-      return row;
-    },
-    findFirst: async ({ where }: { where: Record<string, unknown> }) => {
-      const found = rows.filter((row) => matches(row, where));
-      if (found.length === 0) return null;
-      // Newest first, so a superseded code is never the one that matches.
-      found.sort((a, b) => (b.createdAt as number) - (a.createdAt as number));
-      return found[0];
-    },
-    update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-      const row = rows.find((candidate) => candidate.id === where.id);
-      if (!row) throw new Error('otp request not found');
-      patch(row, data);
-      return row;
-    },
-  };
 }
 
 function setup(nodeEnv: string = 'test', realOtpStore = false) {
@@ -280,7 +194,7 @@ function setup(nodeEnv: string = 'test', realOtpStore = false) {
   // The real `OtpService` over an in-memory `otpRequest` table. Most tests here
   // stand in for the OTP service, which is right for "which factor is asked for";
   // the block below at the end turns this on to cover the store path itself.
-  const otpTable = createOtpTable();
+  const otpTable = createFakeOtpTable();
   const otpService = new OtpService({ otpRequest: otpTable } as never, clock, {
     ...env,
     OTP_HASH_SECRET: 'test-otp-pepper',

@@ -3,99 +3,8 @@ import { Test } from '@nestjs/testing';
 import { ClockService, FrozenClock } from '../common/clock/clock.service';
 import { PrismaClient, OtpStatus } from '../prisma/prisma-client';
 import { OtpService } from './otp.service';
+import { createFakeOtpTable } from '../testing/fake-otp-table';
 import type { Env } from '../config/env';
-
-/**
- * A double for the `otpRequest` model.
- *
- * `updateMany` and `findFirst` are modelled with the same conditional-update
- * semantics as the real database, because the service relies on them: it counts
- * an attempt with a conditional increment precisely so two concurrent guesses
- * cannot both pass the limit. A double that ignored the predicate would make the
- * service look correct while the guarantee did not exist.
- */
-type Row = Record<string, unknown>;
-
-/**
- * The predicate forms this double has to understand, as Prisma emits them.
- *
- * `gt` exists for the `expiresAt > now` bound on spending a verified code. That
- * bound is security-relevant, so the double must enforce it: a fake that ignored
- * it would let the replay regression test pass against code that does not.
- */
-type Predicate = string | number | boolean | null | Date | { lt: number } | { gt: Date };
-
-type Where = Record<string, Predicate>;
-type Patch = Record<string, string | number | boolean | Date | null | { increment: number }>;
-
-class FakeOtpStore {
-  rows: Row[] = [];
-
-  updateMany = async (args: { where: Where; data: Patch }): Promise<{ count: number }> => {
-    let count = 0;
-    for (const row of this.rows) {
-      if (matches(row, args.where)) {
-        apply(row, args.data);
-        count += 1;
-      }
-    }
-    return { count };
-  };
-
-  create = async ({ data }: { data: Row }) => {
-    const row = {
-      id: `o${this.rows.length + 1}`,
-      attempts: 0,
-      verifiedAt: null,
-      consumedAt: null,
-      requestDeviceId: null,
-      ...data,
-    };
-    this.rows.push(row);
-    return row;
-  };
-
-  findFirst = async (args: { where: Where; orderBy?: { createdAt?: 'asc' | 'desc' } }) => {
-    const found = this.rows.filter((row) => matches(row, args.where));
-    if (found.length === 0) return null;
-    // Newest first, so a superseded code is never the one that matches.
-    found.sort((a, b) => (b.createdAt as number) - (a.createdAt as number));
-    return found[0];
-  };
-
-  update = async (args: { where: { id: string }; data: Patch }) => {
-    const row = this.rows.find((r) => r.id === args.where.id);
-    if (!row) throw new Error('not found');
-    apply(row, args.data);
-    return row;
-  };
-}
-
-function matches(row: Row, where: Where): boolean {
-  return Object.entries(where).every(([key, expected]) => {
-    if (expected !== null && typeof expected === 'object' && !(expected instanceof Date)) {
-      if ('lt' in expected) {
-        return (row[key] as number) < expected.lt;
-      }
-      return (row[key] as Date) > expected.gt;
-    }
-
-    if (expected instanceof Date) {
-      return (row[key] as Date) > expected;
-    }
-
-    return row[key] === expected;
-  });
-}
-
-function apply(row: Row, data: Patch): void {
-  for (const [key, value] of Object.entries(data)) {
-    row[key] =
-      typeof value === 'object' && value !== null && 'increment' in value
-        ? (row[key] as number) + value.increment
-        : value;
-  }
-}
 
 const env = {
   OTP_HASH_SECRET: 'test-otp-pepper',
@@ -106,8 +15,7 @@ const env = {
 } as Env;
 
 async function makeService(clock: ClockService) {
-  const store = new FakeOtpStore();
-  let sequence = 0;
+  const store = createFakeOtpTable();
 
   const moduleRef = await Test.createTestingModule({
     providers: [
@@ -117,15 +25,7 @@ async function makeService(clock: ClockService) {
       {
         provide: PrismaClient,
         useValue: {
-          otpRequest: {
-            ...store,
-            // Timestamps must advance with the fake clock, otherwise every row
-            // looks created at once and ordering tests cannot see the sequence.
-            create: async (args: { data: Row }) => {
-              sequence += 1;
-              return store.create({ data: { ...args.data, createdAt: sequence } });
-            },
-          },
+          otpRequest: store,
         },
       },
     ],
@@ -410,12 +310,8 @@ describe('OTP single use', () => {
     const login = await service.issue({ mobile: MOBILE, purpose: 'LOGIN' });
     await service.verify({ mobile: MOBILE, purpose: 'LOGIN', code: login.code });
 
-    expect(
-      await service.consumeVerified({ mobile: '9000000009', purpose: 'LOGIN' }),
-    ).toBe(false);
-    expect(
-      await service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' }),
-    ).toBe(false);
+    expect(await service.consumeVerified({ mobile: '9000000009', purpose: 'LOGIN' })).toBe(false);
+    expect(await service.consumeVerified({ mobile: MOBILE, purpose: 'REGISTRATION' })).toBe(false);
   });
 
   it('leaves the status as verified so the audit trail survives', async () => {

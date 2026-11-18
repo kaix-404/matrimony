@@ -6,6 +6,7 @@
     "test",
     "**/*spec.ts",
     "**/*.test.ts",
-    "src/generated"
+    "src/generated",
+    "src/testing"
   ]
 }
