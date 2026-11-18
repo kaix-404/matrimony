@@ -231,11 +231,15 @@ services:
       # knows it, and so a preview host can be pointed elsewhere.
       - key: API_ORIGIN
         value: 'https://matrimony-api-2bmy.onrender.com'
-    # `/app`, not `/`. The landing page is a static file and returns 200 whether
-    # or not the member app was ever built, which is how a deploy that serves 500
-    # to every `/app/...` route reported itself as healthy. The app is the part
-    # that can be missing, so it is the part the check should request.
-    healthCheckPath: /app
+    # `/healthz`, not `/` or `/app`. Both of those answer 200 from memory: the
+    # landing page is the fallback for every path that is not `/app` or `/api`,
+    # and `/app/...` falls back to the app's `index.html` for any file that is not
+    # on disk — so a deploy with no bundles at all, or with a landing page
+    # missing from the image, still reported itself as healthy. `/healthz`
+    # requires the landing file to be readable and every asset the app's
+    # entrypoint references to exist, and answers 503 naming what is missing.
+    # See `serveHealth` in landing/server.js.
+    healthCheckPath: /healthz
     autoDeploy: true
     rootDirectory: .
     # The export is the slow part; only rebuild when something it contains or

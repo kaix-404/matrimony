@@ -14,6 +14,9 @@ const path = require('path');
  *                   frontend that has to be kept in step;
  *   3. `/api/...`   a proxy to the Nest API.
  *
+ * Plus `/healthz` (and `/health`), the deploy's own check: it is the one path
+ * here allowed to answer 503. See `serveHealth`.
+ *
  * The proxy is what removes CORS from the picture. The browser app calls
  * `/api/v1/...` relative to its own origin, so the API's `API_CORS_ORIGINS` can
  * stay limited to the admin console instead of having to name whatever hostname
@@ -132,6 +135,110 @@ function serveAppIndex(res) {
   });
 }
 
+/**
+ * The deploy's health, for Render's health check.
+ *
+ * `/` and `/app` cannot answer anything but 200: the landing page is the
+ * fallback for every path that is not `/app` or `/api`, and `/app/...` falls
+ * back to the exported `index.html` for any file that is not on disk. A check
+ * pointed at either therefore passes on a deploy that cannot serve what it is
+ * checking — no app bundles at all, or a landing page missing from the image.
+ *
+ * So this asks the two real questions: the landing page is readable, and every
+ * asset the app's entrypoint references is on disk. It deliberately does not
+ * call the API: this service is healthy when it can serve its own files, and a
+ * cold free-tier API would otherwise fail a deploy that is perfectly fine.
+ */
+const ASSET_REFERENCE = /(?:src|href)="(\/app\/[^"]+)"/g;
+
+/** Every distinct `/app/...` file the exported entrypoint points at. */
+function appAssetReferences(entryHtml) {
+  const references = new Set();
+  for (const match of entryHtml.matchAll(ASSET_REFERENCE)) references.add(match[1]);
+  return [...references];
+}
+
+/** Resolves a `/app/...` URL to a file in the export, or null if it escapes it. */
+function resolveAppFile(reference) {
+  const candidate = path.resolve(APP_DIR, reference.replace(/^\/app\/?/, ''));
+  return candidate === APP_DIR || candidate.startsWith(APP_DIR + path.sep) ? candidate : null;
+}
+
+function isReadable(filePath) {
+  try {
+    fs.accessSync(filePath, fs.constants.R_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function checkDeployment() {
+  const problems = [];
+
+  const landingOk = isReadable(LANDING_FILE);
+  if (!landingOk) problems.push(`landing page is not readable: ${LANDING_FILE}`);
+
+  let appState = 'ok';
+  let entry;
+  try {
+    entry = fs.readFileSync(APP_INDEX, 'utf8');
+  } catch {
+    appState = 'missing';
+    problems.push(`the exported app is missing: ${APP_INDEX}`);
+  }
+
+  let checked = 0;
+  if (entry !== undefined) {
+    for (const reference of appAssetReferences(entry)) {
+      checked += 1;
+      const file = resolveAppFile(reference);
+      if (file === null || !isReadable(file)) {
+        if (appState === 'ok') appState = 'incomplete';
+        problems.push(`app asset is missing: ${reference}`);
+      }
+    }
+    // An entrypoint that references no bundles is not a working app, even though
+    // the file itself exists.
+    if (checked === 0) {
+      if (appState === 'ok') appState = 'incomplete';
+      problems.push('the app entrypoint references no bundles');
+    }
+  }
+
+  return {
+    ok: problems.length === 0,
+    landing: landingOk ? 'ok' : 'missing',
+    app: appState,
+    app_assets_checked: checked,
+    problems,
+  };
+}
+
+/**
+ * The reasons last logged. A probe every 30 seconds must not fill the log, but a
+ * deploy that starts failing for a *new* reason has to say so.
+ */
+let lastReportedProblems = '';
+
+function serveHealth(res) {
+  const result = checkDeployment();
+  const signature = result.problems.join('; ');
+
+  if (result.ok) {
+    lastReportedProblems = '';
+  } else if (signature !== lastReportedProblems) {
+    lastReportedProblems = signature;
+    console.error(`Health check failing: ${signature}`);
+  }
+
+  res.writeHead(result.ok ? 200 : 503, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
+  res.end(JSON.stringify({ status: result.ok ? 'ok' : 'unavailable', ...result }));
+}
+
 /** Streams API traffic to the Nest service and back, headers and all. */
 function proxyApi(req, res) {
   const target = new URL(API_ORIGIN);
@@ -168,6 +275,7 @@ function proxyApi(req, res) {
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url || '/', 'http://localhost').pathname;
 
+  if (pathname === '/health' || pathname === '/healthz') return serveHealth(res);
   if (pathname === '/api' || pathname.startsWith('/api/')) return proxyApi(req, res);
   if (pathname === '/app' || pathname.startsWith('/app/')) return serveApp(req, res, pathname);
   return serveLanding(res);
