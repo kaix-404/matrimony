@@ -10,6 +10,7 @@ import { AdminAuthService } from './admin-auth.service';
 import { AdminTokenService } from './admin-token.service';
 import { FrozenClock } from '../common/clock/clock.service';
 import { hashPassword } from '../common/crypto/password';
+import { OtpService } from '../auth/otp.service';
 import { SecretBox } from '../common/crypto/secret-box';
 import { generateTotpSecret, totpCode } from '../common/crypto/totp';
 import type { Env } from '../config/env';
@@ -77,7 +78,94 @@ function asChallenge(result: AdminLoginResponse): AdminMfaChallenge {
   return result;
 }
 
-function setup(nodeEnv: string = 'test') {
+/**
+ * In-memory `otpRequest` table for the real `OtpService`.
+ *
+ * The rest of this file stands in for the OTP service, which is the right unit
+ * for "which factor does the sign-in ask for". That also means nothing here
+ * would notice if an ADMIN_LOGIN code were stored in plaintext, never expired,
+ * were replayable, or answered a member flow — so the block at the end runs the
+ * real service over this table, which applies the same conditional updates the
+ * database does.
+ */
+function createOtpTable() {
+  const rows: Record<string, unknown>[] = [];
+  let createdAt = 0;
+
+  const time = (value: unknown): number =>
+    value instanceof Date ? value.getTime() : Number(value);
+
+  function matches(row: Record<string, unknown>, where: Record<string, unknown>): boolean {
+    return Object.entries(where).every(([key, expected]) => {
+      if (expected !== null && typeof expected === 'object' && !(expected instanceof Date)) {
+        const bound = expected as { lt?: unknown; gt?: unknown };
+        if ('lt' in bound) return time(row[key]) < time(bound.lt);
+        if ('gt' in bound) return time(row[key]) > time(bound.gt);
+        return false;
+      }
+      if (expected instanceof Date) return time(row[key]) > time(expected);
+      return row[key] === expected;
+    });
+  }
+
+  function patch(row: Record<string, unknown>, data: Record<string, unknown>): void {
+    for (const [key, value] of Object.entries(data)) {
+      const change = value as { increment?: number } | null;
+      row[key] =
+        change !== null && typeof change === 'object' && 'increment' in change
+          ? (row[key] as number) + (change.increment as number)
+          : value;
+    }
+  }
+
+  return {
+    rows,
+    updateMany: async ({
+      where,
+      data,
+    }: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }) => {
+      let count = 0;
+      for (const row of rows) {
+        if (matches(row, where)) {
+          patch(row, data);
+          count += 1;
+        }
+      }
+      return { count };
+    },
+    create: async ({ data }: { data: Record<string, unknown> }) => {
+      createdAt += 1;
+      const row = {
+        id: `otp_${createdAt}`,
+        attempts: 0,
+        verifiedAt: null,
+        consumedAt: null,
+        createdAt,
+        ...data,
+      };
+      rows.push(row);
+      return row;
+    },
+    findFirst: async ({ where }: { where: Record<string, unknown> }) => {
+      const found = rows.filter((row) => matches(row, where));
+      if (found.length === 0) return null;
+      // Newest first, so a superseded code is never the one that matches.
+      found.sort((a, b) => (b.createdAt as number) - (a.createdAt as number));
+      return found[0];
+    },
+    update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+      const row = rows.find((candidate) => candidate.id === where.id);
+      if (!row) throw new Error('otp request not found');
+      patch(row, data);
+      return row;
+    },
+  };
+}
+
+function setup(nodeEnv: string = 'test', realOtpStore = false) {
   const clock = new FrozenClock(new Date('2026-10-14T00:00:00.000Z'));
   const admins: AdminRow[] = [];
   const refreshes: RefreshRow[] = [];
@@ -178,19 +266,36 @@ function setup(nodeEnv: string = 'test') {
       resendAfterAt: new Date('2026-01-01T00:01:00.000Z'),
       expiresAt: new Date('2026-01-01T00:05:00.000Z'),
     })),
-    verify: jest.fn(async (_input: { mobile: string; purpose: string; code: string }) => 'otp_1' as string | null),
+    verify: jest.fn(
+      async (_input: { mobile: string; purpose: string; code: string }) => 'otp_1' as string | null,
+    ),
   };
   const sms = {
     configured: true,
-    sendOtp: jest.fn(async () => ({ providerMessageId: 'msg_1', reportedZeroBalance: false })),
+    sendOtp: jest.fn(async (_input: { mobile: string; code: string }) => ({
+      providerMessageId: 'msg_1',
+      reportedZeroBalance: false,
+    })),
   };
+  // The real `OtpService` over an in-memory `otpRequest` table. Most tests here
+  // stand in for the OTP service, which is right for "which factor is asked for";
+  // the block below at the end turns this on to cover the store path itself.
+  const otpTable = createOtpTable();
+  const otpService = new OtpService({ otpRequest: otpTable } as never, clock, {
+    ...env,
+    OTP_HASH_SECRET: 'test-otp-pepper',
+    OTP_MAX_ATTEMPTS: 3,
+    OTP_RESEND_COOLDOWN_SECONDS: 60,
+    OTP_TTL_SECONDS: 300,
+  } as unknown as Env);
+
   const service = new AdminAuthService(
     prisma as never,
     clock,
     tokens,
     jwt,
     audit as never,
-    otp as never,
+    (realOtpStore ? otpService : otp) as never,
     sms as never,
     { ...env, NODE_ENV: nodeEnv } as unknown as Env,
   );
@@ -213,7 +318,19 @@ function setup(nodeEnv: string = 'test') {
     return admin;
   }
 
-  return { clock, tokens, service, addAdmin, admins, refreshes, audit, otp, sms };
+  return {
+    clock,
+    tokens,
+    service,
+    addAdmin,
+    admins,
+    refreshes,
+    audit,
+    otp,
+    otpService,
+    otpTable,
+    sms,
+  };
 }
 
 /** An admin row already enrolled, with the plaintext secret for computing codes. */
@@ -255,9 +372,9 @@ describe('AdminAuthService.login', () => {
     const { service, addAdmin, admins } = setup();
     addAdmin();
 
-    await expect(service.login({ email: 'boss@example.com', password: 'wrong-password' })).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await expect(
+      service.login({ email: 'boss@example.com', password: 'wrong-password' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(admins[0]!.failedLoginCount).toBe(1);
   });
 
@@ -293,7 +410,9 @@ describe('AdminAuthService.login', () => {
     const { service, addAdmin } = setup();
     enroll(addAdmin);
 
-    const challenge = asChallenge(await service.login({ email: 'boss@example.com', password: PASSWORD }));
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
 
     expect(challenge.mfa_required).toBe(true);
     expect(challenge.challenge_token.length).toBeGreaterThan(20);
@@ -306,7 +425,9 @@ describe('AdminAuthService.verifyMfa', () => {
     const { service, clock, tokens, addAdmin } = setup();
     const secret = enroll(addAdmin);
 
-    const challenge = asChallenge(await service.login({ email: 'boss@example.com', password: PASSWORD }));
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
     const pair = await service.verifyMfa({
       challenge_token: challenge.challenge_token,
       code: totpCode(secret, clock.now().getTime()),
@@ -322,7 +443,9 @@ describe('AdminAuthService.verifyMfa', () => {
     const { service, clock, addAdmin, admins } = setup();
     const secret = enroll(addAdmin);
 
-    const challenge = asChallenge(await service.login({ email: 'boss@example.com', password: PASSWORD }));
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
     const correct = totpCode(secret, clock.now().getTime());
     const wrong = correct === '000000' ? '000001' : '000000';
 
@@ -388,7 +511,10 @@ describe('AdminAuthService MFA enrollment', () => {
     const setupResult = await service.beginMfaEnrollment('admin_1');
 
     await expect(
-      service.activateMfa('admin_1', { enrollment_token: setupResult.enrollment_token, code: '000000' }),
+      service.activateMfa('admin_1', {
+        enrollment_token: setupResult.enrollment_token,
+        code: '000000',
+      }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(admins[0]!.mfaSecret).toBeNull();
   });
@@ -404,7 +530,9 @@ describe('AdminAuthService MFA enrollment', () => {
     const { service, clock, addAdmin, admins, audit } = setup();
     const secret = enroll(addAdmin);
 
-    const result = await service.disableMfa('admin_1', { code: totpCode(secret, clock.now().getTime()) });
+    const result = await service.disableMfa('admin_1', {
+      code: totpCode(secret, clock.now().getTime()),
+    });
 
     expect(result).toEqual({ mfa_enabled: false });
     expect(admins[0]!.mfaSecret).toBeNull();
@@ -634,5 +762,97 @@ describe('AdminAuthService.verifyMfa with a texted code', () => {
 
     // The weaker channel is not consulted at all for a TOTP challenge.
     expect(otp.verify).not.toHaveBeenCalled();
+  });
+});
+
+describe('AdminAuthService.login with the real OTP store', () => {
+  /** The six digits the gateway was last asked to deliver. */
+  function textedCode(sms: ReturnType<typeof setup>['sms']): string {
+    const calls = sms.sendOtp.mock.calls;
+    const last = calls[calls.length - 1];
+    if (!last) throw new Error('no sign-in code was sent');
+    return last[0].code;
+  }
+
+  it('accepts the code the store minted, keeping only its hash', async () => {
+    const { service, addAdmin, sms, otpTable } = setup('test', true);
+    addAdmin({ phone: PHONE });
+
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
+    const code = textedCode(sms);
+
+    // A code that reached the database in the clear would be a stored credential.
+    expect(otpTable.rows[0]!.codeHash).not.toContain(code);
+    expect(otpTable.rows[0]!.purpose).toBe('ADMIN_LOGIN');
+
+    const pair = await service.verifyMfa({
+      challenge_token: challenge.challenge_token,
+      code,
+    });
+
+    expect(pair.token_type).toBe('Bearer');
+    expect(otpTable.rows[0]!.status).toBe('VERIFIED');
+  });
+
+  it('refuses the same texted code a second time', async () => {
+    const { service, addAdmin, sms } = setup('test', true);
+    addAdmin({ phone: PHONE });
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
+    const code = textedCode(sms);
+
+    await service.verifyMfa({ challenge_token: challenge.challenge_token, code });
+
+    await expect(
+      service.verifyMfa({ challenge_token: challenge.challenge_token, code }),
+    ).rejects.toThrow('Invalid code');
+  });
+
+  it('cannot be answered with a code minted for a member sign-in', async () => {
+    const { service, addAdmin, otpService, sms } = setup('test', true);
+    addAdmin({ phone: PHONE });
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
+    const adminCode = textedCode(sms);
+
+    // A code the same number obtained from the member login flow proves the
+    // number, not the administrator. Purpose is part of the lookup.
+    const member = await otpService.issue({ mobile: PHONE, purpose: 'LOGIN' });
+
+    await expect(
+      service.verifyMfa({ challenge_token: challenge.challenge_token, code: member.code }),
+    ).rejects.toThrow('Invalid code');
+
+    // And the admin's own code survived: the member request superseded nothing.
+    await expect(
+      service.verifyMfa({ challenge_token: challenge.challenge_token, code: adminCode }),
+    ).resolves.toMatchObject({ token_type: 'Bearer' });
+  });
+
+  it('stops accepting a code once the store has spent its attempts', async () => {
+    const { service, addAdmin, sms } = setup('test', true);
+    addAdmin({ phone: PHONE });
+    const challenge = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
+    const code = textedCode(sms);
+    const wrong = code === '000000' ? '000001' : '000000';
+
+    // OTP_MAX_ATTEMPTS is 3 above, so the correct code is worthless afterwards —
+    // the attempt ceiling is the store's, not something the caller can reset by
+    // asking for a new challenge.
+    for (let guess = 0; guess < 3; guess += 1) {
+      await expect(
+        service.verifyMfa({ challenge_token: challenge.challenge_token, code: wrong }),
+      ).rejects.toThrow('Invalid code');
+    }
+
+    await expect(
+      service.verifyMfa({ challenge_token: challenge.challenge_token, code }),
+    ).rejects.toThrow('Invalid code');
   });
 });

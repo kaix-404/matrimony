@@ -7,12 +7,17 @@ import { useAdminAction } from '@/lib/use-admin-action';
 import { grantRoleAction, resetMfaAction, revokeRoleAction, setPhoneAction } from './actions';
 
 /**
- * Role and authenticator controls for one administrator.
+ * Role, authenticator and sign-in-number controls for one administrator.
  *
- * An administrator's own row gets an explanation instead of controls: the API
- * refuses a role change or MFA reset aimed at the caller, because either is a
- * way to lock yourself out (and with the last Super Admin, everyone). Saying so
- * is more useful than a button that can only fail.
+ * An administrator's own row gets an explanation instead of role and MFA
+ * controls: the API refuses a role change or MFA reset aimed at the caller,
+ * because either is a way to lock yourself out (and with the last Super Admin,
+ * everyone). Saying so is more useful than a button that can only fail.
+ *
+ * The one control that stays usable there is the SMS sign-in number. Enrolling
+ * the phone that receives your own codes is not a privilege escalation, and
+ * requiring a second administrator would make the factor unusable for whoever
+ * runs the console alone.
  */
 export function AdminActions({
   admin,
@@ -23,42 +28,45 @@ export function AdminActions({
   roles: AdminRoleView[];
   selfId: string | null;
 }) {
-  if (isOwnRow(admin.id, selfId)) {
-    return (
-      <>
+  const own = isOwnRow(admin.id, selfId);
+
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      {own ? (
         <p className="notice">
           Your own account. Another administrator has to change your roles or reset your
           authenticator.
         </p>
-        {/* The one thing you can change here is your own sign-in number: enrolling
-            the phone that receives your sign-in codes is not a privilege escalation,
-            and requiring a second administrator would make the factor unusable for
-            whoever runs the console alone. */}
-        <OwnPhoneControl admin={admin} />
-      </>
-    );
-  }
-
-  return <AdminControls admin={admin} roles={roles} />;
+      ) : null}
+      <AdminControls admin={admin} roles={roles} own={own} />
+    </div>
+  );
 }
 
-function AdminControls({ admin, roles }: { admin: AdminUserView; roles: AdminRoleView[] }) {
-  const grantable = rolesNotHeld(admin.roles, roles);
-  const held = roles.filter((role) => admin.roles.includes(role.slug));
+function AdminControls({
+  admin,
+  roles,
+  own,
+}: {
+  admin: AdminUserView;
+  roles: AdminRoleView[];
+  own: boolean;
+}) {
+  // Nobody may change their own roles or reset their own authenticator, so the
+  // pickers are left out rather than offered and then refused.
+  const grantable = own ? [] : rolesNotHeld(admin.roles, roles);
+  const held = own ? [] : roles.filter((role) => admin.roles.includes(role.slug));
 
   const [grantSlug, setGrantSlug] = useState(grantable[0]?.slug ?? '');
   const [revokeSlug, setRevokeSlug] = useState(held[0]?.slug ?? '');
   const [confirmingReset, setConfirmingReset] = useState(false);
-  const [editingPhone, setEditingPhone] = useState(false);
-  const [phone, setPhoneNumber] = useState(admin.phone ?? '');
 
   const grant = useAdminAction(grantRoleAction);
   const revoke = useAdminAction(revokeRoleAction);
   const reset = useAdminAction(resetMfaAction);
-  const setPhone = useAdminAction(setPhoneAction, () => setEditingPhone(false));
 
-  const pending = grant.pending || revoke.pending || reset.pending || setPhone.pending;
-  const error = grant.state.error ?? revoke.state.error ?? reset.state.error ?? setPhone.state.error;
+  const pending = grant.pending || revoke.pending || reset.pending;
+  const error = grant.state.error ?? revoke.state.error ?? reset.state.error;
 
   return (
     <div style={{ display: 'grid', gap: 8 }}>
@@ -115,46 +123,7 @@ function AdminControls({ admin, roles }: { admin: AdminUserView; roles: AdminRol
       {/* The SMS sign-in switch. Shown for every administrator, including one with
           an authenticator enrolled: the number is still what a reset fallback
           would use, and an account can carry both. */}
-      {editingPhone ? (
-        <div className="actions">
-          <input
-            aria-label={`SMS sign-in number for ${admin.email}`}
-            inputMode="tel"
-            placeholder="10-digit mobile, empty to clear"
-            value={phone}
-            onChange={(event) => setPhoneNumber(event.target.value)}
-            disabled={pending}
-          />
-          <button
-            className="btn btn-secondary"
-            type="button"
-            disabled={pending}
-            onClick={() => setPhone.run({ id: admin.id, phone })}
-          >
-            Save number
-          </button>
-          <button
-            className="btn-link"
-            type="button"
-            disabled={pending}
-            onClick={() => {
-              setEditingPhone(false);
-              setPhoneNumber(admin.phone ?? '');
-            }}
-          >
-            Cancel
-          </button>
-        </div>
-      ) : (
-        <button
-          className="btn-link"
-          type="button"
-          disabled={pending}
-          onClick={() => setEditingPhone(true)}
-        >
-          {admin.phone === null ? 'Add SMS sign-in number' : 'Change SMS sign-in number'}
-        </button>
-      )}
+      <PhoneControl admin={admin} own={own} disabled={pending} />
 
       {admin.mfaEnabled ? (
         confirmingReset ? (
@@ -196,18 +165,49 @@ function AdminControls({ admin, roles }: { admin: AdminUserView; roles: AdminRol
   );
 }
 
-/** Sets an administrator's own SMS sign-in number. */
-function OwnPhoneControl({ admin }: { admin: AdminUserView }) {
+/**
+ * Sets or clears one administrator's SMS sign-in number.
+ *
+ * Your own row and everybody else's need the same editor, so this is the only
+ * copy; `own` changes the wording and nothing else. An empty field clears the
+ * number, which is the documented way back for a lost SIM — the API validates
+ * what is sent and records the change in the audit log.
+ */
+function PhoneControl({
+  admin,
+  own,
+  disabled,
+}: {
+  admin: AdminUserView;
+  own: boolean;
+  disabled: boolean;
+}) {
   const [editing, setEditing] = useState(false);
-  const [phone, setPhoneNumber] = useState(admin.phone ?? '');
+  const [phone, setPhone] = useState(admin.phone ?? '');
   const save = useAdminAction(setPhoneAction, () => setEditing(false));
+
+  // The save in flight blocks this control; `disabled` carries the role and MFA
+  // actions, which own their own pending state one level up.
+  const pending = disabled || save.pending;
+  const label = own ? 'My SMS sign-in number' : `SMS sign-in number for ${admin.email}`;
+  const toggleLabel =
+    admin.phone === null
+      ? own
+        ? 'Add my SMS sign-in number'
+        : 'Add SMS sign-in number'
+      : own
+        ? `Change my SMS sign-in number (${admin.phone})`
+        : 'Change SMS sign-in number';
 
   if (!editing) {
     return (
-      <button className="btn-link" type="button" disabled={save.pending} onClick={() => setEditing(true)}>
-        {admin.phone === null
-          ? 'Add my SMS sign-in number'
-          : `Change my SMS sign-in number (${admin.phone})`}
+      <button
+        className="btn-link"
+        type="button"
+        disabled={pending}
+        onClick={() => setEditing(true)}
+      >
+        {toggleLabel}
       </button>
     );
   }
@@ -215,18 +215,18 @@ function OwnPhoneControl({ admin }: { admin: AdminUserView }) {
   return (
     <div style={{ display: 'grid', gap: 6 }}>
       <input
-        aria-label="My SMS sign-in number"
+        aria-label={label}
         inputMode="tel"
         placeholder="10-digit mobile, empty to clear"
         value={phone}
-        onChange={(event) => setPhoneNumber(event.target.value)}
-        disabled={save.pending}
+        onChange={(event) => setPhone(event.target.value)}
+        disabled={pending}
       />
       <div className="actions">
         <button
           className="btn btn-secondary"
           type="button"
-          disabled={save.pending}
+          disabled={pending}
           onClick={() => save.run({ id: admin.id, phone })}
         >
           Save number
@@ -234,10 +234,10 @@ function OwnPhoneControl({ admin }: { admin: AdminUserView }) {
         <button
           className="btn-link"
           type="button"
-          disabled={save.pending}
+          disabled={pending}
           onClick={() => {
             setEditing(false);
-            setPhoneNumber(admin.phone ?? '');
+            setPhone(admin.phone ?? '');
           }}
         >
           Cancel

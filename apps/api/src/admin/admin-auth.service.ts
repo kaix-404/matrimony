@@ -142,7 +142,7 @@ export class AdminAuthService {
     // and `lastLoginAt` are only reset once the code is verified, so a stolen
     // password cannot clear the lockout trail or fake a completed sign-in.
     if (admin.mfaSecret) {
-      return this.issueMfaChallenge(admin.id, 'totp');
+      return this.signChallenge(admin.id, 'totp', null);
     }
 
     // No authenticator, but a number on file: the second factor is a code texted
@@ -168,7 +168,10 @@ export class AdminAuthService {
       data: { lastLoginAt: now, failedLoginCount: 0, lockedUntil: null },
     });
 
-    return this.issuePair(admin.id, admin.roles.map((assignment) => assignment.role.slug));
+    return this.issuePair(
+      admin.id,
+      admin.roles.map((assignment) => assignment.role.slug),
+    );
   }
 
   /**
@@ -230,7 +233,10 @@ export class AdminAuthService {
       data: { lastLoginAt: now, failedLoginCount: 0, lockedUntil: null },
     });
 
-    return this.issuePair(admin.id, admin.roles.map((assignment) => assignment.role.slug));
+    return this.issuePair(
+      admin.id,
+      admin.roles.map((assignment) => assignment.role.slug),
+    );
   }
 
   /**
@@ -470,10 +476,6 @@ export class AdminAuthService {
       expires_in: MFA_CHALLENGE_TTL_SECONDS,
       phone_hint: phoneHint,
     };
-  }
-
-  private issueMfaChallenge(adminId: string, method: 'totp'): Promise<AdminMfaChallenge> {
-    return this.signChallenge(adminId, method, null);
   }
 
   /**
