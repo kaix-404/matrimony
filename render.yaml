@@ -182,7 +182,12 @@ services:
         value: production
       - key: ADMIN_API_BASE_URL
         value: 'https://matrimony-api-2bmy.onrender.com/api/v1'
-    healthCheckPath: /login
+    # `/healthz`, not `/login`. The sign-in page renders a form and calls
+    # nothing, so it answered 200 while the API was unreachable — and the API is
+    # the only thing the console does. `/healthz` asks the API for its liveness
+    # payload and answers 503 when it cannot get it. See
+    # apps/admin/app/healthz/route.ts.
+    healthCheckPath: /healthz
     autoDeploy: true
     rootDirectory: .
     # Same reasoning as the API: the console is not rebuilt for a change to the

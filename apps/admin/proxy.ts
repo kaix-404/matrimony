@@ -26,10 +26,12 @@ import {
  *
  * `/login` and `/api/*` are excluded. The login page must render without a
  * session, and the route handlers under `/api/session` are what mint one in the
- * first place - guarding them here would make login impossible.
+ * first place - guarding them here would make login impossible. `/healthz` is
+ * excluded as well: Render requests it with no cookie, and a redirect to the
+ * login page answers 3xx, which Render counts as a healthy check.
  */
 export const config = {
-  matcher: ['/((?!login|api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!login|api|healthz|_next/static|_next/image|favicon.ico).*)'],
 };
 
 interface TokenPair {
