@@ -22,6 +22,30 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The proxy's own failure code.
+ *
+ * `landing/server.js` answers 502 with this code when it could not reach the API
+ * at all — a free-tier instance that has spun down, most of the time. It is
+ * distinct from the API's errors, which always carry a code of their own, and
+ * from the edge's HTML error page, which carries none.
+ */
+export const API_UNAVAILABLE_CODE = 'API_UNAVAILABLE';
+
+/**
+ * Whether a failure means "nothing is listening yet" rather than a real answer.
+ *
+ * The API's refusals carry a code (`SMS_UNAVAILABLE`, say), so a coded answer is
+ * the API speaking and must reach the member verbatim. What is left is the
+ * proxy's 502 and the edge's own 502/503/504 while an instance boots — the
+ * only cases worth waiting out and retrying.
+ */
+export function isColdStartFailure(status: number, code: string | null): boolean {
+  if (code === API_UNAVAILABLE_CODE) return true;
+  if (code !== null) return false;
+  return status === 502 || status === 503 || status === 504;
+}
+
 /** Pulls the human message and machine code out of a NestJS error body. */
 export function parseApiErrorBody(raw: string): { message: string | null; code: string | null } {
   let data: unknown;

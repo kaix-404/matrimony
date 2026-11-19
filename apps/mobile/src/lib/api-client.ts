@@ -1,5 +1,10 @@
 import { config } from './config';
-import { ApiError, parseApiErrorBody } from './api-errors';
+import {
+  API_UNAVAILABLE_CODE,
+  ApiError,
+  isColdStartFailure,
+  parseApiErrorBody,
+} from './api-errors';
 import type {
   AccountDeletionResult,
   BiodataExtraction,
@@ -144,6 +149,32 @@ function serializeQuery(params: Record<string, unknown>, prefix = ''): string {
   return parts.join('&');
 }
 
+/** What a member reads when the API is booting rather than broken. */
+const COLD_START_MESSAGE =
+  'The server is starting up after being idle. This can take up to a minute — please try again.';
+
+/**
+ * Answers that mean nothing is listening yet: the proxy's 502, and the edge's
+ * own 502/503/504 while a free instance boots.
+ */
+const COLD_START_STATUSES = new Set([502, 503, 504]);
+
+/**
+ * Methods that can be replayed without changing the outcome.
+ *
+ * A POST is deliberately absent: "it never arrived" and "it arrived and the
+ * answer was lost" look identical from here, and replaying an OTP request is a
+ * second text message to the member's phone.
+ */
+const REPLAYABLE_METHODS = new Set(['GET', 'HEAD', 'PUT', 'DELETE']);
+
+/** Grows, so a booting instance is not hammered, and outlasts a short boot. */
+const COLD_START_DELAYS_MS = [1_000, 3_000, 7_000, 15_000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 class ApiClient {
   private async fetchJson<T>(path: string, init?: RequestInit, mayRetry = true): Promise<T> {
     const headers = new Headers(init?.headers || {});
@@ -151,44 +182,73 @@ class ApiClient {
       headers.set('Content-Type', 'application/json');
     }
 
-    const response = await fetch(buildUrl(path), {
-      ...init,
-      headers,
-    });
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const mayWaitForBoot = mayRetry && REPLAYABLE_METHODS.has(method);
 
-    // The access token lives 15 minutes, which a member reading profiles will
-    // cross mid-session. A refused bearer is not a failed action if a refresh
-    // token can mint another, so retry once with the new one — exactly once, so
-    // a server that keeps answering 401 cannot loop. Requests without a bearer
-    // (OTP, register, refresh itself) skip this entirely.
-    if (response.status === 401 && mayRetry && unauthorizedHandler !== null) {
-      const bearer = headers.get('Authorization');
-      const stale = bearer?.startsWith('Bearer ') ? bearer.slice('Bearer '.length) : null;
-      const fresh = stale === null ? null : await unauthorizedHandler(stale);
-      if (fresh !== null && fresh !== stale) {
-        const retryHeaders = new Headers(headers);
-        retryHeaders.set('Authorization', 'Bearer ' + fresh);
-        return this.fetchJson<T>(path, { ...init, headers: retryHeaders }, false);
+    for (let attempt = 0; ; attempt += 1) {
+      let response: Response;
+      try {
+        response = await fetch(buildUrl(path), {
+          ...init,
+          headers,
+        });
+      } catch {
+        // A dropped connection is how a sleeping instance looks from here. The
+        // transport cannot tell that from an offline phone, so it says both and
+        // lets the retry resolve it.
+        const pause = COLD_START_DELAYS_MS[attempt];
+        if (mayWaitForBoot && pause !== undefined) {
+          await sleep(pause);
+          continue;
+        }
+        throw new ApiError(0, COLD_START_MESSAGE, API_UNAVAILABLE_CODE);
       }
-    }
 
-    if (!response.ok) {
-      // The body is the API's own account of what went wrong; keeping its code
-      // is what lets a screen special-case a refusal (an undeliverable OTP)
-      // without matching on prose.
-      const { message, code } = parseApiErrorBody(await response.text());
-      throw new ApiError(
-        response.status,
-        message ?? 'Request failed (HTTP ' + response.status + ')',
-        code,
-      );
-    }
+      // The access token lives 15 minutes, which a member reading profiles will
+      // cross mid-session. A refused bearer is not a failed action if a refresh
+      // token can mint another, so retry once with the new one — exactly once, so
+      // a server that keeps answering 401 cannot loop. Requests without a bearer
+      // (OTP, register, refresh itself) skip this entirely.
+      if (response.status === 401 && mayRetry && unauthorizedHandler !== null) {
+        const bearer = headers.get('Authorization');
+        const stale = bearer?.startsWith('Bearer ') ? bearer.slice('Bearer '.length) : null;
+        const fresh = stale === null ? null : await unauthorizedHandler(stale);
+        if (fresh !== null && fresh !== stale) {
+          const retryHeaders = new Headers(headers);
+          retryHeaders.set('Authorization', 'Bearer ' + fresh);
+          return this.fetchJson<T>(path, { ...init, headers: retryHeaders }, false);
+        }
+      }
 
-    if (response.status === 204) {
-      return undefined as T;
-    }
+      if (!response.ok) {
+        // The body is the API's own account of what went wrong; keeping its code
+        // is what lets a screen special-case a refusal (an undeliverable OTP)
+        // without matching on prose.
+        const { message, code } = parseApiErrorBody(await response.text());
+        if (COLD_START_STATUSES.has(response.status) && isColdStartFailure(response.status, code)) {
+          const pause = COLD_START_DELAYS_MS[attempt];
+          if (mayWaitForBoot && pause !== undefined) {
+            await sleep(pause);
+            continue;
+          }
+          // Nothing that carries a code reaches here, so there is no server
+          // message to show: what the edge or the proxy sent is an error page,
+          // and its markup is not something to put in front of a member.
+          throw new ApiError(response.status, COLD_START_MESSAGE, API_UNAVAILABLE_CODE);
+        }
+        throw new ApiError(
+          response.status,
+          message ?? 'Request failed (HTTP ' + response.status + ')',
+          code,
+        );
+      }
 
-    return (await response.json()) as Promise<T>;
+      if (response.status === 204) {
+        return undefined as T;
+      }
+
+      return (await response.json()) as Promise<T>;
+    }
   }
 
   async requestOtp(input: unknown): Promise<OtpRequested & { dev_code?: string }> {

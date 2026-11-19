@@ -239,10 +239,68 @@ function serveHealth(res) {
   res.end(JSON.stringify({ status: result.ok ? 'ok' : 'unavailable', ...result }));
 }
 
-/** Streams API traffic to the Nest service and back, headers and all. */
-function proxyApi(req, res) {
+/**
+ * Sockets to the API, kept and reused.
+ *
+ * Keeping them alive is right for a service that answers dozens of calls a page,
+ * and it is also where the cold-start 502 came from: the pooled connection to a
+ * free instance that has since spun down is dead, the next request's write
+ * fails immediately with `ECONNRESET`, and the member was told the API was
+ * unreachable while it was only asleep. `forwardApi` replays that one failure on
+ * a fresh socket.
+ */
+const apiAgent = new https.Agent({ keepAlive: true, maxSockets: 32 });
+
+/** A free instance takes about a minute to boot; stop waiting well after that. */
+const UPSTREAM_TIMEOUT_MS = 95_000;
+
+/** How long to wait before replaying a request the connection refused. */
+const RETRY_DELAY_MS = 250;
+
+/** A body larger than this is streamed, and a streamed body is not replayed. */
+const MAX_RETRY_BODY_BYTES = 256 * 1024;
+
+/**
+ * Failures where nothing was answered, so a replay cannot duplicate work.
+ *
+ * `ETIMEDOUT` is deliberately absent: the timeout above means the connection was
+ * fine and the API never answered, and replaying that would double a wait the
+ * member has already spent.
+ */
+const RETRYABLE_CODES = new Set([
+  'ECONNRESET',
+  'EPIPE',
+  'ECONNREFUSED',
+  'EHOSTUNREACH',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+]);
+
+/**
+ * The last reason the proxy could not reach the API.
+ *
+ * The 502 used to be invented with no cause recorded anywhere, so the one
+ * question worth asking about it — refused connection, reset pooled socket, or
+ * timeout? — had no answer in the logs.
+ */
+let lastApiFailure = '';
+
+function reportApiFailure(error) {
+  const reason = `${error?.code ?? 'error'}: ${error?.message ?? 'unknown'}`;
+  if (reason === lastApiFailure) return;
+  lastApiFailure = reason;
+  console.error(`API request failed: ${reason}`);
+}
+
+function forwardApi(req, res, body, attempt) {
   const target = new URL(API_ORIGIN);
   const headers = { ...req.headers, host: target.host };
+  if (body !== null) {
+    // Replayed from memory, so it goes out framed by its length rather than as
+    // the client's original chunked stream.
+    delete headers['transfer-encoding'];
+    headers['content-length'] = String(body.length);
+  }
 
   const upstream = https.request(
     {
@@ -252,6 +310,7 @@ function proxyApi(req, res) {
       method: req.method,
       path: req.url,
       headers,
+      agent: apiAgent,
     },
     (upstreamRes) => {
       upstreamRes.on('error', () => res.destroy());
@@ -260,22 +319,71 @@ function proxyApi(req, res) {
     },
   );
 
+  upstream.setTimeout(UPSTREAM_TIMEOUT_MS, () => {
+    upstream.destroy(Object.assign(new Error('the API did not answer'), { code: 'ETIMEDOUT' }));
+  });
+
   // The browser can give up first — a closed tab, a timeout, a reload. Without
   // this the upstream request keeps its socket open for a response nobody will
   // read.
-  res.on('close', () => upstream.destroy());
+  res.once('close', () => upstream.destroy());
 
-  upstream.on('error', () => {
-    // A free-tier API asleep behind a cold start can take a while, but a refused
-    // connection is ours to report: answer with the shape the app's error parser
-    // already understands instead of dropping the socket.
+  upstream.on('error', (error) => {
+    // Only a body held in memory can be replayed: the streamed path below has
+    // already drained `req`, so a second attempt would send an empty request to
+    // the API and turn a connection failure into a malformed one.
+    const replayable = body !== null && RETRYABLE_CODES.has(error?.code);
+    if (replayable && attempt === 0 && !res.headersSent && !res.writableEnded) {
+      // One replay on a fresh socket. The first failure is usually the stale
+      // pooled connection described above, and the replay is what waits out the
+      // boot instead of reporting it as an outage.
+      setTimeout(() => forwardApi(req, res, body, 1), RETRY_DELAY_MS);
+      return;
+    }
+
+    reportApiFailure(error);
     if (!res.headersSent && !res.writableEnded) {
-      res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
-      res.end(JSON.stringify({ statusCode: 502, message: 'The API is unreachable right now.' }));
+      res.writeHead(502, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+      });
+      // `code` is what lets the app tell "the server is starting" apart from a
+      // refusal it should show verbatim; without it the app had only the HTML
+      // error page to display.
+      res.end(
+        JSON.stringify({
+          statusCode: 502,
+          code: 'API_UNAVAILABLE',
+          message: 'The API is unreachable right now.',
+        }),
+      );
     }
   });
 
-  req.pipe(upstream);
+  if (body !== null) upstream.end(body);
+  else req.pipe(upstream);
+}
+
+/**
+ * Proxies `/api` to the Nest service, headers and all.
+ *
+ * A body small enough to hold is read first so the request can be replayed once
+ * when the connection fails. The alternative is what used to happen: the first
+ * request after the API's free instance slept met a stale pooled socket and the
+ * member was told the server was unreachable. Larger bodies, and requests that
+ * arrive chunked without a length, are streamed and never replayed.
+ */
+function proxyApi(req, res) {
+  const declared = Number(req.headers['content-length']);
+  const lengthKnown = Number.isFinite(declared) && declared >= 0;
+  const hasBody = req.method !== 'GET' && req.method !== 'HEAD';
+  const canHold = !hasBody || (lengthKnown && declared <= MAX_RETRY_BODY_BYTES);
+  if (!canHold) return forwardApi(req, res, null, 0);
+
+  const chunks = [];
+  req.on('error', () => res.destroy());
+  req.on('data', (chunk) => chunks.push(chunk));
+  req.on('end', () => forwardApi(req, res, Buffer.concat(chunks), 0));
 }
 
 /**
