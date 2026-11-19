@@ -254,16 +254,22 @@ function proxyApi(req, res) {
       headers,
     },
     (upstreamRes) => {
+      upstreamRes.on('error', () => res.destroy());
       res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
       upstreamRes.pipe(res);
     },
   );
 
+  // The browser can give up first — a closed tab, a timeout, a reload. Without
+  // this the upstream request keeps its socket open for a response nobody will
+  // read.
+  res.on('close', () => upstream.destroy());
+
   upstream.on('error', () => {
     // A free-tier API asleep behind a cold start can take a while, but a refused
     // connection is ours to report: answer with the shape the app's error parser
     // already understands instead of dropping the socket.
-    if (!res.headersSent) {
+    if (!res.headersSent && !res.writableEnded) {
       res.writeHead(502, { 'Content-Type': 'application/json; charset=utf-8' });
       res.end(JSON.stringify({ statusCode: 502, message: 'The API is unreachable right now.' }));
     }
@@ -272,13 +278,56 @@ function proxyApi(req, res) {
   req.pipe(upstream);
 }
 
-const server = http.createServer((req, res) => {
-  const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+/**
+ * The path this request is routed on.
+ *
+ * `new URL(req.url, base)` is not safe here. Node's HTTP parser accepts request
+ * targets that the WHATWG parser rejects — `//[` is one — and that throw lands
+ * inside the request handler, where nothing catches it, so it ends the process.
+ * Every request after it, `/app/auth` included, then got Render's 502 page
+ * until the service restarted, and a scanner needs only one such path to do it.
+ */
+function requestPath(req) {
+  const target = req.url || '/';
+  // Normal requests are origin-form already: split, do not parse, so there is
+  // nothing here that can throw.
+  if (target.startsWith('/')) return target.split(/[?#]/)[0] || '/';
+  // Absolute-form (a proxy forwarding to us) does have to be parsed, so the one
+  // parse that can throw is the one that is caught.
+  try {
+    return new URL(target).pathname || '/';
+  } catch {
+    return '/';
+  }
+}
 
-  if (pathname === '/health' || pathname === '/healthz') return serveHealth(res);
-  if (pathname === '/api' || pathname.startsWith('/api/')) return proxyApi(req, res);
-  if (pathname === '/app' || pathname.startsWith('/app/')) return serveApp(req, res, pathname);
-  return serveLanding(res);
+const server = http.createServer((req, res) => {
+  try {
+    const pathname = requestPath(req);
+
+    if (pathname === '/health' || pathname === '/healthz') return serveHealth(res);
+    if (pathname === '/api' || pathname.startsWith('/api/')) return proxyApi(req, res);
+    if (pathname === '/app' || pathname.startsWith('/app/')) return serveApp(req, res, pathname);
+    return serveLanding(res);
+  } catch (err) {
+    // One request must never be able to end the process: the health check would
+    // pass again after the restart and say nothing about it, while every request
+    // in between got an error page the service did not write.
+    console.error(`Request failed: ${req.method} ${req.url}`, err);
+    if (res.headersSent) return res.destroy();
+    res.writeHead(500, {
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-store',
+    });
+    res.end('Internal error');
+  }
+});
+
+// A malformed request line never reaches a handler at all; Node emits it here.
+// The default drops the socket, but that must not throw out of the server either.
+server.on('clientError', (err, socket) => {
+  if (err.code === 'ECONNRESET' || !socket.writable) return socket.destroy();
+  socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
 });
 
 server.listen(PORT, () => {
