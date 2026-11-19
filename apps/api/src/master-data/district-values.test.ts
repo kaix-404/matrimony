@@ -16,7 +16,7 @@ import { STATE_VALUES } from '../../prisma/master-data-values';
  */
 const EXPECTED_DISTRICTS: Record<string, number> = {
   'Andaman & Nicobar': 3,
-  'Andhra Pradesh': 26,
+  'Andhra Pradesh': 28,
   'Arunachal Pradesh': 27,
   Assam: 35,
   Bihar: 38,

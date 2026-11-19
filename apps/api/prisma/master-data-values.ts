@@ -142,7 +142,7 @@ export const STATE_VALUES: MasterListValueSeed[] = [
   { value: 'West Bengal' },
 ];
 
-// Districts live in their own file (785 rows): grouping them by state here would
+// Districts live in their own file (787 rows): grouping them by state here would
 // bury the rest of the client's lists.
 export { DISTRICT_VALUES } from './district-values';
 
