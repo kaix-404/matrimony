@@ -45,7 +45,10 @@ export class StorageService implements OnApplicationBootstrap {
   constructor(@Inject('ENV') env: Env) {
     this.bucket = env.S3_BUCKET;
     this.signedUrlTtl = env.S3_SIGNED_URL_TTL;
-    this.corsOrigins = env.S3_CORS_ORIGINS.split(',')
+    // Tolerant of an env stub that predates the field: booting the graph must
+    // not fail over an optional setting, and no origins means no write.
+    this.corsOrigins = (env.S3_CORS_ORIGINS ?? '')
+      .split(',')
       .map((origin) => origin.trim())
       .filter((origin) => origin !== '');
 
@@ -99,6 +102,10 @@ export class StorageService implements OnApplicationBootstrap {
           throw error;
         });
       const rules = mergeCorsRules(current.CORSRules ?? [], this.corsOrigins);
+      if (JSON.stringify(rules) === JSON.stringify(current.CORSRules ?? [])) {
+        this.logger.log(`Bucket CORS already allows uploads from ${this.corsOrigins.join(', ')}`);
+        return;
+      }
       await this.client.send(
         new PutBucketCorsCommand({ Bucket: this.bucket, CORSConfiguration: { CORSRules: rules } }),
       );

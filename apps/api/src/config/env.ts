@@ -118,8 +118,12 @@ export function createEnvSchema(isProduction: boolean) {
      * presigned URL is still a cross-origin request: without a CORS rule the
      * preflight is refused and nothing can be uploaded from the website. Empty
      * leaves the bucket's rules untouched.
+     *
+     * The default is the deployed site, the same way the landing server defaults
+     * its API origin to the deployed API: uploads come from exactly one origin,
+     * and a deploy that does not carry the variable must still work.
      */
-    S3_CORS_ORIGINS: z.string().default(''),
+    S3_CORS_ORIGINS: z.string().default('https://networth-matrimony.onrender.com'),
 
     // -- payments (section 14) --------------------------------------------
     RAZORPAY_KEY_ID: z.string().default(''),
