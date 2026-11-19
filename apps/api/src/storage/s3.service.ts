@@ -1,5 +1,12 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { PutObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
+import {
+  GetBucketCorsCommand,
+  PutBucketCorsCommand,
+  PutObjectCommand,
+  GetObjectCommand,
+  S3Client,
+  type CORSRule,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { Env } from '../config/env';
 /**
@@ -16,11 +23,16 @@ import type { Env } from '../config/env';
  * job is serving images, and it means the API is never the thing holding an
  * unmoderated image in memory.
  */
+/** The one CORS rule this service owns; rules with other ids are left alone. */
+const CORS_RULE_ID = 'member-app-uploads';
+
 @Injectable()
-export class StorageService {
+export class StorageService implements OnApplicationBootstrap {
   private readonly client: S3Client;
   private readonly bucket: string;
   private readonly signedUrlTtl: number;
+  private readonly corsOrigins: string[];
+  private readonly logger = new Logger(StorageService.name);
 
   /**
    * `@Inject('ENV')` is required rather than decorative: `Env` is a TypeScript
@@ -33,6 +45,10 @@ export class StorageService {
   constructor(@Inject('ENV') env: Env) {
     this.bucket = env.S3_BUCKET;
     this.signedUrlTtl = env.S3_SIGNED_URL_TTL;
+    this.corsOrigins = env.S3_CORS_ORIGINS.split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin !== '');
+
     this.client = new S3Client({
       // R2 is addressed as a single global service by account, so `endpoint`
       // plus path-style addressing is what makes it work; a regional AWS
@@ -44,7 +60,53 @@ export class StorageService {
         accessKeyId: env.S3_ACCESS_KEY,
         secretAccessKey: env.S3_SECRET_KEY,
       },
+      // SDK v3 attaches a CRC32 checksum to every request. For a presigned PUT
+      // it can only sign a placeholder — the body does not exist yet — so the
+      // URL went out asking for `x-amz-checksum-crc32=AAAAAA==`, which no
+      // browser can reproduce; the upload is then rejected for a checksum
+      // mismatch even when everything else is right. Nothing here needs an
+      // SDK-computed checksum: what a presigned PUT enforces is the size the
+      // API signed.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
+  }
+
+  /**
+   * Applies the bucket's browser-upload rule at boot.
+   *
+   * A presigned PUT is still a cross-origin request: the browser sends an
+   * OPTIONS preflight first, and a bucket with no CORS rule refuses it — which
+   * is exactly how photo and biodata uploads failed on the website while they
+   * worked in the app. The rule is written from here because this process is
+   * the one place that already holds the bucket's credentials, so a deploy
+   * fixes it without anyone editing the bucket by hand.
+   *
+   * Best-effort, like the demo seed: the API must boot when the bucket cannot be
+   * reached, and uploads fail loudly on their own until it can.
+   */
+  async onApplicationBootstrap(): Promise<void> {
+    if (this.corsOrigins.length === 0) return;
+    try {
+      // A bucket that has never had a CORS rule answers GetBucketCors with
+      // `NoSuchCORSConfiguration` rather than an empty list, which is the very
+      // case this exists for — starting from no rules, not skipping them.
+      const current = await this.client
+        .send(new GetBucketCorsCommand({ Bucket: this.bucket }))
+        .catch((error: unknown) => {
+          const name = (error as { name?: string }).name;
+          if (name === 'NoSuchCORSConfiguration') return { CORSRules: [] as CORSRule[] };
+          throw error;
+        });
+      const rules = mergeCorsRules(current.CORSRules ?? [], this.corsOrigins);
+      await this.client.send(
+        new PutBucketCorsCommand({ Bucket: this.bucket, CORSConfiguration: { CORSRules: rules } }),
+      );
+      this.logger.log(`Bucket CORS allows browser uploads from ${this.corsOrigins.join(', ')}`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Could not apply bucket CORS (website uploads will be blocked): ${detail}`);
+    }
   }
 
   /**
@@ -107,4 +169,26 @@ export class StorageService {
     }
     return Buffer.concat(chunks);
   }
+}
+
+/**
+ * The upload rule, merged into whatever else the bucket already allows.
+ *
+ * Ours is replaced rather than appended, so changing the allowed origins is
+ * idempotent instead of accumulating rules; every rule we did not write is kept
+ * as it was, because this service does not own them.
+ */
+export function mergeCorsRules(existing: CORSRule[], origins: string[]): CORSRule[] {
+  const ours: CORSRule = {
+    ID: CORS_RULE_ID,
+    AllowedOrigins: [...new Set(origins)],
+    AllowedMethods: ['GET', 'PUT', 'HEAD'],
+    // `content-type` is the header the upload sends; `content-length` is added
+    // by the browser itself and allowed by the wildcard.
+    AllowedHeaders: ['*'],
+    ExposeHeaders: ['ETag'],
+    MaxAgeSeconds: 3600,
+  };
+
+  return [...existing.filter((rule) => rule.ID !== CORS_RULE_ID), ours];
 }

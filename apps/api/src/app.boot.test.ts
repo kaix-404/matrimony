@@ -32,6 +32,8 @@ const TEST_ENV = {
   S3_BUCKET: 'test-bucket',
   S3_ACCESS_KEY: 'test-access-key',
   S3_SECRET_KEY: 'test-secret-key',
+  // Empty leaves the bucket's rules alone; the service must still construct.
+  S3_CORS_ORIGINS: '',
   API_GLOBAL_PREFIX: 'api',
   API_CORS_ORIGINS: [],
   RATE_LIMIT_TTL: 60,

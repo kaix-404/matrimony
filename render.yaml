@@ -46,6 +46,13 @@ services:
         sync: false
       - key: S3_FORCE_PATH_STYLE
         value: 'true'
+      # Browsers upload photos and biodata straight to the bucket, and a
+      # presigned PUT is still cross-origin: without a rule naming this origin
+      # the preflight is refused and uploads fail only on the website. The API
+      # applies this to the bucket at boot, idempotently, because it is the one
+      # process holding the bucket's credentials.
+      - key: S3_CORS_ORIGINS
+        value: 'https://networth-matrimony.onrender.com'
       - key: S3_SIGNED_URL_TTL
         value: '300'
       - key: ADMIN_API_BASE_URL

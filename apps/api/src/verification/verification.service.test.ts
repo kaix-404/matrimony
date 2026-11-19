@@ -72,23 +72,12 @@ function harness() {
       },
       findFirst: async ({ where }: { where: { providerReference: string } }) =>
         identities.find((i) => i.providerReference === where.providerReference) ?? null,
-      upsert: async ({
-        where,
-        create,
-        update,
-      }: {
-        where: { userId: string };
-        create: Partial<FakeIdentity>;
-        update: Partial<FakeIdentity>;
-      }) => {
-        const existing = identities.find((i) => i.userId === where.userId);
-        if (existing) {
-          Object.assign(existing, update);
-          return existing;
-        }
+      // Each attempt creates its own row (the vendor refuses a reused
+      // `verification_id`), so the fake offers create/delete rather than upsert.
+      create: async ({ data }: { data: Partial<FakeIdentity> }) => {
         const row: FakeIdentity = {
           id: `i${seq++}`,
-          userId: where.userId,
+          userId: 'u1',
           providerReference: null,
           providerReferenceExpiresAt: null,
           status: 'PENDING',
@@ -98,10 +87,14 @@ function harness() {
           nameOnId: null,
           yearOfBirth: null,
           consentRecordId: null,
-          ...create,
+          ...data,
         };
         identities.push(row);
         return row;
+      },
+      delete: async ({ where }: { where: { userId: string } }) => {
+        const at = identities.findIndex((i) => i.userId === where.userId);
+        if (at !== -1) identities.splice(at, 1);
       },
       update: async ({ where, data }: { where: { id: string }; data: Partial<FakeIdentity> }) => {
         const row = identities.find((i) => i.id === where.id)!;
@@ -418,6 +411,33 @@ describe('VerificationService.initiateVerification', () => {
     await service.initiateVerification('u1', { provider: 'DIGILOCKER' });
 
     expect(calls).toEqual([h.identities[0].id]);
+  });
+
+  it('uses a new verification id for a retry, which Cashfree requires', async () => {
+    const h = harness();
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+    const seen: string[] = [];
+    const service = h.service(
+      gateway({
+        createDigiLockerSession: async ({ verificationId }) => {
+          seen.push(verificationId);
+          return {
+            providerReference: `cf-${seen.length}`,
+            url: 'https://verification-test.cashfree.com/dgl/x',
+            expiresAt: new Date(),
+          };
+        },
+      }),
+    );
+
+    await service.initiateVerification('u1', { provider: 'DIGILOCKER' });
+    await service.initiateVerification('u1', { provider: 'DIGILOCKER' });
+
+    // A reused id is answered with 409 `verification_id already exists`, so a
+    // member retrying after a lapsed link would never get a new one.
+    expect(seen).toHaveLength(2);
+    expect(seen[0]).not.toBe(seen[1]);
+    expect(h.identities).toHaveLength(1);
   });
 
   it('fails closed when the supplier is not configured', async () => {

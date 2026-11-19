@@ -102,29 +102,24 @@ export class VerificationService {
       },
     });
 
-    const identity = await this.prisma.identityVerification.upsert({
-      where: { userId },
-      create: {
+    // A fresh row per attempt, because its id is the `verification_id` sent to
+    // Cashfree and Cashfree refuses an id it has already seen (409,
+    // `verification_id already exists`). Updating the existing row would keep
+    // its id, so every attempt after a failed or lapsed one was refused for a
+    // reason that had nothing to do with the member. The old row is deleted
+    // rather than updated; the consent record it referenced is a row of its own
+    // and stays, so the audit trail survives.
+    if (existing) {
+      await this.prisma.identityVerification.delete({ where: { userId } });
+    }
+
+    const identity = await this.prisma.identityVerification.create({
+      data: {
         userId,
         provider: body.provider as never,
         vendor: 'CASHFREE' as never,
         status: 'PENDING' as never,
         consentRecordId: consent.id,
-      },
-      update: {
-        provider: body.provider as never,
-        vendor: 'CASHFREE' as never,
-        status: 'PENDING' as never,
-        consentRecordId: consent.id,
-        // A fresh attempt invalidates the previous verdict and reference: the
-        // old URL has expired, and leaving `verifiedAt` set on a row that is
-        // now PENDING would report a pass that no longer has a session.
-        verifiedAt: null,
-        failureCode: null,
-        failureReason: null,
-        providerReference: null,
-        providerReferenceExpiresAt: null,
-        updatedAt: now,
       },
     });
 

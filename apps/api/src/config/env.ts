@@ -111,6 +111,15 @@ export function createEnvSchema(isProduction: boolean) {
     S3_FORCE_PATH_STYLE: booleanish.default(true),
     /** Short by design: presigned photo URLs must not be scrapeable (section 41). */
     S3_SIGNED_URL_TTL: int(30, 3600).default(300),
+    /**
+     * Origins the bucket must accept browser uploads from, comma-separated.
+     *
+     * Photos and biodata are PUT straight to the bucket from the app, and a
+     * presigned URL is still a cross-origin request: without a CORS rule the
+     * preflight is refused and nothing can be uploaded from the website. Empty
+     * leaves the bucket's rules untouched.
+     */
+    S3_CORS_ORIGINS: z.string().default(''),
 
     // -- payments (section 14) --------------------------------------------
     RAZORPAY_KEY_ID: z.string().default(''),
