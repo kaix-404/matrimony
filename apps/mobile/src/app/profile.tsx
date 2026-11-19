@@ -266,6 +266,16 @@ export default function ProfileScreen() {
 
       <PrimaryButton label="Edit profile" onPress={() => router.push('/profile-edit')} />
       {/*
+        Next to the profile rather than in Settings: preferences decide who
+        appears in the feed, which is the same thing editing your profile is
+        about, and they were two taps deep in a menu nobody opens.
+      */}
+      <PrimaryButton
+        variant="outline"
+        label="Partner preferences"
+        onPress={() => router.push('/partner-preferences')}
+      />
+      {/*
         Sharing your own profile opens the same member route the feed uses, and
         the recipient sees the locked preview until they unlock — which is what
         section 13 asks for, and it means sharing never reveals more than the

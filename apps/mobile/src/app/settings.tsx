@@ -156,11 +156,6 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>More</Text>
-        <PrimaryButton
-          variant="outline"
-          label="Partner preferences"
-          onPress={() => router.push('/partner-preferences')}
-        />
         <PrimaryButton variant="outline" label="Pricing" onPress={() => router.push('/pricing')} />
         <PrimaryButton variant="outline" label="Help" onPress={() => router.push('/help')} />
       </View>

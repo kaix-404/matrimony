@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Linking, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
@@ -13,14 +13,19 @@ import { colors, radii, spacing, typography } from '../theme/tokens';
  * is a support ticket waiting to happen, so there is deliberately no answer to
  * anything the client has not decided yet.
  *
- * There is no support address in this file because the business has not given
- * one; the closing card points at the team instead of inventing an inbox.
+ * The closing card carries the support address the business gave us: a help page
+ * that ends without one leaves the member with nowhere to go.
  */
 
 interface Entry {
   question: string;
   answer: string;
 }
+
+/** The address the team answers from. Kept in one place so the card and any
+ * later surface cannot drift apart. */
+const SUPPORT_EMAIL = 'tetflow2025@gmail.com';
+const SUPPORT_EMAIL_URL = `mailto:${SUPPORT_EMAIL}`;
 
 const GETTING_STARTED: Entry[] = [
   {
@@ -41,7 +46,7 @@ const GETTING_STARTED: Entry[] = [
   {
     question: 'Why did my feed get smaller?',
     answer:
-      'Partner preferences in Settings narrow the feed. A field you filled in excludes profiles that do not match it — including profiles that left that field blank. Clear the field to stop filtering on it.',
+      'Your partner preferences, on your profile, narrow the feed. A field you filled in excludes profiles that do not match it — including profiles that left that field blank. Clear the field to stop filtering on it.',
   },
 ];
 
@@ -122,8 +127,16 @@ export default function HelpScreen() {
       <View style={styles.card}>
         <Text style={styles.question}>Still stuck?</Text>
         <Text style={styles.answer}>
-          Contact the team that invited you to join, with your registered mobile number and what you
-          were trying to do. Anything about a payment, include the amount and the date.
+          Email us at{' '}
+          <Text
+            style={styles.link}
+            accessibilityRole="link"
+            onPress={() => void Linking.openURL(SUPPORT_EMAIL_URL)}
+          >
+            {SUPPORT_EMAIL}
+          </Text>{' '}
+          with your registered mobile number and what you were trying to do. Anything about a
+          payment, include the amount and the date.
         </Text>
       </View>
     </Screen>
@@ -151,5 +164,9 @@ const styles = StyleSheet.create({
   answer: {
     color: colors.textMuted,
     ...typography.body,
+  },
+  link: {
+    color: colors.primary,
+    fontWeight: '600',
   },
 });
