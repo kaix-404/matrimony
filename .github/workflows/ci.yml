@@ -102,6 +102,13 @@ jobs:
           EXPO_PUBLIC_API_BASE_URL: https://matrimony-api-2bmy.onrender.com/api/v1
         run: npx expo export --platform web --output-dir dist
 
+      # The landing server answers every `/app` and `/api` request, and one
+      # malformed request target once ended its process — which surfaced as
+      # Render's 502 page on every path until the service restarted. The export
+      # it asserts against is the one just built above.
+      - name: Test the landing server
+        run: npm run test:landing
+
       # Catches schema/SQL drift that `prisma validate` cannot: validate only
       # parses the schema, it does not prove the SQL applies.
       - name: Apply migrations
