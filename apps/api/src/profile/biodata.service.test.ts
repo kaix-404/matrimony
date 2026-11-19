@@ -45,10 +45,16 @@ class FakePrisma {
 class FakeStorage {
   objects = new Map<string, Buffer>();
   signCalls: { key: string; mime: string; size: number }[] = [];
+  writes: { key: string; mime: string; size: number }[] = [];
 
   presignUpload = async (key: string, mime: string, size: number) => {
     this.signCalls.push({ key, mime, size });
     return `https://storage.test/${key}?sig=abc`;
+  };
+
+  putObject = async (key: string, body: Buffer, mime: string) => {
+    this.writes.push({ key, mime, size: body.byteLength });
+    this.objects.set(key, body);
   };
 
   getObjectBytes = async (key: string) => {
@@ -112,6 +118,55 @@ describe('BiodataService.initiate', () => {
     await expect(
       service.initiate('u1', { mime_type: 'application/pdf', byte_size: 1024 }),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('BiodataService.uploadBytes', () => {
+  it('stores the document under the caller own prefix with its type', async () => {
+    const { service, storage } = await build();
+
+    await service.uploadBytes(
+      'u1',
+      'biodata/p1/doc.pdf',
+      Buffer.from('%PDF-1.4 test'),
+      'application/pdf',
+    );
+
+    expect(storage.writes).toEqual([
+      { key: 'biodata/p1/doc.pdf', mime: 'application/pdf', size: 13 },
+    ]);
+  });
+
+  it("refuses a key outside the caller own prefix", async () => {
+    const { service, storage } = await build();
+
+    await expect(
+      service.uploadBytes('u1', 'biodata/p2/steal.pdf', Buffer.from('%PDF'), 'application/pdf'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(storage.writes).toHaveLength(0);
+  });
+
+  it('refuses a type that is not a document', async () => {
+    const { service, storage } = await build();
+
+    await expect(
+      service.uploadBytes('u1', 'biodata/p1/doc.pdf', Buffer.from('<html>'), 'text/html'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(storage.writes).toHaveLength(0);
+  });
+
+  it('refuses a document over the size cap', async () => {
+    const { service, storage } = await build();
+
+    await expect(
+      service.uploadBytes(
+        'u1',
+        'biodata/p1/big.pdf',
+        Buffer.alloc(10 * 1024 * 1024 + 1),
+        'application/pdf',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(storage.writes).toHaveLength(0);
   });
 });
 

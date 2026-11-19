@@ -12,7 +12,7 @@ import { Screen } from '../components/Screen';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../lib/auth-context';
 import { useRequireAuth } from '../lib/use-require-auth';
-import { uploadToStorage } from '../lib/upload';
+import { uploadPickedFile } from '../lib/upload';
 import { biodataValuesToPatch, summarizeExtraction } from '../lib/biodata';
 import { colors, spacing, typography } from '../theme/tokens';
 
@@ -21,7 +21,8 @@ import { colors, spacing, typography } from '../theme/tokens';
  *
  * The flow is the photo handshake plus a review step:
  *   1. pick a PDF or text file,
- *   2. PUT it straight to storage (the API mints a presigned URL),
+ *   2. send it to storage — straight there from the app, through the API on the
+ *      website, where a browser cannot PUT to the bucket without a CORS rule —
  *   3. ask the API to parse the object key into a proposal,
  *   4. let the user untick anything wrong, then save.
  *
@@ -71,7 +72,13 @@ export default function BiodataImportScreen() {
     setBusy(true);
     try {
       const ticket = await apiClient.initiateBiodataUpload({ mime_type: mime, byte_size: size }, token);
-      await uploadToStorage(ticket.upload_url, asset.uri, mime);
+      await uploadPickedFile({
+        presignedUrl: ticket.upload_url,
+        fileUri: asset.uri,
+        mimeType: mime,
+        viaApi: (blob, contentType) =>
+          apiClient.uploadBiodataBytes(ticket.object_key, blob, contentType, token),
+      });
       const result = await apiClient.parseBiodata(ticket.object_key, token);
       setExtraction(result);
     } catch (e) {

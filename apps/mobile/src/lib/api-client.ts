@@ -251,6 +251,45 @@ class ApiClient {
     }
   }
 
+  /**
+   * Sends a file's bytes through the API.
+   *
+   * The website's upload path: a browser cannot PUT straight to object storage
+   * without a CORS rule on the bucket, so the bytes go to the API, which stores
+   * them after checking the key belongs to an upload this member reserved. The
+   * key travels in the query string because the body is the file itself.
+   */
+  private async putFileThroughApi(
+    path: string,
+    objectKey: string,
+    blob: Blob,
+    mimeType: string,
+    token: string,
+  ): Promise<void> {
+    let response: Response;
+    try {
+      response = await fetch(buildUrl(path) + '?object_key=' + encodeURIComponent(objectKey), {
+        method: 'PUT',
+        headers: { ...authHeaders(token), 'Content-Type': mimeType },
+        body: blob,
+      });
+    } catch {
+      throw new ApiError(0, COLD_START_MESSAGE, API_UNAVAILABLE_CODE);
+    }
+
+    if (!response.ok) {
+      // The server's own account of the refusal — "content type does not
+      // match", "upload must be at most 5 MB" — is what the member can act on,
+      // so it is shown instead of a bare status.
+      const { message, code } = parseApiErrorBody(await response.text());
+      throw new ApiError(
+        response.status,
+        message ?? 'Upload failed (HTTP ' + response.status + ')',
+        code,
+      );
+    }
+  }
+
   async requestOtp(input: unknown): Promise<OtpRequested & { dev_code?: string }> {
     const body = RequestOtpSchema.parse(input);
     return this.fetchJson('auth/otp/request', {
@@ -458,6 +497,21 @@ class ApiClient {
     });
   }
 
+  /**
+   * Sends the photo bytes to the API instead of the bucket — the website's path.
+   *
+   * The reservation `initiatePhotoUpload` made is what the server checks this
+   * against, so it takes the same key that call returned.
+   */
+  async uploadPhotoBytes(
+    objectKey: string,
+    blob: Blob,
+    mimeType: string,
+    token: string,
+  ): Promise<void> {
+    return this.putFileThroughApi('profile/photos/content', objectKey, blob, mimeType, token);
+  }
+
   /** Confirms the bytes landed; the photo then waits for moderation. */
   async completePhotoUpload(
     input: CompletePhotoUploadInput,
@@ -506,6 +560,18 @@ class ApiClient {
       body: JSON.stringify(input),
       headers: authHeaders(token),
     });
+  }
+
+  /**
+   * Sends the document bytes to the API — the website's path, as for photos.
+   */
+  async uploadBiodataBytes(
+    objectKey: string,
+    blob: Blob,
+    mimeType: string,
+    token: string,
+  ): Promise<void> {
+    return this.putFileThroughApi('profile/biodata/content', objectKey, blob, mimeType, token);
   }
 
   /**

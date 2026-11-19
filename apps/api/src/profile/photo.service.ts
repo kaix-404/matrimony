@@ -9,8 +9,8 @@ import { PhotoStatus, PhotoType, PrismaClient } from '../prisma/prisma-client';
 import { ProfileService } from './profile.service';
 import type { MyProfile } from '@matrimony/shared';
 
-/** Section 9. */
-const MAX_BYTES = 5 * 1024 * 1024;
+/** Section 9. Exported: the website's upload route reads a body capped at the same size. */
+export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 const MAX_PHOTOS = 6;
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
@@ -34,6 +34,14 @@ const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
  * Magic-byte checking here would be theatre: the file is not available to this
  * process, so any "check" would be re-reading the client's own claim. The
  * schema comment on `ProfilePhoto.checksum` says the same thing.
+ *
+ * The website is the one exception. A browser cannot PUT to the bucket — that
+ * request is cross-origin, and the bucket's CORS rule is not something this
+ * deployment can write — so `uploadBytes` receives the file and stores it from
+ * here. Those bytes are available, but they are still not inspected here: the
+ * moderation worker is the single place that decides whether an image is
+ * acceptable, and a second, weaker check in front of it would only make the
+ * approval path look safer than it is.
  */
 @Injectable()
 export class PhotoService {
@@ -56,7 +64,7 @@ export class PhotoService {
       throw new BadRequestException('Photo must be JPEG, PNG or WebP');
     }
 
-    if (input.byte_size <= 0 || input.byte_size > MAX_BYTES) {
+    if (input.byte_size <= 0 || input.byte_size > MAX_PHOTO_BYTES) {
       throw new BadRequestException('Photo must be between 1 byte and 5 MB');
     }
 
@@ -96,6 +104,44 @@ export class PhotoService {
     );
 
     return { upload_url: uploadUrl, object_key: photo.objectKey, expires_in_seconds: 300 };
+  }
+
+  /**
+   * Stores photo bytes the API received itself — the website's upload path.
+   *
+   * The website cannot PUT to the bucket: a browser PUT is cross-origin and the
+   * bucket has no CORS rule for this deployment to rely on. So the bytes come
+   * here instead, and the reservation `initiate` already made is what keeps this
+   * safe — the key must belong to a row this profile owns, the declared type must
+   * be the one reserved, and the bytes must fit the size that was reserved. A
+   * caller therefore cannot write to another member's key, and cannot store
+   * something under a type the moderation queue does not expect.
+   */
+  async uploadBytes(
+    userId: string,
+    objectKey: string,
+    body: Buffer,
+    mimeType: string,
+  ): Promise<void> {
+    const profile = await this.requireProfile(userId);
+
+    const photo = await this.prisma.profilePhoto.findFirst({
+      where: { objectKey, profileId: profile.id },
+      select: { mimeType: true, byteSize: true },
+    });
+    if (!photo) throw new NotFoundException('No upload was started for that key');
+
+    if (photo.mimeType !== mimeType) {
+      throw new BadRequestException(
+        'Upload content type does not match the upload that was started',
+      );
+    }
+
+    if (body.byteLength === 0 || body.byteLength > photo.byteSize) {
+      throw new BadRequestException(`Photo must be between 1 byte and ${photo.byteSize} bytes`);
+    }
+
+    await this.storage.putObject(objectKey, body, photo.mimeType);
   }
 
   /**

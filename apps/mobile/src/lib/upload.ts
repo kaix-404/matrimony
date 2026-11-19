@@ -1,11 +1,18 @@
 /**
- * Direct-to-storage upload.
+ * File upload, per platform.
  *
- * The API hands back a presigned PUT and the object key; the bytes never pass
- * through the app server (section 9). React Native's `fetch` can read a local
- * `file://` URI into a `Blob`, and the same call uploads that blob, so no
- * extra-permission filesystem module is needed. The `Content-Type` must match
- * what the signature was minted for or the storage provider rejects the PUT.
+ * The native app PUTs straight to storage with the presigned URL the API minted:
+ * React Native's `fetch` reads a local `file://` URI into a `Blob`, and the
+ * `Content-Type` must match what the signature was minted for or the storage
+ * provider rejects the PUT (section 9).
+ *
+ * The website cannot do that. A browser PUT to the bucket is a cross-origin
+ * request, so it needs a CORS rule on the bucket, and the deployment's R2 token
+ * has no bucket-config rights to write one — the preflight came back
+ * "CORS not configured for this bucket" and the upload died before it started.
+ * The web build therefore sends the same bytes through the API, which is one
+ * origin away (the landing server proxies `/api`), so there is no preflight and
+ * no bucket rule to depend on. `uploadPickedFile` is the one place that chooses.
  */
 
 /**
@@ -61,4 +68,42 @@ export async function uploadToStorage(
   if (!response.ok) {
     throw new Error(await rejectionMessage(response));
   }
+}
+
+/**
+ * Whether this build runs in a browser.
+ *
+ * `document` rather than `Platform.OS` for the same reason `config.ts` uses it:
+ * this module is plain logic and unit tested, and the mobile test runner has no
+ * React Native transform. A browser has a `document`; the native runtime does
+ * not.
+ */
+function isBrowser(): boolean {
+  return typeof document !== 'undefined';
+}
+
+/**
+ * Sends a picked file the way this platform can.
+ *
+ * Native keeps the presigned PUT: the bytes go straight to storage and never
+ * touch the API. The website posts them to the API instead (`viaApi`), which
+ * checks they belong to an upload this member reserved before storing them.
+ * Both paths take the same local file, so the screens do not branch.
+ */
+export async function uploadPickedFile(file: {
+  /** The presigned PUT from the API; used on native. */
+  presignedUrl: string;
+  fileUri: string;
+  mimeType: string;
+  /** Sends the bytes through the API; used on the website. */
+  viaApi: (blob: Blob, mimeType: string) => Promise<void>;
+}): Promise<void> {
+  if (!isBrowser()) {
+    await uploadToStorage(file.presignedUrl, file.fileUri, file.mimeType);
+    return;
+  }
+
+  const local = await fetch(file.fileUri);
+  const blob = await local.blob();
+  await file.viaApi(blob, file.mimeType);
 }

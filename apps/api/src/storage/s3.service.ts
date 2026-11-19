@@ -17,11 +17,19 @@ import type { Env } from '../config/env';
  * bucket a config change — and what would let us move off R2 if GAP-11 (R2 has
  * no India jurisdiction) is decided against it.
  *
- * Photos never pass through the API. The client asks for a presigned PUT, sends
- * the bytes straight to storage, then confirms the upload. That keeps large
- * bodies out of the app server entirely, which matters for a service whose whole
- * job is serving images, and it means the API is never the thing holding an
+ * Photos normally never pass through the API. The client asks for a presigned
+ * PUT, sends the bytes straight to storage, then confirms the upload. That keeps
+ * large bodies out of the app server entirely, which matters for a service whose
+ * whole job is serving images, and it means the API is never the thing holding an
  * unmoderated image in memory.
+ *
+ * The website is the exception, and it is a CORS problem rather than a design
+ * preference: a browser PUT to the bucket is a cross-origin request, so it needs
+ * a bucket CORS rule, and the R2 token this deployment holds cannot write one.
+ * Browsers therefore send the bytes to the API (`putObject` below), which is one
+ * origin from where the web app runs — the landing server proxies `/api` — so no
+ * preflight is involved and no bucket rule is needed. The native app keeps the
+ * presigned PUT.
  */
 /** The one CORS rule this service owns; rules with other ids are left alone. */
 const CORS_RULE_ID = 'member-app-uploads';
@@ -112,7 +120,12 @@ export class StorageService implements OnApplicationBootstrap {
       this.logger.log(`Bucket CORS allows browser uploads from ${this.corsOrigins.join(', ')}`);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      this.logger.error(`Could not apply bucket CORS (website uploads will be blocked): ${detail}`);
+      // The website does not need this rule — it sends its bytes through the API
+      // (`putObject`). It is the direct-browser case that would break, so the
+      // message says which one rather than implying uploads are down.
+      this.logger.error(
+        `Could not apply bucket CORS (direct browser uploads will be blocked; the website uses the API): ${detail}`,
+      );
     }
   }
 
@@ -135,6 +148,27 @@ export class StorageService implements OnApplicationBootstrap {
         ContentLength: byteSize,
       }),
       { expiresIn: this.signedUrlTtl },
+    );
+  }
+
+  /**
+   * Stores bytes the API is already holding.
+   *
+   * Used for website uploads, where the bytes arrived at the API because the
+   * browser could not send them to the bucket (see the class comment). The
+   * `ContentType` is the one the caller checked against the upload's own
+   * reservation, not the raw request header, so what is stored is never whatever
+   * a client claimed in a header this service did not validate.
+   */
+  async putObject(objectKey: string, body: Buffer, mimeType: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: objectKey,
+        Body: body,
+        ContentType: mimeType,
+        ContentLength: body.byteLength,
+      }),
     );
   }
 

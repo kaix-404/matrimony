@@ -3,16 +3,21 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Param,
   Patch,
   Post,
   Put,
+  Query,
+  Req,
   UseGuards,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { AuthUser, JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { BiodataService } from './biodata.service';
-import { PhotoService } from './photo.service';
+import { BiodataService, MAX_BIODATA_BYTES } from './biodata.service';
+import { MAX_PHOTO_BYTES, PhotoService } from './photo.service';
+import { bareContentType, readUploadBody } from './raw-body';
 import { ProfileService } from './profile.service';
 import { ProfileVisibility } from '../prisma/prisma-client';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
@@ -32,9 +37,11 @@ import {
   CompletePhotoUploadSchema,
   InitiatePhotoUploadSchema,
   SetVisibilitySchema,
+  UploadObjectQuerySchema,
   type CompletePhotoUploadInput,
   type InitiatePhotoUploadInput,
   type SetVisibilityInput,
+  type UploadObjectQuery,
 } from './dto';
 import {
   InitiateBiodataUploadSchema,
@@ -153,6 +160,28 @@ export class ProfileController {
     return this.photos.initiate(claims.sub, body);
   }
 
+  /**
+   * Receives the photo bytes on the website's behalf.
+   *
+   * The native app PUTs to the presigned URL above; a browser cannot, because
+   * that PUT is cross-origin and the bucket's CORS rule is not something this
+   * deployment can write. So the same bytes come here, where they are checked
+   * against the reservation `photos/upload` just made: the key must be the
+   * caller's, the content type must be the reserved one, and the body must fit
+   * the reserved size. Nothing is taken on trust.
+   */
+  @Put('photos/content')
+  @HttpCode(204)
+  async uploadPhotoContent(
+    @AuthUser() claims: AccessTokenClaims,
+    @Query(new ZodValidationPipe(UploadObjectQuerySchema)) query: UploadObjectQuery,
+    @Headers('content-type') contentType: string | undefined,
+    @Req() req: Request,
+  ): Promise<void> {
+    const body = await readUploadBody(req, MAX_PHOTO_BYTES);
+    await this.photos.uploadBytes(claims.sub, query.object_key, body, bareContentType(contentType));
+  }
+
   /** Confirms the upload; the photo stays PENDING_REVIEW until moderated. */
   @Post('photos/complete')
   @HttpCode(200)
@@ -200,6 +229,29 @@ export class ProfileController {
     @Body(new ZodValidationPipe(InitiateBiodataUploadSchema)) body: InitiateBiodataUploadInput,
   ) {
     return this.biodata.initiate(claims.sub, body);
+  }
+
+  /**
+   * Receives the document bytes on the website's behalf, for the same reason as
+   * photos: a browser PUT to the bucket needs a CORS rule the deployment cannot
+   * write. The key must be under the caller's own `biodata/` prefix, so it is the
+   * reservation itself that is checked rather than a body field.
+   */
+  @Put('biodata/content')
+  @HttpCode(204)
+  async uploadBiodataContent(
+    @AuthUser() claims: AccessTokenClaims,
+    @Query(new ZodValidationPipe(UploadObjectQuerySchema)) query: UploadObjectQuery,
+    @Headers('content-type') contentType: string | undefined,
+    @Req() req: Request,
+  ): Promise<void> {
+    const body = await readUploadBody(req, MAX_BIODATA_BYTES);
+    await this.biodata.uploadBytes(
+      claims.sub,
+      query.object_key,
+      body,
+      bareContentType(contentType),
+    );
   }
 
   /**

@@ -4,6 +4,7 @@ import { PrismaClient } from '../prisma/prisma-client';
 import {
   extractBiodata,
   BIODATA_FIELDS,
+  BIODATA_MIME_TYPES,
   type BiodataExtraction,
   type BiodataField,
   type BiodataValue,
@@ -37,7 +38,7 @@ import { extractPdfText } from './pdf-text';
  */
 
 /** Section 8 bounds; a 10 MB document is already generous for a typed biodata. */
-const MAX_BYTES = 10 * 1024 * 1024;
+export const MAX_BIODATA_BYTES = 10 * 1024 * 1024;
 
 /** Fields that map to a master list and so need a value id, not free text. */
 const MASTER_LIST_FIELDS: Partial<Record<BiodataField, string>> = {
@@ -66,7 +67,7 @@ export class BiodataService {
   ): Promise<{ upload_url: string; object_key: string; expires_in_seconds: number }> {
     const profile = await this.requireProfile(userId);
 
-    if (input.byte_size <= 0 || input.byte_size > MAX_BYTES) {
+    if (input.byte_size <= 0 || input.byte_size > MAX_BIODATA_BYTES) {
       throw new BadRequestException('Biodata must be between 1 byte and 10 MB');
     }
 
@@ -74,6 +75,38 @@ export class BiodataService {
     const uploadUrl = await this.storage.presignUpload(objectKey, input.mime_type, input.byte_size);
 
     return { upload_url: uploadUrl, object_key: objectKey, expires_in_seconds: 300 };
+  }
+
+  /**
+   * Stores document bytes the API received itself — the website's upload path.
+   *
+   * Same reason as photos: a browser cannot PUT to the bucket without a CORS rule
+   * the deployment cannot write, so the bytes travel to the API and are written
+   * from here. The ownership check is the one `parse` makes — the key must be
+   * under this profile's own prefix — because a biodata reservation is a string,
+   * not a row, and the prefix is what makes the key unguessable-but-checkable.
+   */
+  async uploadBytes(
+    userId: string,
+    objectKey: string,
+    body: Buffer,
+    mimeType: string,
+  ): Promise<void> {
+    const profile = await this.requireProfile(userId);
+
+    if (!objectKey.startsWith(`biodata/${profile.id}/`)) {
+      throw new NotFoundException('No upload was found for that key');
+    }
+
+    if (!(BIODATA_MIME_TYPES as readonly string[]).includes(mimeType)) {
+      throw new BadRequestException('Biodata must be a PDF or text file');
+    }
+
+    if (body.byteLength === 0 || body.byteLength > MAX_BIODATA_BYTES) {
+      throw new BadRequestException('Biodata must be between 1 byte and 10 MB');
+    }
+
+    await this.storage.putObject(objectKey, body, mimeType);
   }
 
   /**
@@ -102,7 +135,7 @@ export class BiodataService {
       throw new NotFoundException('The uploaded document could not be read');
     }
 
-    if (bytes.byteLength > MAX_BYTES) {
+    if (bytes.byteLength > MAX_BIODATA_BYTES) {
       throw new BadRequestException('Biodata is too large');
     }
 

@@ -8,7 +8,7 @@ import { PrimaryButton } from '../components/PrimaryButton';
 import { Screen } from '../components/Screen';
 import { apiClient } from '../lib/api-client';
 import { useAuth } from '../lib/auth-context';
-import { uploadToStorage } from '../lib/upload';
+import { uploadPickedFile } from '../lib/upload';
 import { useRequireAuth } from '../lib/use-require-auth';
 import { colors, radii, spacing, typography } from '../theme/tokens';
 
@@ -24,11 +24,13 @@ const STATUS_LABELS: Record<OwnPhoto['status'], string> = {
 /**
  * The caller's own photos (section 9).
  *
- * Uploads go straight to object storage via a presigned PUT: reserve a slot,
- * PUT the bytes, confirm the dimensions. A photo is not visible to anyone until
- * a moderator approves it, so every card shows its review state and the reason
- * when one is rejected. Only single-person photos are offered — the client
- * confirmed on 2026-10-15 that family photos are not needed.
+ * Uploads reserve a slot, send the bytes and confirm the dimensions. The app PUTs
+ * the bytes straight to object storage through the presigned URL; the website
+ * sends them through the API instead, because a browser cannot PUT to the bucket
+ * without a CORS rule. A photo is not visible to anyone until a moderator
+ * approves it, so every card shows its review state and the reason when one is
+ * rejected. Only single-person photos are offered — the client confirmed on
+ * 2026-10-15 that family photos are not needed.
  */
 export default function PhotosScreen() {
   const { ready } = useRequireAuth();
@@ -96,7 +98,13 @@ export default function PhotosScreen() {
         { mime_type: mime as (typeof ALLOWED_MIME)[number], byte_size: asset.fileSize, photo_type: 'SINGLE' },
         token,
       );
-      await uploadToStorage(ticket.upload_url, asset.uri, mime);
+      await uploadPickedFile({
+        presignedUrl: ticket.upload_url,
+        fileUri: asset.uri,
+        mimeType: mime,
+        viaApi: (blob, contentType) =>
+          apiClient.uploadPhotoBytes(ticket.object_key, blob, contentType, token),
+      });
       setPhotos(
         await apiClient.completePhotoUpload(
           { object_key: ticket.object_key, width_px: asset.width, height_px: asset.height },
