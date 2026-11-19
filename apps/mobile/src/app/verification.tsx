@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import * as Linking from 'expo-linking';
 import type { VerificationStatusResponse } from '@matrimony/shared';
@@ -62,7 +62,7 @@ export default function VerificationScreen() {
       const next = await apiClient.startVerification(token);
       setState(next);
       if (next.redirect_url) {
-        await Linking.openURL(next.redirect_url);
+        await openConsentUrl(next.redirect_url);
       } else {
         setError('The verification link could not be created. Please try again.');
       }
@@ -193,6 +193,27 @@ export default function VerificationScreen() {
       {error !== null ? <Text style={styles.error}>{error}</Text> : null}
     </Screen>
   );
+}
+
+/**
+ * Opens the DigiLocker consent page.
+ *
+ * On the website `Linking.openURL` assigns `window.location`, which replaces the
+ * app with the vendor's page — and the consent URL is created without a return
+ * address, so that page is a dead end that only the browser's back button
+ * escapes (a back navigation also reloads the whole app). A second tab leaves
+ * the app, and this screen's "Check status", exactly where the member left it.
+ */
+async function openConsentUrl(url: string): Promise<void> {
+  if (Platform.OS === 'web') {
+    const browser = globalThis as {
+      open?: (target: string, name?: string, features?: string) => unknown;
+    };
+    if (typeof browser.open === 'function' && browser.open(url, '_blank', 'noopener,noreferrer')) {
+      return;
+    }
+  }
+  await Linking.openURL(url);
 }
 
 function Row({ label, value }: { label: string; value: string }) {
