@@ -8,8 +8,7 @@ Assam
 Bihar
 Chandigarh
 Chhattisgarh
-Dadra & Nagar Haveli
-Daman & Diu
+Dadra & Nagar Haveli and Daman & Diu
 Delhi / NCR
 Goa
 Gujarat
@@ -20,15 +19,15 @@ Jharkhand
 Karnataka
 Kerala
 Ladakh
-Lakshwadeep
+Lakshadweep
 Madhya Pradesh
 Maharashtra
 Manipur
 Meghalaya
 Mizoram
 Nagaland
-Orissa
-Pondicherry
+Odisha
+Puducherry
 Punjab
 Rajasthan
 Sikkim
