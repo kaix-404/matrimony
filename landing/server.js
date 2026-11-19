@@ -330,6 +330,14 @@ server.on('clientError', (err, socket) => {
   socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
 });
 
+// Node closes an idle keep-alive connection after 5 seconds; the edge in front
+// holds its own for longer. When both decide to close at the same moment, the
+// edge reports a 502 for a request this process never saw — Render's
+// troubleshooting guide names exactly this race for Node services. Outlive the
+// edge's idle timeout instead, and keep the header timeout above it.
+server.keepAliveTimeout = 65_000;
+server.headersTimeout = 66_000;
+
 server.listen(PORT, () => {
   console.log(`Networth Matrimony site running on port ${PORT}`);
   console.log(`API traffic proxied to ${API_ORIGIN}`);
