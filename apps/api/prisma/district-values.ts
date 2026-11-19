@@ -3,16 +3,16 @@
  *
  * Source: the state/UT-wise district listing the client pointed at
  * (igod.gov.in/sg/district/states), brought up to date from each state's own
- * district list for the reorganisations between 2019 and 2025 — Andhra Pradesh's
- * 26 districts of April 2022, Rajasthan's 41 after the December 2024
- * cancellations, Telangana's 33, Tamil Nadu's 38, Chhattisgarh's 33, Nagaland's
- * 17, and the rest. Names keep the spelling the state publishes; where a
- * district also goes by an older name, the alias stays in brackets.
+ * district list for the reorganisations since 2018 — Andhra Pradesh's 26
+ * districts of April 2022, Rajasthan's 41 after the December 2024 cancellations,
+ * Madhya Pradesh's 55, Telangana's 33, Tamil Nadu's 38, Chhattisgarh's 33,
+ * Nagaland's 17, Ladakh's eight, and the rest. Names keep the spelling the state
+ * publishes; where a district also goes by an older name, the alias stays in
+ * brackets.
  *
- * Every state in the STATE list has a group here — including Andaman & Nicobar,
- * which had none — and `district-values.test.ts` pins each group's count, so a
- * district dropped in an edit fails the suite instead of quietly leaving the
- * picker short.
+ * Every state in the STATE list has a group here, and `district-values.test.ts`
+ * pins each group's count, so a district dropped in an edit fails the suite
+ * instead of quietly leaving the picker short.
  *
  * Grouped values: the picker shows the districts of whichever state the member
  * chose, the same way sub-castes are scoped by religion. Seeded by upsert on
@@ -274,12 +274,10 @@ export const DISTRICT_VALUES: MasterListValueSeed[] = [
   { value: 'Doda', group: 'Jammu & Kashmir' },
   { value: 'Ganderbal', group: 'Jammu & Kashmir' },
   { value: 'Jammu', group: 'Jammu & Kashmir' },
-  { value: 'Kargil', group: 'Jammu & Kashmir' },
   { value: 'Kathua', group: 'Jammu & Kashmir' },
   { value: 'Kishtwar', group: 'Jammu & Kashmir' },
   { value: 'Kulgam', group: 'Jammu & Kashmir' },
   { value: 'Kupwara', group: 'Jammu & Kashmir' },
-  { value: 'Leh', group: 'Jammu & Kashmir' },
   { value: 'Poonch', group: 'Jammu & Kashmir' },
   { value: 'Pulwama', group: 'Jammu & Kashmir' },
   { value: 'Rajouri', group: 'Jammu & Kashmir' },
@@ -358,6 +356,14 @@ export const DISTRICT_VALUES: MasterListValueSeed[] = [
   { value: 'Thiruvananthapuram', group: 'Kerala' },
   { value: 'Thrissur', group: 'Kerala' },
   { value: 'Wayanad', group: 'Kerala' },
+  { value: 'Changthang', group: 'Ladakh' },
+  { value: 'Drass', group: 'Ladakh' },
+  { value: 'Kargil', group: 'Ladakh' },
+  { value: 'Leh', group: 'Ladakh' },
+  { value: 'Nubra', group: 'Ladakh' },
+  { value: 'Sankoo', group: 'Ladakh' },
+  { value: 'Sham', group: 'Ladakh' },
+  { value: 'Zanskar', group: 'Ladakh' },
   { value: 'Lakshadweep', group: 'Lakshwadeep' },
   { value: 'Agar Malwa', group: 'Madhya Pradesh' },
   { value: 'Alirajpur', group: 'Madhya Pradesh' },
@@ -386,11 +392,15 @@ export const DISTRICT_VALUES: MasterListValueSeed[] = [
   { value: 'Katni', group: 'Madhya Pradesh' },
   { value: 'Khandwa', group: 'Madhya Pradesh' },
   { value: 'Khargone', group: 'Madhya Pradesh' },
+  { value: 'Maihar', group: 'Madhya Pradesh' },
   { value: 'Mandla', group: 'Madhya Pradesh' },
   { value: 'Mandsaur', group: 'Madhya Pradesh' },
+  { value: 'Mauganj', group: 'Madhya Pradesh' },
   { value: 'Morena', group: 'Madhya Pradesh' },
   { value: 'Narsinghpur', group: 'Madhya Pradesh' },
   { value: 'Neemuch', group: 'Madhya Pradesh' },
+  { value: 'Niwari', group: 'Madhya Pradesh' },
+  { value: 'Pandhurna', group: 'Madhya Pradesh' },
   { value: 'Panna', group: 'Madhya Pradesh' },
   { value: 'Raisen', group: 'Madhya Pradesh' },
   { value: 'Rajgarh', group: 'Madhya Pradesh' },
