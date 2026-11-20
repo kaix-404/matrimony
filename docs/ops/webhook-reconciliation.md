@@ -36,6 +36,15 @@ instance:
 - **7-day lookback** — older rows are a support question, not a sweep's.
 - **25 rows per sweep** — a backlog drains over consecutive sweeps rather than in
   one burst of vendor calls.
+- **10-second read timeout** — every Razorpay order read is aborted after ten
+  seconds, so a provider that accepts the connection and never answers cannot
+  hold the sweep: even a full batch ends in under five minutes. A timed-out read
+  is logged as `could not read order order_…: Razorpay order payments read timed
+out after 10 s (order order_…)` and retried on the next sweep.
+- **One sweep at a time** — a tick that arrives while the previous sweep is still
+  running is skipped with `[reconcile] previous sweep is still running; skipping
+this one.`, not queued. One line per skipped tick, and the next tick reads the
+  same rows anyway.
 
 Identity additionally requires a **lapsed consent link**
 (`providerReferenceExpiresAt < now`), because a session the member is still
@@ -97,7 +106,8 @@ attempt would hide the fact behind its repetitions:
 
 | Line                                                                                           | Meaning                                                                                              |
 | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `[reconcile] could not read order order_…: …`                                                  | Razorpay unreachable or rejected the key; retried next sweep.                                        |
+| `[reconcile] could not read order order_…: …`                                                  | Razorpay unreachable, timed out, or rejected the key; retried next sweep.                            |
+| `[reconcile] previous sweep is still running; skipping this one.`                              | The last sweep has not finished — expected once per tick while a provider is hanging, and harmless.  |
 | `[reconcile] identity: could not read N attempts from Cashfree; … HTTP 403`                    | Cashfree refused this host's IP — see below. Not a code fault.                                       |
 | `[reconcile] payments sweep failed` / `identity sweep failed`                                  | The database query itself failed; the other provider still ran.                                      |
 | `[reconcile] order … is captured at Razorpay but payment … is FAILED; needs a human decision.` | Money was taken against a row already terminal. Not written automatically: settle or refund by hand. |

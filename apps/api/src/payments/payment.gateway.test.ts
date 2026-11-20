@@ -139,3 +139,143 @@ describe('toGatewayPayment', () => {
     expect(toGatewayPayment({ id: 'pay_1', status: 'captured', amount: 1 })).toBeNull();
   });
 });
+
+describe('RazorpayPaymentGateway.fetchOrderPayments', () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    (globalThis as unknown as { fetch: unknown }).fetch = originalFetch;
+  });
+
+  function setFetch(fn: unknown): void {
+    (globalThis as unknown as { fetch: unknown }).fetch = fn;
+  }
+
+  function gateway(): RazorpayPaymentGateway {
+    return new RazorpayPaymentGateway('key_id', 'key_secret', SECRET);
+  }
+
+  it("reads the order's payments with the key pair, and maps what it finds", async () => {
+    const fetchMock = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async (): Promise<string> =>
+        JSON.stringify({
+          entity: 'collection',
+          count: 1,
+          items: [
+            {
+              id: 'pay_1',
+              status: 'captured',
+              amount: 11682,
+              currency: 'INR',
+              method: 'upi',
+              order_id: 'order_1',
+            },
+          ],
+        }),
+    }));
+    setFetch(fetchMock);
+
+    const payments = await gateway().fetchOrderPayments('order_1');
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://api.razorpay.com/v1/orders/order_1/payments');
+    expect(init.method).toBe('GET');
+    const headers = init.headers as Record<string, string>;
+    expect(headers.authorization).toBe(
+      `Basic ${Buffer.from('key_id:key_secret').toString('base64')}`,
+    );
+    // A read with no ceiling is the thing this test exists for: a provider that
+    // accepts the connection and never answers must not hold the sweep.
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+
+    expect(payments).toEqual([
+      expect.objectContaining({
+        gatewayPaymentId: 'pay_1',
+        status: 'captured',
+        amountMinor: 11682,
+        currency: 'INR',
+        method: 'upi',
+      }),
+    ]);
+  });
+
+  it('returns nothing for an order with no attempts', async () => {
+    setFetch(async () => ({
+      ok: true,
+      status: 200,
+      text: async (): Promise<string> =>
+        JSON.stringify({ entity: 'collection', count: 0, items: [] }),
+    }));
+
+    await expect(gateway().fetchOrderPayments('order_1')).resolves.toEqual([]);
+  });
+
+  it('drops an attempt whose amount cannot be compared', async () => {
+    setFetch(async () => ({
+      ok: true,
+      status: 200,
+      text: async (): Promise<string> =>
+        JSON.stringify({
+          items: [
+            { id: 'pay_1', status: 'captured', amount: 11682, currency: 'INR' },
+            { id: 'pay_2', status: 'captured', amount: 'a lot', currency: 'INR' },
+          ],
+        }),
+    }));
+
+    const payments = await gateway().fetchOrderPayments('order_1');
+
+    expect(payments.map((p) => p.gatewayPaymentId)).toEqual(['pay_1']);
+  });
+
+  it('surfaces a refused read with the vendor diagnostic', async () => {
+    setFetch(async () => ({
+      ok: false,
+      status: 401,
+      text: async (): Promise<string> => '{"error":{"description":"Authentication failed"}}',
+    }));
+
+    await expect(gateway().fetchOrderPayments('order_1')).rejects.toThrow(/HTTP 401/);
+  });
+
+  it('reports a hung read as a timeout instead of waiting on it', async () => {
+    setFetch(async () => {
+      throw Object.assign(new Error('The operation was aborted due to timeout'), {
+        name: 'TimeoutError',
+      });
+    });
+
+    await expect(gateway().fetchOrderPayments('order_1')).rejects.toThrow(
+      /timed out after 10 s \(order order_1\)/,
+    );
+  });
+
+  it('reports a stall after the headers as the same timeout', async () => {
+    // Razorpay can answer 200 and then stop sending the body. The deadline is on
+    // the signal, so the rejection arrives from response.text(); it must not
+    // surface as a bare DOMException.
+    setFetch(async () => ({
+      ok: true,
+      status: 200,
+      text: async (): Promise<string> => {
+        throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+      },
+    }));
+
+    await expect(gateway().fetchOrderPayments('order_1')).rejects.toThrow(
+      /^Razorpay order payments read timed out after 10 s \(order order_1\)$/,
+    );
+  });
+
+  it('refuses to call the vendor when it is not configured', async () => {
+    const fetchMock = jest.fn();
+    setFetch(fetchMock);
+
+    await expect(
+      new RazorpayPaymentGateway('', '', SECRET).fetchOrderPayments('order_1'),
+    ).rejects.toThrow(/not configured/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

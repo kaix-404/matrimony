@@ -147,6 +147,19 @@ export abstract class PaymentGateway {
 }
 
 /**
+ * Ceiling on one order-payments read during reconciliation.
+ *
+ * Ten seconds, because a sweep reads at most twenty-five orders: the worst case
+ * is a bit over four minutes, comfortably inside the sweep interval, whereas a
+ * read with no ceiling at all holds the sweep and its socket for as long as the
+ * provider leaves the connection open.
+ */
+const ORDER_PAYMENTS_TIMEOUT_MS = 10_000;
+
+/** The vendor's REST root, matching the SDK's own base URL. */
+const RAZORPAY_API_BASE = 'https://api.razorpay.com/v1';
+
+/**
  * Convert a rupee string to paise.
  *
  * The gateway speaks the currency's smallest unit; the API and the shared
@@ -234,16 +247,57 @@ export class RazorpayPaymentGateway extends PaymentGateway {
       throw new Error("Razorpay is not configured; cannot fetch an order's payments");
     }
 
-    // Typed as unknown and reduced by `toGatewayPayment`: the SDK's response
-    // shape is a loose `any`, and an unparsed field reaching the amount
-    // comparison is exactly the failure this seam exists to prevent.
-    const collection = (await this.client.orders.fetchPayments(gatewayOrderId)) as unknown;
-    const items =
-      typeof collection === 'object' && collection !== null
-        ? ((collection as { items?: unknown }).items ?? [])
-        : [];
-    if (!Array.isArray(items)) return [];
+    // Read over `fetch` rather than through the SDK's `orders.fetchPayments`.
+    // That call takes neither a signal nor a timeout (2.9.8), so a provider that
+    // accepts the connection and then never answers would hold the sweep — and
+    // its socket — for the life of the process. The credentials are the same
+    // pair the SDK was constructed with, and `Authorization: Basic` is the same
+    // mechanism it sends, so this is the SDK's request with a ceiling on it.
+    const url = `${RAZORPAY_API_BASE}/orders/${encodeURIComponent(gatewayOrderId)}/payments`;
+    const authorization = `Basic ${Buffer.from(`${this.keyId}:${this.keySecret}`).toString('base64')}`;
 
+    // The deadline is absolute from the signal's creation, and it covers the
+    // body as well as the response headers: a provider that answers `200` and
+    // then stalls mid-body rejects on `response.text()`, not on `fetch`. Both
+    // rejections are the same timeout and must read as the same line, so the
+    // whole exchange sits inside one guard.
+    let response: Response;
+    let text: string;
+    try {
+      response = await fetch(url, {
+        method: 'GET',
+        headers: { authorization, accept: 'application/json' },
+        signal: AbortSignal.timeout(ORDER_PAYMENTS_TIMEOUT_MS),
+      });
+      text = await response.text();
+    } catch (error) {
+      const name = (error as { name?: string })?.name ?? '';
+      if (name === 'TimeoutError' || name === 'AbortError') {
+        throw new Error(
+          `Razorpay order payments read timed out after ${ORDER_PAYMENTS_TIMEOUT_MS / 1000} s (order ${gatewayOrderId})`,
+        );
+      }
+      throw error;
+    }
+
+    if (!response.ok) {
+      // The body says whether it was the key or the order; it stays in the error
+      // for the sweep's log line and is never forwarded to a member.
+      throw new Error(
+        `Razorpay order payments read failed (HTTP ${response.status}): ${text.slice(0, 400)}`,
+      );
+    }
+
+    let payload: { items?: unknown };
+    try {
+      payload = JSON.parse(text) as typeof payload;
+    } catch {
+      throw new Error('Razorpay order payments read returned a non-JSON body');
+    }
+
+    // Reduced by `toGatewayPayment`: an item whose amount is not a whole number
+    // of paise must be skipped, not compared, or a real capture is marked FAILED.
+    const items = Array.isArray(payload.items) ? payload.items : [];
     return items
       .map(toGatewayPayment)
       .filter((payment): payment is GatewayPayment => payment !== null);

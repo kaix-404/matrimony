@@ -50,6 +50,8 @@ export class ProviderReconciliationSweeper implements OnApplicationBootstrap, On
 
   private readonly logger = new Logger(ProviderReconciliationSweeper.name);
   private timer: NodeJS.Timeout | null = null;
+  /** True while a sweep is in flight; guards against overlapping runs. */
+  private sweeping = false;
 
   constructor(
     private readonly payments: PaymentsService,
@@ -77,15 +79,32 @@ export class ProviderReconciliationSweeper implements OnApplicationBootstrap, On
    * recovery path ran rather than being silently skipped.
    */
   private async safeSweep(reason: 'startup' | 'scheduled'): Promise<void> {
-    const payments = await this.runPayments();
-    const identity = await this.runVerifications();
+    // One sweep at a time. Every vendor read has its own ceiling, so a sweep
+    // should finish inside its interval — but a provider that stops answering
+    // is exactly the case where it might not, and a second sweep starting on the
+    // same rows would multiply the hung calls instead of recovering anything.
+    // Skipped rather than queued: the next tick reads the same state anyway.
+    if (this.sweeping) {
+      this.logger.warn('[reconcile] previous sweep is still running; skipping this one.');
+      return;
+    }
+    this.sweeping = true;
 
-    if (reason !== 'startup') return;
+    try {
+      const payments = await this.runPayments();
+      const identity = await this.runVerifications();
 
-    this.logger.log(
-      `[reconcile] startup sweep — payments: ${describePayments(payments)}; ` +
-        `identity: ${describeVerifications(identity)}`,
-    );
+      if (reason !== 'startup') return;
+
+      this.logger.log(
+        `[reconcile] startup sweep — payments: ${describePayments(payments)}; ` +
+          `identity: ${describeVerifications(identity)}`,
+      );
+    } finally {
+      // Released even when a provider run throws, or one failure would wedge
+      // every later sweep for the life of the process.
+      this.sweeping = false;
+    }
   }
 
   private async runPayments(): Promise<PaymentReconcileSummary | null> {

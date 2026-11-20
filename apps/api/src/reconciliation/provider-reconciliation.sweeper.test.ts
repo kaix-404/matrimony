@@ -30,6 +30,8 @@ function harness(
     identityFails?: boolean;
     payments?: PaymentReconcileSummary;
     identity?: VerificationReconcileSummary;
+    /** Held open to stand in for a sweep stuck on a provider that never answers. */
+    gate?: Promise<void>;
   } = {},
 ) {
   const calls: string[] = [];
@@ -37,6 +39,7 @@ function harness(
   const payments = {
     reconcilePending: async (): Promise<PaymentReconcileSummary> => {
       calls.push('payments');
+      if (options.gate) await options.gate;
       if (options.paymentsFails) throw Object.assign(new Error('db down'), { code: 'P1001' });
       return options.payments ?? NO_PAYMENTS;
     },
@@ -141,5 +144,65 @@ describe('ProviderReconciliationSweeper', () => {
       sweeper.onModuleDestroy();
       sweeper.onModuleDestroy();
     }).not.toThrow();
+  });
+});
+
+describe('ProviderReconciliationSweeper — overlap', () => {
+  let warn: jest.SpyInstance;
+
+  beforeEach(() => {
+    warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    jest.useRealTimers();
+  });
+
+  it('does not start a second sweep while the last one is still running', async () => {
+    jest.useFakeTimers();
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { sweeper, calls } = harness({ gate });
+
+    sweeper.onApplicationBootstrap();
+    await jest.advanceTimersByTimeAsync(0);
+    expect(calls).toEqual(['payments']);
+
+    // The interval fires while the first sweep is stuck on a provider that never
+    // answers. Queueing it would double the hung calls; it is skipped instead.
+    await jest.advanceTimersByTimeAsync(10 * 60_000);
+    expect(calls).toEqual(['payments']);
+    expect(warn).toHaveBeenCalledWith(
+      '[reconcile] previous sweep is still running; skipping this one.',
+    );
+
+    release();
+    await jest.advanceTimersByTimeAsync(0);
+    // Draining the released sweep's promise chain without touching faked timers.
+    for (let tick = 0; tick < 10; tick += 1) await Promise.resolve();
+    expect(calls).toEqual(['payments', 'identity']);
+
+    // The guard is released with the sweep, so the next tick runs normally.
+    await jest.advanceTimersByTimeAsync(10 * 60_000);
+    expect(calls).toEqual(['payments', 'identity', 'payments', 'identity']);
+
+    sweeper.onModuleDestroy();
+  });
+
+  it('releases the guard even when a provider run throws', async () => {
+    jest.useFakeTimers();
+    const { sweeper, calls } = harness({ paymentsFails: true, identityFails: true });
+
+    sweeper.onApplicationBootstrap();
+    await jest.advanceTimersByTimeAsync(0);
+    await jest.advanceTimersByTimeAsync(10 * 60_000);
+
+    expect(calls).toEqual(['payments', 'identity', 'payments', 'identity']);
+
+    sweeper.onModuleDestroy();
   });
 });
