@@ -182,7 +182,17 @@ services:
     region: singapore
     plan: free
     runtime: node
-    buildCommand: npm run build -w @matrimony/shared && npm run build -w @matrimony/admin
+    # Install only the two workspaces this service builds. The default install is
+    # the whole monorepo, and Expo/React Native are most of it; on the free plan
+    # the workspace gets 500 build minutes a month, which a full-tree install on
+    # three services per deploy exhausts long before the month does.
+    # --include=dev because Render sets NODE_ENV=production and `next build`
+    # needs typescript and the tailwind/eslint dev packages.
+    buildCommand: >-
+      npm ci --workspace @matrimony/shared --workspace @matrimony/admin
+      --include-workspace-root --include=dev
+      && npm run build -w @matrimony/shared
+      && npm run build -w @matrimony/admin
     startCommand: npm run start -w @matrimony/admin
     envVars:
       - key: NODE_ENV
@@ -234,7 +244,17 @@ services:
     region: singapore
     plan: free
     runtime: node
-    buildCommand: npm ci --include=dev && npm run export:web -w @matrimony/mobile
+    # Same reasoning as the console: install the app and shared only, not the
+    # Nest and Next trees it never loads. `--include=dev` keeps @babel/core and
+    # typescript, which the export path can reach through babel-preset-expo.
+    # NODE_OPTIONS: Metro is the memory-hungry step, and its default heap ran out
+    # locally during the export (`Fatal process out of memory: Zone`). The
+    # Starter pipeline has 8 GB, so giving Node 6 GB of it is a ceiling, not a
+    # reservation; without it the build dies after minutes of bundling.
+    buildCommand: >-
+      npm ci --workspace @matrimony/shared --workspace @matrimony/mobile
+      --include-workspace-root --include=dev
+      && NODE_OPTIONS=--max-old-space-size=6144 npm run export:web -w @matrimony/mobile
     startCommand: node landing/server.js
     envVars:
       - key: NODE_ENV

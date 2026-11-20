@@ -8,12 +8,28 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+# Every workspace manifest, so `npm ci` can validate the lockfile. Only the two
+# directories copied below are actually built; the others exist for the
+# lockfile's sake and get no packages installed.
 COPY apps/api/package.json apps/api/
+COPY apps/admin/package.json apps/admin/
+COPY apps/mobile/package.json apps/mobile/
 COPY packages/shared/package.json packages/shared/
 
-# --legacy-peer-deps resolves the @types/react@18 vs react-native@0.76.3
-# peer conflict that comes from the mobile workspace being in the tree.
-RUN npm install --legacy-peer-deps
+# Only the API and shared workspaces are installed. A plain install resolves the
+# whole monorepo for a service that runs none of it — Expo and React Native
+# alone outweigh the API's own dependencies several times over — and this image
+# is built on Render's free plan, where every install minute counts against 500
+# a month.
+#
+# `ci` rather than `install`: the lockfile decides the tree, so the build cannot
+# silently resolve a newer package than the repository pins.
+#
+# --legacy-peer-deps resolves the @types/react@18 vs react-native@0.76.3 peer
+# conflict that the lockfile was created with. It is a flag and not `.npmrc`
+# because `.npmrc` is not copied in until the source COPY below.
+RUN npm ci --workspace @matrimony/api --workspace @matrimony/shared \
+    --include-workspace-root --legacy-peer-deps
 
 COPY . .
 
