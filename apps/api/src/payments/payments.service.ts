@@ -55,7 +55,12 @@ import {
   type UnlockPrice,
 } from '@matrimony/shared';
 import { NotificationsService } from '../notifications/notifications.service';
-import { GATEWAY_EVENTS, PaymentGateway, rupeesToMinor } from './payment.gateway';
+import {
+  GATEWAY_EVENTS,
+  PaymentGateway,
+  rupeesToMinor,
+  type GatewayPayment,
+} from './payment.gateway';
 
 type Tx = Prisma.TransactionClient;
 
@@ -90,6 +95,55 @@ const BLOCKED_PURCHASERS: Record<string, string> = {
 
 /** The columns needed to price or replay an order. */
 type OrderRow = Prisma.PaymentGetPayload<Record<string, never>>;
+
+/**
+ * Bounds on the recovery sweep, chosen for the deployment this runs on.
+ *
+ * The service is on Render's free plan, where an instance that has been idle
+ * for fifteen minutes is asleep and a request arriving at it waits for a cold
+ * start that runs migrations first. A payment webhook sent into that window can
+ * be retried by Razorpay until Razorpay gives up, so the gateway can hold a
+ * capture this API never recorded. The sweep is the compensating read.
+ *
+ * `graceMs` keeps it off orders the webhook may still be delivering;
+ * `lookbackMs` is bounded because a member checks out over hours, not weeks, and
+ * anything older is a support question rather than a sweep's business; `batch`
+ * keeps one sweep to a handful of vendor calls instead of an unbounded fan-out.
+ */
+const RECONCILE = {
+  graceMs: 2 * 60_000,
+  lookbackMs: 7 * 24 * 60 * 60_000,
+  batch: 25,
+} as const;
+
+/** What one sweep did, so the caller can put a single line in the log. */
+export interface PaymentReconcileSummary {
+  /** Orders that were due for a check. */
+  checked: number;
+  /** Orders the gateway had captured, now settled here. */
+  settled: number;
+  /** Orders the gateway has not captured; the member never paid. */
+  unpaid: number;
+  /** Orders the vendor could not be asked about, or that failed the amount check. */
+  failed: number;
+}
+
+/**
+ * The provider's account of a capture, from a webhook or a reconciliation read.
+ *
+ * One shape for both so the settlement path is literally the same code: a
+ * capture recovered by the sweep and a capture announced by Razorpay go through
+ * the same amount check, the same guarded transition and the same notification.
+ */
+interface CaptureEvidence {
+  orderId: string;
+  amountMinor?: number;
+  currency?: string;
+  method?: string;
+  gatewayPaymentId?: string;
+  /** Where this came from, for the log line when it settles. */
+  source: string;
+}
 
 /** A webhook reduced to the fields this service acts on. */
 interface ParsedWebhook {
@@ -340,6 +394,117 @@ export class PaymentsService {
     });
 
     return { received: true, event_id: event.eventId, duplicate: false };
+  }
+
+  // -------------------------------------------------------------------------
+  // Reconciliation — the webhook that never arrived
+  // -------------------------------------------------------------------------
+
+  /**
+   * Asks Razorpay which of our outstanding orders it has captured.
+   *
+   * Runs at boot and on an interval, because the failure it repairs happens
+   * while nothing else is running: the instance sleeps, the member pays, the
+   * webhook lands on a service that is still migrating, and Razorpay stops
+   * retrying before the API answers. Nothing on this side records the capture,
+   * so the member is charged and the unlock never appears — the one failure in
+   * this module that takes money without giving anything back.
+   *
+   * Deliberately one-directional. A capture the gateway holds is settled; a
+   * failure it holds is *not* written as FAILED, because a member may still
+   * retry a failed attempt against the same order, and marking the order failed
+   * here would make the later capture — which this method would then refuse, as
+   * the row is no longer PENDING — worse than leaving it pending. A row the
+   * gateway says is captured but which is already terminal is logged for a human
+   * rather than rewritten: a settlement that has been reversed, refunded or
+   * ruled a mismatch is a reconciliation decision, not a background sweep's.
+   */
+  async reconcilePending(): Promise<PaymentReconcileSummary> {
+    const summary: PaymentReconcileSummary = { checked: 0, settled: 0, unpaid: 0, failed: 0 };
+
+    // Without credentials there is nothing to ask. Checked before the query so a
+    // deployment with payments switched off — and every test that boots the
+    // module graph — does no work at all.
+    if (!this.gateway.configured) return summary;
+
+    const now = this.clock.now();
+    const candidates = await this.prisma.payment.findMany({
+      where: {
+        status: { in: ['CREATED', 'PENDING'] },
+        gatewayOrderId: { not: null },
+        createdAt: {
+          gte: new Date(now.getTime() - RECONCILE.lookbackMs),
+          lte: new Date(now.getTime() - RECONCILE.graceMs),
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: RECONCILE.batch,
+    });
+    summary.checked = candidates.length;
+
+    for (const payment of candidates) {
+      const orderId = payment.gatewayOrderId;
+      if (!orderId) continue;
+
+      let attempts: GatewayPayment[];
+      try {
+        attempts = await this.gateway.fetchOrderPayments(orderId);
+      } catch (error) {
+        summary.failed += 1;
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.error(`[reconcile] could not read order ${orderId}: ${message}`);
+        continue;
+      }
+
+      const captured = attempts.find((attempt) => attempt.status === 'captured');
+      if (!captured) {
+        summary.unpaid += 1;
+        continue;
+      }
+
+      // The sweep only queries CREATED/PENDING rows, so this is the unreachable
+      // branch of a race with a webhook that settled the row during the vendor
+      // call. Alerting rather than acting keeps the log honest about it.
+      if (payment.status !== 'CREATED' && payment.status !== 'PENDING') {
+        this.logger.warn(
+          `[reconcile] order ${orderId} is captured at Razorpay but payment ${payment.id} is ${payment.status}; needs a human decision.`,
+        );
+        summary.failed += 1;
+        continue;
+      }
+
+      const result = await this.confirmCapture({
+        orderId,
+        amountMinor: captured.amountMinor,
+        currency: captured.currency,
+        method: captured.method,
+        gatewayPaymentId: captured.gatewayPaymentId,
+        source: 'reconciliation',
+      });
+
+      if (!result.settled) {
+        // `confirmCapture` has already recorded why (amount mismatch, or a
+        // status it could not move) and logged it at error level.
+        summary.failed += 1;
+        continue;
+      }
+
+      summary.settled += 1;
+      await this.recordReconciledEvent(result.paymentId ?? payment.id, captured);
+      this.logger.log(
+        `[reconcile] payment ${payment.id} settled from Razorpay order ${orderId}: ` +
+          `captured ${captured.amountMinor} ${captured.currency}, no webhook had been recorded.`,
+      );
+    }
+
+    if (summary.checked > 0) {
+      this.logger.log(
+        `[reconcile] payments: ${summary.checked} due, ${summary.settled} settled, ` +
+          `${summary.unpaid} unpaid, ${summary.failed} errors.`,
+      );
+    }
+
+    return summary;
   }
 
   // -------------------------------------------------------------------------
@@ -698,34 +863,59 @@ export class PaymentsService {
   }
 
   /**
+   * The webhook's entry into settlement. Thin on purpose: the effect lives in
+   * `confirmCapture`, which the reconciliation sweep also calls, so there is one
+   * transition rather than two that must agree.
+   */
+  private async grant(event: ParsedWebhook): Promise<{ paymentId?: string }> {
+    const { paymentId } = await this.confirmCapture({
+      orderId: event.orderId ?? '',
+      amountMinor: event.amountMinor,
+      currency: event.currency,
+      method: event.method,
+      gatewayPaymentId: event.gatewayPaymentId,
+      source: `webhook ${event.eventId}`,
+    });
+    return { paymentId };
+  }
+
+  /**
    * Confirm a captured payment and grant what it bought.
    *
-   * Returns an empty result — rather than throwing — when the delivery is
+   * Returns an unsettled result — rather than throwing — when the capture is
    * definitively ungrantable (no matching local payment, or an amount that does
    * not match the snapshot). Retrying either cannot change the answer, and a
    * gateway that is retried until it gives up will eventually disable the
    * webhook.
+   *
+   * Shared by the webhook and by `reconcilePending`, so a capture recovered from
+   * the gateway is subject to exactly the same signature-independent checks as
+   * one Razorpay announced: the amount against the snapshot, the guarded
+   * transition, the unlock or activation, and the notification.
    */
-  private async grant(event: ParsedWebhook): Promise<{ paymentId?: string }> {
-    const payment = event.orderId
-      ? await this.prisma.payment.findUnique({ where: { gatewayOrderId: event.orderId } })
+  private async confirmCapture(
+    evidence: CaptureEvidence,
+  ): Promise<{ paymentId?: string; settled: boolean }> {
+    const payment = evidence.orderId
+      ? await this.prisma.payment.findUnique({ where: { gatewayOrderId: evidence.orderId } })
       : null;
 
     if (!payment) {
       this.logger.warn(
-        `No local payment for gateway order ${event.orderId ?? 'unknown'}; nothing granted.`,
+        `No local payment for gateway order ${evidence.orderId || 'unknown'}; nothing granted.`,
       );
-      return {};
+      return { settled: false };
     }
 
     // Section 40: the amount must be verified against server-side order data.
     // The gateway's number is only ever compared, never written into the total.
     const expectedMinor = rupeesToMinor(payment.totalAmount);
-    const currencyMismatch = event.currency !== undefined && event.currency !== payment.currency;
+    const currencyMismatch =
+      evidence.currency !== undefined && evidence.currency !== payment.currency;
     if (
       currencyMismatch ||
-      event.amountMinor === undefined ||
-      event.amountMinor !== expectedMinor
+      evidence.amountMinor === undefined ||
+      evidence.amountMinor !== expectedMinor
     ) {
       await this.prisma.payment.update({
         where: { id: payment.id },
@@ -733,12 +923,12 @@ export class PaymentsService {
           status: 'FAILED',
           failureCode: FAILURE.amountMismatch,
           failureReason:
-            `Gateway reported ${event.amountMinor ?? 'no amount'} ${event.currency ?? payment.currency}; ` +
+            `Gateway reported ${evidence.amountMinor ?? 'no amount'} ${evidence.currency ?? payment.currency}; ` +
             `server snapshot is ${expectedMinor} ${payment.currency}.`,
         },
       });
       this.logger.error(`Amount mismatch on payment ${payment.id}; no unlock granted.`);
-      return { paymentId: payment.id };
+      return { paymentId: payment.id, settled: false };
     }
 
     const now = this.clock.now();
@@ -747,6 +937,7 @@ export class PaymentsService {
     // transaction so that a repeat event — which claims nothing and returns
     // early — cannot notify the member twice about one payment.
     let granted: Granted | null = null;
+    let settled = false;
 
     await this.prisma.$transaction(async (tx) => {
       // The transition is guarded rather than the insert. Two distinct event
@@ -760,16 +951,17 @@ export class PaymentsService {
           status: 'SUCCESS',
           paidAt: now,
           amountVerifiedAt: now,
-          gatewayPaymentId: event.gatewayPaymentId ?? null,
-          gatewayMethod: event.method ?? null,
+          gatewayPaymentId: evidence.gatewayPaymentId ?? null,
+          gatewayMethod: evidence.method ?? null,
         },
       });
       if (claimed.count === 0) {
         this.logger.warn(
-          `Payment ${payment.id} was already settled; ignoring repeat event ${event.eventId}.`,
+          `Payment ${payment.id} was already settled; ignoring repeat event from ${evidence.source}.`,
         );
         return;
       }
+      settled = true;
 
       if (payment.purpose === 'SETUP_FEE') {
         if (await this.activateAccount(tx, payment, now)) {
@@ -791,7 +983,40 @@ export class PaymentsService {
       await this.notifyGranted(payment, granted);
     }
 
-    return { paymentId: payment.id };
+    return { paymentId: payment.id, settled };
+  }
+
+  /**
+   * Record a recovery in the same table the webhook writes.
+   *
+   * The event key is the one Razorpay's own delivery would have carried
+   * (`payment.captured:<payment id>`), which makes the two paths meet: if the
+   * webhook finally arrives, `alreadyHandled` sees a processed row and answers
+   * `duplicate` instead of settling the same money a second time.
+   *
+   * Best effort. The money is already settled and the unlock already committed;
+   * failing to write the audit row is a gap in the record, not a reason to undo
+   * any of it or to fail the sweep.
+   */
+  private async recordReconciledEvent(paymentId: string, captured: GatewayPayment): Promise<void> {
+    try {
+      await this.prisma.webhookEvent.create({
+        data: {
+          provider: 'RAZORPAY',
+          eventId: `${GATEWAY_EVENTS.captured}:${captured.gatewayPaymentId}`,
+          eventType: GATEWAY_EVENTS.captured,
+          payload: captured.raw as Prisma.InputJsonValue,
+          paymentId,
+          processedAt: this.clock.now(),
+        },
+      });
+    } catch (error) {
+      // A unique violation means the real webhook won the race, which is the
+      // best possible outcome here; anything else is worth a line in the log.
+      if (isUniqueViolation(error)) return;
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`[reconcile] could not record the recovered event: ${message}`);
+    }
   }
 
   /**

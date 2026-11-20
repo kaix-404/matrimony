@@ -19,7 +19,12 @@ import {
 import Decimal from 'decimal.js';
 import { createHmac } from 'node:crypto';
 import { PaymentsService } from './payments.service';
-import { PaymentGateway, type CreateGatewayOrderInput, type GatewayOrder } from './payment.gateway';
+import {
+  PaymentGateway,
+  type CreateGatewayOrderInput,
+  type GatewayOrder,
+  type GatewayPayment,
+} from './payment.gateway';
 import { FrozenClock } from '../common/clock/clock.service';
 import { VisibilityPreferenceService } from '../discovery/visibility-preference.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -228,6 +233,30 @@ class FakePrisma {
       Object.assign(row, data);
       return { count: 1 };
     },
+    /**
+     * The reconciliation query. Predicates are applied rather than ignored: a
+     * version of `reconcilePending` that dropped the status filter would settle
+     * already-settled payments here instead of passing on a permissive fake.
+     */
+    findMany: async ({
+      where,
+    }: {
+      where: {
+        status?: { in: string[] };
+        gatewayOrderId?: { not: null };
+        createdAt?: { gte: Date; lte: Date };
+      };
+    }) =>
+      this.payments.filter((p) => {
+        if (where.status && !where.status.in.includes(p.status)) return false;
+        if (where.gatewayOrderId && p.gatewayOrderId === null) return false;
+        if (where.createdAt) {
+          const at = p.createdAt.getTime();
+          if (at < where.createdAt.gte.getTime() || at > where.createdAt.lte.getTime())
+            return false;
+        }
+        return true;
+      }),
   };
 
   webhookEvent = {
@@ -277,9 +306,22 @@ class FakePrisma {
 class FakeGateway extends PaymentGateway {
   created: CreateGatewayOrderInput[] = [];
   failNext = false;
+  /** Mutable so a test can pin the unconfigured path without a second class. */
+  configured = true;
+  readonly webhookConfigured = true;
+  /** What the "provider" holds for each order id, and what it was asked. */
+  orderPayments = new Map<string, GatewayPayment[]>();
+  paymentReads: string[] = [];
+  failPaymentsRead = false;
 
   constructor(private readonly secret: string) {
     super();
+  }
+
+  override async fetchOrderPayments(gatewayOrderId: string): Promise<GatewayPayment[]> {
+    this.paymentReads.push(gatewayOrderId);
+    if (this.failPaymentsRead) throw new Error('gateway unreachable');
+    return this.orderPayments.get(gatewayOrderId) ?? [];
   }
 
   override publishableKeyId(): string {
@@ -1048,5 +1090,129 @@ describe('PaymentsService — status', () => {
     await expect(service.getStatus(TARGET, prisma.payments[0].id)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+});
+
+/**
+ * The recovery sweep.
+ *
+ * The failure being repaired happens at the provider, not here: Razorpay
+ * captured a payment and its webhook was lost because this API was asleep. These
+ * tests pin the two things that matter about the repair — that a capture the
+ * gateway holds is settled by exactly the same path as a webhook, and that
+ * nothing the gateway merely suspects (an unfinished attempt, an unreachable
+ * API) moves any money.
+ */
+describe('PaymentsService.reconcilePending', () => {
+  const ORDER = 'order_1';
+
+  function attempt(overrides: Partial<GatewayPayment> = {}): GatewayPayment {
+    return {
+      gatewayPaymentId: 'pay_recovered',
+      status: 'captured',
+      amountMinor: 11682,
+      currency: 'INR',
+      method: 'upi',
+      raw: { id: 'pay_recovered', status: 'captured', amount: 11682, currency: 'INR' },
+      ...overrides,
+    };
+  }
+
+  it('settles a capture the webhook never delivered', async () => {
+    const { service, prisma, gateway, notifications } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    gateway.orderPayments.set(ORDER, [attempt()]);
+
+    const summary = await service.reconcilePending();
+
+    expect(summary).toMatchObject({ checked: 1, settled: 1, unpaid: 0, failed: 0 });
+    expect(prisma.payments[0].status).toBe('SUCCESS');
+    expect(prisma.payments[0].amountVerifiedAt).toBeInstanceOf(Date);
+    expect(prisma.unlocks).toHaveLength(1);
+    // The recovery is filed under the event key Razorpay's own delivery would
+    // have used, so a webhook arriving later is recognised as a duplicate rather
+    // than settling the same money twice.
+    expect(prisma.webhooks).toEqual([
+      expect.objectContaining({
+        eventId: 'payment.captured:pay_recovered',
+        eventType: 'payment.captured',
+        paymentId: 'pay_1',
+      }),
+    ]);
+    expect(prisma.webhooks[0]?.processedAt).toBeInstanceOf(Date);
+    expect(notifications.created[0]).toMatchObject({
+      event: NOTIFICATION_EVENTS.PAYMENT_SUCCESSFUL,
+      userId: BUYER,
+    });
+  });
+
+  it('does not settle or announce anything a second time', async () => {
+    const { service, prisma, gateway, notifications } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    gateway.orderPayments.set(ORDER, [attempt()]);
+
+    await service.reconcilePending();
+    const second = await service.reconcilePending();
+
+    // A settled row is no longer a candidate, so the second sweep does not even
+    // ask the gateway about it.
+    expect(second.checked).toBe(0);
+    expect(gateway.paymentReads).toHaveLength(1);
+    expect(prisma.unlocks).toHaveLength(1);
+    expect(notifications.created).toHaveLength(1);
+  });
+
+  it('leaves an order alone while the gateway holds no captured attempt', async () => {
+    const { service, prisma, gateway } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    gateway.orderPayments.set(ORDER, [attempt({ status: 'failed' })]);
+
+    const summary = await service.reconcilePending();
+
+    expect(summary).toMatchObject({ checked: 1, settled: 0, unpaid: 1, failed: 0 });
+    // A failed attempt is not written as FAILED here: the member may retry
+    // against the same order, and a terminal row would then refuse the capture.
+    expect(prisma.payments[0].status).toBe('PENDING');
+    expect(prisma.webhooks).toHaveLength(0);
+  });
+
+  it('never grants an amount that does not match its own snapshot', async () => {
+    const { service, prisma, gateway } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    gateway.orderPayments.set(ORDER, [attempt({ amountMinor: 100 })]);
+
+    const summary = await service.reconcilePending();
+
+    expect(summary.settled).toBe(0);
+    expect(summary.failed).toBe(1);
+    expect(prisma.payments[0].status).toBe('FAILED');
+    expect(prisma.payments[0].failureCode).toBe('AMOUNT_MISMATCH');
+    expect(prisma.unlocks).toHaveLength(0);
+  });
+
+  it('survives an unreachable gateway without touching the row', async () => {
+    const { service, prisma, gateway } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    gateway.failPaymentsRead = true;
+
+    const summary = await service.reconcilePending();
+
+    expect(summary).toMatchObject({ checked: 1, settled: 0, failed: 1 });
+    expect(prisma.payments[0].status).toBe('PENDING');
+  });
+
+  it('asks nothing at all when payments are not configured', async () => {
+    const { service, gateway } = await makeService();
+    gateway.configured = false;
+
+    const summary = await service.reconcilePending();
+
+    expect(summary).toEqual({ checked: 0, settled: 0, unpaid: 0, failed: 0 });
+    expect(gateway.paymentReads).toHaveLength(0);
   });
 });

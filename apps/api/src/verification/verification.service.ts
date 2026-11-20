@@ -47,6 +47,47 @@ const DEFAULT_MANUAL_REJECTION =
   'The document could not be accepted. Please upload a clearer copy of your Aadhaar.';
 
 /**
+ * Bounds on the recovery sweep, chosen for the deployment this runs on.
+ *
+ * The API is on Render's free plan, where an idle instance sleeps and the next
+ * request waits for a cold start that runs migrations first. A DigiLocker
+ * webhook sent into that window can outlast Cashfree's retries, leaving an
+ * attempt that passed at the supplier and is still PENDING here — the member is
+ * asked to verify again for a check that already succeeded.
+ *
+ * `graceMs` keeps the sweep away from sessions the member may still be inside;
+ * a consent link lives ten minutes, so a sweep only looks at attempts whose link
+ * has lapsed. `lookbackMs` bounds the query to recent attempts, and `batch`
+ * keeps one sweep to a handful of supplier calls.
+ */
+const RECONCILE = {
+  graceMs: 2 * 60_000,
+  lookbackMs: 7 * 24 * 60 * 60_000,
+  batch: 25,
+} as const;
+
+/** What one sweep did, so the caller can put a single line in the log. */
+export interface VerificationReconcileSummary {
+  /** Attempts that were due for a check. */
+  checked: number;
+  /** Attempts the supplier had resolved, now reflected here. */
+  settled: number;
+  /** Attempts the supplier still reports as unfinished. */
+  pending: number;
+  /** Attempts the supplier could not be asked about. */
+  failed: number;
+}
+
+/** The columns the outcome transition reads. */
+interface IdentitySnapshot {
+  id: string;
+  userId: string;
+  status: string;
+  nameOnId: string | null;
+  yearOfBirth: number | null;
+}
+
+/**
  * D9 makes identity verification mandatory: a VERIFIED check is the only thing
  * that moves an account from PENDING_VERIFICATION to AWAITING_SETUP_FEE.
  *
@@ -481,8 +522,137 @@ export class VerificationService {
       return;
     }
 
+    await this.applyOutcome(
+      identity,
+      next,
+      data.user_details ?? {},
+      `DigiLocker ${body.event_type}`,
+      body.event_type,
+      data.status ?? null,
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Reconciliation — the webhook that never arrived
+  // -------------------------------------------------------------------------
+
+  /**
+   * Asks Cashfree what became of attempts whose callback we never recorded.
+   *
+   * The failure it repairs is the one a sleeping instance creates: the member
+   * authorises on DigiLocker, Cashfree sends the webhook, the request wakes a
+   * service that is still running migrations, and the delivery is gone before
+   * the app can accept it. Nothing here knows the check passed, so the member is
+   * left on a screen that will never advance — and asks them to hand over their
+   * Aadhaar consent again for a check that already succeeded.
+   *
+   * Only attempts whose consent link has lapsed are read, so a member mid-flow is
+   * never interrupted by the sweep, and only statuses the supplier actually
+   * resolved are applied: `PENDING` means the member has not finished, which is
+   * already what this row says.
+   */
+  async reconcilePending(): Promise<VerificationReconcileSummary> {
+    const summary: VerificationReconcileSummary = {
+      checked: 0,
+      settled: 0,
+      pending: 0,
+      failed: 0,
+    };
+
+    // Nothing to ask without credentials. Checked before the query so a
+    // deployment with KYC switched off, and every test that boots the module
+    // graph, does no work and makes no vendor call.
+    if (!this.gateway.configured) return summary;
+
     const now = new Date();
-    const details = data.user_details ?? {};
+    const attempts = await this.prisma.identityVerification.findMany({
+      where: {
+        // Manual checks are excluded by `vendor`: a human decides those, and
+        // there is no supplier to ask about them.
+        status: 'PENDING' as never,
+        vendor: 'CASHFREE' as never,
+        providerReference: { not: null },
+        providerReferenceExpiresAt: { lt: new Date(now.getTime() - RECONCILE.graceMs) },
+        updatedAt: { gt: new Date(now.getTime() - RECONCILE.lookbackMs) },
+      },
+      orderBy: { updatedAt: 'asc' },
+      take: RECONCILE.batch,
+    });
+    summary.checked = attempts.length;
+
+    // Collect failures rather than logging them as they happen. Cashfree refuses
+    // this host's IPs, so one sweep can fail on every attempt it looked at for
+    // the same reason — twenty-five identical lines hide the one fact worth
+    // reading. One line per sweep, naming the count and the distinct errors.
+    const failures: string[] = [];
+
+    for (const identity of attempts) {
+      let provider;
+      try {
+        provider = await this.gateway.fetchDigiLockerStatus({
+          verificationId: identity.id,
+          providerReference: identity.providerReference,
+        });
+      } catch (error) {
+        summary.failed += 1;
+        failures.push(error instanceof Error ? error.message : String(error));
+        continue;
+      }
+
+      const next = statusForProvider(provider.status);
+      if (!next) {
+        summary.pending += 1;
+        continue;
+      }
+
+      await this.applyOutcome(
+        identity,
+        next,
+        provider.userDetails ?? {},
+        `Reconciled DigiLocker status ${provider.status}`,
+        provider.status,
+      );
+      summary.settled += 1;
+    }
+
+    if (failures.length > 0) {
+      const distinct = [...new Set(failures)];
+      const detail =
+        distinct.length === 1
+          ? distinct[0]
+          : `${distinct.length} distinct errors, latest: ${distinct[distinct.length - 1]}`;
+      this.logger.error(
+        `[reconcile] identity: could not read ${failures.length} ` +
+          `${failures.length === 1 ? 'attempt' : 'attempts'} from Cashfree; will retry on the next sweep. ${detail}`,
+      );
+    }
+
+    if (summary.checked > 0) {
+      this.logger.log(
+        `[reconcile] identity: ${summary.checked} due, ${summary.settled} applied, ` +
+          `${summary.pending} unfinished, ${summary.failed} errors.`,
+      );
+    }
+
+    return summary;
+  }
+
+  /**
+   * The one transition both the webhook and the reconciliation sweep apply.
+   *
+   * Kept in one place because the two sources must not disagree: the row is
+   * VERIFIED (or FAILED, or EXPIRED), an account still awaiting verification
+   * moves on, and the member is told — by the same wording, once per real change.
+   */
+  private async applyOutcome(
+    identity: IdentitySnapshot,
+    next: 'VERIFIED' | 'FAILED' | 'EXPIRED',
+    details: { name?: string | undefined; dob?: string | undefined },
+    source: string,
+    failureCode: string,
+    reason: string | null = null,
+  ): Promise<void> {
+    const now = new Date();
     // Read before the write: the row goes on to be updated, and the decision to
     // announce an outcome is about what changed, not about what it now says.
     const previousStatus = identity.status;
@@ -504,8 +674,8 @@ export class VerificationService {
             : {
                 status: next as never,
                 verifiedAt: null,
-                failureCode: body.event_type,
-                failureReason: data.status ?? null,
+                failureCode,
+                failureReason: reason,
                 updatedAt: now,
               },
       });
@@ -532,9 +702,7 @@ export class VerificationService {
       await this.notifyOutcome(identity.userId, next);
     }
 
-    this.logger.log(
-      `DigiLocker ${body.event_type} applied to verification ${identity.id}: ${next}`,
-    );
+    this.logger.log(`${source} applied to verification ${identity.id}: ${next}`);
   }
 
   /**
@@ -616,6 +784,30 @@ function statusForEvent(eventType: string): 'VERIFIED' | 'FAILED' | 'EXPIRED' | 
       return 'FAILED';
     case DIGILOCKER_EVENTS.linkExpired:
     case DIGILOCKER_EVENTS.consentExpired:
+      return 'EXPIRED';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Which stored status the supplier's own status word produces, or null when the
+ * attempt is not resolved yet.
+ *
+ * A separate mapping from `statusForEvent` because the two vocabularies are
+ * different: events are named after what happened, statuses after where the
+ * session stands (`AUTHENTICATED` for a passed consent, `CONSENT_DENIED` for a
+ * refused one). Unknown words return null rather than being guessed at — a
+ * supplier adding a status must never become an account that verified itself.
+ */
+function statusForProvider(status: string): 'VERIFIED' | 'FAILED' | 'EXPIRED' | null {
+  switch (status) {
+    case 'AUTHENTICATED':
+      return 'VERIFIED';
+    case 'FAILED':
+    case 'CONSENT_DENIED':
+      return 'FAILED';
+    case 'EXPIRED':
       return 'EXPIRED';
     default:
       return null;

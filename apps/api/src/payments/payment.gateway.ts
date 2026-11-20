@@ -37,6 +37,55 @@ export interface CreateGatewayOrderInput {
 }
 
 /**
+ * One payment attempt on an order, as the gateway reports it.
+ *
+ * This is what reconciliation reads when a webhook never arrived: the gateway
+ * settles the order either way, so its own list of attempts is the only record
+ * of money that was taken while this API was asleep.
+ */
+export interface GatewayPayment {
+  gatewayPaymentId: string;
+  /** The gateway's status: `created`, `authorized`, `captured`, `failed`, `refunded`. */
+  status: string;
+  /** In the currency's smallest unit, exactly as `GatewayOrder.amountMinor`. */
+  amountMinor: number;
+  currency: string;
+  method?: string;
+  /** The provider's own object, stored as the audit payload of a reconciliation. */
+  raw: Record<string, unknown>;
+}
+
+/**
+ * Reduce one payment object from the gateway to `GatewayPayment`, or null when
+ * it lacks the fields a settlement decision needs.
+ *
+ * Pure and exported so it can be tested without the vendor SDK: an amount that
+ * silently became `NaN` here would fail the snapshot comparison and mark a real
+ * payment FAILED, which is worse than skipping the row.
+ */
+export function toGatewayPayment(item: unknown): GatewayPayment | null {
+  if (typeof item !== 'object' || item === null) return null;
+  const record = item as Record<string, unknown>;
+
+  const id = typeof record.id === 'string' ? record.id : '';
+  const status = typeof record.status === 'string' ? record.status : '';
+  const currency = typeof record.currency === 'string' ? record.currency : '';
+  const amount =
+    typeof record.amount === 'number' ? record.amount : Number(record.amount as string | undefined);
+
+  if (id === '' || status === '' || currency === '' || !Number.isSafeInteger(amount)) return null;
+
+  return {
+    gatewayPaymentId: id,
+    status,
+    amountMinor: amount,
+    currency,
+    method: typeof record.method === 'string' ? record.method : undefined,
+    raw: record,
+  };
+}
+
+/**
  * Razorpay-specific event names. Only the two that grant or deny an unlock are
  * modelled; every other event type is accepted and logged without effect,
  * because a gateway adding an event must never become an outage.
@@ -74,6 +123,17 @@ export abstract class PaymentGateway {
   abstract verifyWebhookSignature(rawBody: string, signature: string | undefined): boolean;
 
   abstract createOrder(input: CreateGatewayOrderInput): Promise<GatewayOrder>;
+
+  /**
+   * Every payment attempt the gateway holds for an order.
+   *
+   * The webhook is the normal path; this is the recovery path for a delivery
+   * that never arrived (a sleeping instance, a gateway retry that expired). An
+   * order is the unit, because an order that was paid has at least one captured
+   * attempt under it, and a member who retries a failed attempt keeps the same
+   * order id.
+   */
+  abstract fetchOrderPayments(gatewayOrderId: string): Promise<GatewayPayment[]>;
 
   /**
    * The publishable key a client needs to open checkout.
@@ -167,6 +227,26 @@ export class RazorpayPaymentGateway extends PaymentGateway {
     // the right one.
     if (a.length !== b.length) return false;
     return timingSafeEqual(a, b);
+  }
+
+  async fetchOrderPayments(gatewayOrderId: string): Promise<GatewayPayment[]> {
+    if (!this.client) {
+      throw new Error("Razorpay is not configured; cannot fetch an order's payments");
+    }
+
+    // Typed as unknown and reduced by `toGatewayPayment`: the SDK's response
+    // shape is a loose `any`, and an unparsed field reaching the amount
+    // comparison is exactly the failure this seam exists to prevent.
+    const collection = (await this.client.orders.fetchPayments(gatewayOrderId)) as unknown;
+    const items =
+      typeof collection === 'object' && collection !== null
+        ? ((collection as { items?: unknown }).items ?? [])
+        : [];
+    if (!Array.isArray(items)) return [];
+
+    return items
+      .map(toGatewayPayment)
+      .filter((payment): payment is GatewayPayment => payment !== null);
   }
 
   async createOrder(input: CreateGatewayOrderInput): Promise<GatewayOrder> {

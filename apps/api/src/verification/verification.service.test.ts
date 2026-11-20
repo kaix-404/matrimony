@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -85,6 +86,31 @@ function harness() {
       },
       findFirst: async ({ where }: { where: { providerReference: string } }) =>
         identities.find((i) => i.providerReference === where.providerReference) ?? null,
+      /**
+       * The reconciliation query. Every predicate is applied, so a sweep that
+       * forgot to exclude manual checks or sessions inside their consent window
+       * would read them here rather than passing against a permissive fake.
+       */
+      findMany: async ({
+        where,
+      }: {
+        where: {
+          status?: string;
+          vendor?: string;
+          providerReference?: { not: null };
+          providerReferenceExpiresAt?: { lt: Date };
+        };
+      }) =>
+        identities.filter((i) => {
+          if (where.status !== undefined && i.status !== where.status) return false;
+          if (where.vendor !== undefined && i.vendor !== where.vendor) return false;
+          if (where.providerReference !== undefined && i.providerReference === null) return false;
+          if (where.providerReferenceExpiresAt !== undefined) {
+            if (i.providerReferenceExpiresAt === null) return false;
+            if (i.providerReferenceExpiresAt >= where.providerReferenceExpiresAt.lt) return false;
+          }
+          return true;
+        }),
       // Each attempt creates its own row (the vendor refuses a reused
       // `verification_id`), so the fake offers create/delete rather than upsert.
       create: async ({ data }: { data: Partial<FakeIdentity> }) => {
@@ -231,6 +257,8 @@ function gateway(overrides: Partial<VerificationGateway> = {}): VerificationGate
       expiresAt: new Date(Date.now() + 600_000),
     }),
     verifyWebhookSignature: () => true,
+    // The supplier has nothing new to say unless a test says otherwise.
+    fetchDigiLockerStatus: async () => ({ status: 'PENDING' }),
     ...overrides,
   } as VerificationGateway;
 }
@@ -735,5 +763,196 @@ describe('VerificationService.decideManualVerification', () => {
     // Announced once: the second administrator asked for what already happened.
     expect(h.notifications.created).toHaveLength(1);
     expect(identity.reviewedByAdminId).toBe('admin_1');
+  });
+});
+
+/**
+ * The recovery sweep.
+ *
+ * Cashfree recorded a result and its webhook was lost to a cold start. These
+ * tests pin what the sweep may do with what the supplier reports: apply a
+ * resolved outcome through the same transition the webhook uses, and leave an
+ * unfinished session — or an unreachable supplier — exactly where it is.
+ */
+describe('VerificationService.reconcilePending', () => {
+  const LAPSED = new Date('2026-10-04T09:00:00.000Z');
+
+  it('applies a pass the supplier recorded for an attempt whose webhook never arrived', async () => {
+    const h = harness();
+    const identity = h.seedIdentity({ providerReferenceExpiresAt: LAPSED });
+    const user = h.seedUser('u1', 'PENDING_VERIFICATION');
+    const reads: string[] = [];
+
+    const summary = await h
+      .service(
+        gateway({
+          fetchDigiLockerStatus: async (input) => {
+            reads.push(input.verificationId);
+            return { status: 'AUTHENTICATED', userDetails: { name: 'Asha R', dob: '01-02-1990' } };
+          },
+        }),
+      )
+      .reconcilePending();
+
+    expect(summary).toMatchObject({ checked: 1, settled: 1, pending: 0, failed: 0 });
+    // Read by our own row id: the supplier is asked about this attempt, not
+    // about a phone number or a name.
+    expect(reads).toEqual([identity.id]);
+    expect(identity.status).toBe('VERIFIED');
+    expect(identity.nameOnId).toBe('Asha R');
+    expect(identity.yearOfBirth).toBe(1990);
+    expect(user.status).toBe('AWAITING_SETUP_FEE');
+    expect(user.identityVerifiedAt).toBeInstanceOf(Date);
+    expect(h.notifications.created[0]).toMatchObject({
+      event: NOTIFICATION_EVENTS.IDENTITY_VERIFIED,
+      userId: 'u1',
+      channel: 'PUSH',
+    });
+  });
+
+  it('records a refused consent as FAILED without repeating the vendor word to the member', async () => {
+    const h = harness();
+    const identity = h.seedIdentity({ providerReferenceExpiresAt: LAPSED });
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+
+    const summary = await h
+      .service(gateway({ fetchDigiLockerStatus: async () => ({ status: 'CONSENT_DENIED' }) }))
+      .reconcilePending();
+
+    expect(summary.settled).toBe(1);
+    expect(identity.status).toBe('FAILED');
+    expect(identity.failureCode).toBe('CONSENT_DENIED');
+    expect(h.notifications.created[0]?.event).toBe(
+      NOTIFICATION_EVENTS.IDENTITY_VERIFICATION_FAILED,
+    );
+    expect(h.notifications.created[0]?.body).not.toContain('CONSENT_DENIED');
+  });
+
+  it('leaves a session the member has not finished untouched', async () => {
+    const h = harness();
+    const identity = h.seedIdentity({ providerReferenceExpiresAt: LAPSED });
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+
+    const summary = await h.service(gateway()).reconcilePending();
+
+    expect(summary).toMatchObject({ checked: 1, settled: 0, pending: 1, failed: 0 });
+    expect(identity.status).toBe('PENDING');
+    expect(h.notifications.created).toHaveLength(0);
+  });
+
+  it('does not ask about a session whose consent link is still live', async () => {
+    const h = harness();
+    h.seedIdentity({ providerReferenceExpiresAt: new Date(Date.now() + 5 * 60_000) });
+    const reads: string[] = [];
+
+    const summary = await h
+      .service(
+        gateway({
+          fetchDigiLockerStatus: async (input) => {
+            reads.push(input.verificationId);
+            return { status: 'AUTHENTICATED' };
+          },
+        }),
+      )
+      .reconcilePending();
+
+    expect(summary.checked).toBe(0);
+    expect(reads).toHaveLength(0);
+  });
+
+  it('never reads a manual check: a person decides those', async () => {
+    const h = harness();
+    h.seedIdentity({
+      provider: 'MANUAL_DOCUMENT',
+      vendor: null,
+      providerReference: null,
+      providerReferenceExpiresAt: LAPSED,
+    });
+    const reads: string[] = [];
+
+    const summary = await h
+      .service(
+        gateway({
+          fetchDigiLockerStatus: async (input) => {
+            reads.push(input.verificationId);
+            return { status: 'AUTHENTICATED' };
+          },
+        }),
+      )
+      .reconcilePending();
+
+    expect(summary.checked).toBe(0);
+    expect(reads).toHaveLength(0);
+  });
+
+  it('logs one line for a whole sweep of refusals, not one per attempt', async () => {
+    const h = harness();
+    const first = h.seedIdentity({ userId: 'u1', providerReferenceExpiresAt: LAPSED });
+    h.seedIdentity({ userId: 'u2', providerReferenceExpiresAt: LAPSED });
+    h.seedIdentity({ userId: 'u3', providerReferenceExpiresAt: LAPSED });
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+
+    try {
+      const summary = await h
+        .service(
+          gateway({
+            fetchDigiLockerStatus: async () => {
+              throw new Error('Cashfree DigiLocker status failed (HTTP 403): IP not allowed');
+            },
+          }),
+        )
+        .reconcilePending();
+
+      expect(summary).toMatchObject({ checked: 3, settled: 0, failed: 3 });
+      // Cashfree refusing the host's IPs fails every attempt for the same
+      // reason; three identical lines per sweep would bury the signal.
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(error.mock.calls[0][0]).toBe(
+        '[reconcile] identity: could not read 3 attempts from Cashfree; will retry on the next sweep. ' +
+          'Cashfree DigiLocker status failed (HTTP 403): IP not allowed',
+      );
+      expect(first.status).toBe('PENDING');
+    } finally {
+      error.mockRestore();
+    }
+  });
+
+  it('survives an unreachable supplier and leaves the row for the next sweep', async () => {
+    const h = harness();
+    const identity = h.seedIdentity({ providerReferenceExpiresAt: LAPSED });
+
+    const summary = await h
+      .service(
+        gateway({
+          fetchDigiLockerStatus: async () => {
+            throw new Error('Cashfree DigiLocker status failed (HTTP 403): IP not whitelisted');
+          },
+        }),
+      )
+      .reconcilePending();
+
+    expect(summary).toMatchObject({ checked: 1, settled: 0, failed: 1 });
+    expect(identity.status).toBe('PENDING');
+  });
+
+  it('asks nothing when the supplier is not configured', async () => {
+    const h = harness();
+    h.seedIdentity({ providerReferenceExpiresAt: LAPSED });
+    const reads: string[] = [];
+
+    const summary = await h
+      .service(
+        gateway({
+          configured: false,
+          fetchDigiLockerStatus: async (input) => {
+            reads.push(input.verificationId);
+            return { status: 'AUTHENTICATED' };
+          },
+        }),
+      )
+      .reconcilePending();
+
+    expect(summary).toEqual({ checked: 0, settled: 0, pending: 0, failed: 0 });
+    expect(reads).toHaveLength(0);
   });
 });

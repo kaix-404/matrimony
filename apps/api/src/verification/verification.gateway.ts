@@ -31,6 +31,20 @@ export interface DigiLockerSession {
   expiresAt: Date;
 }
 
+/**
+ * What the supplier says about a session whose webhook never arrived.
+ *
+ * `status` keeps Cashfree's own vocabulary (`PENDING`, `AUTHENTICATED`,
+ * `EXPIRED`, `CONSENT_DENIED`, `FAILED`) rather than our stored one: the
+ * mapping to `IdentityVerificationStatus` is a decision the service makes, and
+ * hiding an unmodelled value here would turn a new supplier status into a
+ * silently verified account.
+ */
+export interface DigiLockerStatus {
+  status: string;
+  userDetails?: { name?: string; dob?: string };
+}
+
 export abstract class VerificationGateway {
   /** False when the supplier credentials are absent; callers must fail closed. */
   abstract readonly configured: boolean;
@@ -44,6 +58,19 @@ export abstract class VerificationGateway {
    * from a phone number or a name.
    */
   abstract createDigiLockerSession(input: { verificationId: string }): Promise<DigiLockerSession>;
+
+  /**
+   * Reads the current status of a DigiLocker session.
+   *
+   * The webhook is the normal path; this is the recovery path for a delivery
+   * that never arrived (a sleeping instance, a supplier retry that expired).
+   * Read by `verification_id` — our own row id — so the answer is attributable
+   * to the exact attempt this server created, never to a phone number or a name.
+   */
+  abstract fetchDigiLockerStatus(input: {
+    verificationId: string;
+    providerReference?: string | null;
+  }): Promise<DigiLockerStatus>;
 
   /**
    * Verifies a Secure ID webhook.
@@ -168,6 +195,60 @@ export class CashfreeVerificationGateway extends VerificationGateway {
       url: payload.url,
       expiresAt: new Date(Date.now() + DIGILOCKER_URL_TTL_MS),
     };
+  }
+
+  async fetchDigiLockerStatus(input: {
+    verificationId: string;
+    providerReference?: string | null;
+  }): Promise<DigiLockerStatus> {
+    if (!this.configured) {
+      throw new Error('Cashfree Secure ID is not configured; cannot read a DigiLocker status');
+    }
+
+    // `verification_id` rather than `reference_id`: it is the id this server
+    // minted for the attempt, so a supplier that recycled a reference could
+    // never hand us someone else's result.
+    const query = new URLSearchParams({ verification_id: input.verificationId });
+    const response = await fetch(`${this.baseUrl}/digilocker?${query.toString()}`, {
+      method: 'GET',
+      headers: {
+        'x-client-id': this.clientId,
+        'x-client-secret': this.clientSecret,
+      },
+      signal: AbortSignal.timeout(VENDOR_TIMEOUT_MS),
+    });
+
+    const text = await response.text();
+
+    if (!response.ok) {
+      // A 403 here is the supplier refusing this host's IP, not a bug in the
+      // call; the body names it, and the sweeper logs it once per sweep.
+      throw new Error(
+        `Cashfree DigiLocker status failed (HTTP ${response.status}): ${text.slice(0, 400)}`,
+      );
+    }
+
+    let payload: { status?: unknown; user_details?: unknown };
+    try {
+      payload = JSON.parse(text) as typeof payload;
+    } catch {
+      throw new Error('Cashfree DigiLocker status returned a non-JSON body');
+    }
+
+    if (typeof payload.status !== 'string' || payload.status === '') {
+      throw new Error('Cashfree DigiLocker status returned no status');
+    }
+
+    const details =
+      typeof payload.user_details === 'object' && payload.user_details !== null
+        ? (payload.user_details as Record<string, unknown>)
+        : {};
+
+    const userDetails: { name?: string; dob?: string } = {};
+    if (typeof details.name === 'string') userDetails.name = details.name;
+    if (typeof details.dob === 'string') userDetails.dob = details.dob;
+
+    return { status: payload.status.toUpperCase(), userDetails };
   }
 
   verifyWebhookSignature(

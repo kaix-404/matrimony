@@ -7,7 +7,7 @@
  * file computes independently must verify, and every near-miss must not.
  */
 
-import { RazorpayPaymentGateway, rupeesToMinor } from './payment.gateway';
+import { RazorpayPaymentGateway, rupeesToMinor, toGatewayPayment } from './payment.gateway';
 import { createHmac } from 'node:crypto';
 
 const SECRET = 'whsec_test_2f8a41d6e0b74c9fb31a7d5e8c0a4b6d';
@@ -97,5 +97,45 @@ describe('RazorpayPaymentGateway.verifyWebhookSignature', () => {
     // is nothing to verify against, and defaulting to "accept" would make an
     // unconfigured deployment accept forged payments.
     expect(unconfigured.verifyWebhookSignature(body, sign(body, ''))).toBe(false);
+  });
+});
+
+describe('toGatewayPayment', () => {
+  it('reduces a captured payment to the fields a settlement decision needs', () => {
+    expect(
+      toGatewayPayment({
+        id: 'pay_1',
+        status: 'captured',
+        amount: 11682,
+        currency: 'INR',
+        method: 'upi',
+        order_id: 'order_1',
+      }),
+    ).toMatchObject({
+      gatewayPaymentId: 'pay_1',
+      status: 'captured',
+      amountMinor: 11682,
+      currency: 'INR',
+      method: 'upi',
+    });
+  });
+
+  it('rejects an object whose amount is not a whole number of paise', () => {
+    // Coercing this to 0 would fail the snapshot comparison and mark a real
+    // capture FAILED; skipping it leaves the row pending for a human instead.
+    expect(
+      toGatewayPayment({ id: 'pay_1', status: 'captured', amount: 'a lot', currency: 'INR' }),
+    ).toBeNull();
+    expect(
+      toGatewayPayment({ id: 'pay_1', status: 'captured', amount: 116.82, currency: 'INR' }),
+    ).toBeNull();
+  });
+
+  it('rejects anything missing an identity, a status or a currency', () => {
+    expect(toGatewayPayment(null)).toBeNull();
+    expect(toGatewayPayment('pay_1')).toBeNull();
+    expect(toGatewayPayment({ status: 'captured', amount: 1, currency: 'INR' })).toBeNull();
+    expect(toGatewayPayment({ id: 'pay_1', amount: 1, currency: 'INR' })).toBeNull();
+    expect(toGatewayPayment({ id: 'pay_1', status: 'captured', amount: 1 })).toBeNull();
   });
 });

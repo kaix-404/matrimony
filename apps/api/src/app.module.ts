@@ -19,6 +19,7 @@ import { ShortlistModule } from './shortlist/shortlist.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AdminModule } from './admin/admin.module';
 import { VerificationModule } from './verification/verification.module';
+import { ReconciliationModule } from './reconciliation/reconciliation.module';
 import type { Env } from './config/env';
 
 /**
@@ -55,6 +56,10 @@ import type { Env } from './config/env';
     // was never registered, so /verification/* answered 404 in production while
     // the status report called the phase complete.
     VerificationModule,
+    // Recovery for the webhooks a sleeping instance loses: Razorpay captures
+    // and DigiLocker results reconciled from the providers at boot and on an
+    // interval. Without this import the sweep existed but never ran.
+    ReconciliationModule,
     AdminModule,
     ThrottlerModule.forRootAsync({
       inject: ['ENV'],

@@ -82,7 +82,9 @@ describe('CashfreeVerificationGateway.createDigiLockerSession', () => {
   });
 
   it('uses the production host in production', async () => {
-    const fetchMock = jest.fn(async () => jsonResponse({ reference_id: 1, url: 'https://x.test/u' }));
+    const fetchMock = jest.fn(async () =>
+      jsonResponse({ reference_id: 1, url: 'https://x.test/u' }),
+    );
     setFetch(fetchMock);
 
     await gateway({ env: 'production' }).createDigiLockerSession({ verificationId: 'i1' });
@@ -112,9 +114,9 @@ describe('CashfreeVerificationGateway.createDigiLockerSession', () => {
     const fetchMock = jest.fn();
     setFetch(fetchMock);
 
-    await expect(gateway({ secret: '' }).createDigiLockerSession({ verificationId: 'i1' })).rejects.toThrow(
-      /not configured/,
-    );
+    await expect(
+      gateway({ secret: '' }).createDigiLockerSession({ verificationId: 'i1' }),
+    ).rejects.toThrow(/not configured/);
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -139,9 +141,7 @@ describe('CashfreeVerificationGateway.verifyWebhookSignature', () => {
     const timestamp = '1746427759733';
     const signature = sign(body, timestamp);
 
-    expect(
-      gateway().verifyWebhookSignature(`${body} `, signature, timestamp),
-    ).toBe(false);
+    expect(gateway().verifyWebhookSignature(`${body} `, signature, timestamp)).toBe(false);
   });
 
   it('rejects a missing signature or timestamp without throwing', () => {
@@ -161,5 +161,70 @@ describe('CashfreeVerificationGateway.verifyWebhookSignature', () => {
     expect(
       gateway({ secret: '' }).verifyWebhookSignature(body, sign(body, timestamp), timestamp),
     ).toBe(false);
+  });
+});
+
+describe('CashfreeVerificationGateway.fetchDigiLockerStatus', () => {
+  it('reads the session by our verification id, with the client credentials', async () => {
+    const fetchMock = jest.fn(async () =>
+      jsonResponse({ verification_id: 'i1', status: 'AUTHENTICATED', user_details: {} }),
+    );
+    setFetch(fetchMock);
+
+    await gateway().fetchDigiLockerStatus({ verificationId: 'i1', providerReference: '12345' });
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://sandbox.cashfree.com/verification/digilocker?verification_id=i1');
+    expect(init.method).toBe('GET');
+    const headers = init.headers as Record<string, string>;
+    expect(headers['x-client-id']).toBe('client-id');
+    expect(headers['x-client-secret']).toBe('client-secret');
+  });
+
+  it('carries the supplier status and the name on the document', async () => {
+    setFetch(async () =>
+      jsonResponse({
+        verification_id: 'i1',
+        status: 'authenticated',
+        user_details: { name: 'Asha R', dob: '01-02-1990' },
+      }),
+    );
+
+    const status = await gateway().fetchDigiLockerStatus({ verificationId: 'i1' });
+
+    // Upper-cased so the service's mapping is a vocabulary check, not a
+    // case-sensitivity accident that turns a pass into a pending row.
+    expect(status).toEqual({
+      status: 'AUTHENTICATED',
+      userDetails: { name: 'Asha R', dob: '01-02-1990' },
+    });
+  });
+
+  it('surfaces a refusal with the supplier diagnostic, which names an unwhitelisted IP', async () => {
+    setFetch(async () =>
+      jsonResponse({ message: 'IP not allowed. Please whitelist your IP' }, 403),
+    );
+
+    await expect(gateway().fetchDigiLockerStatus({ verificationId: 'i1' })).rejects.toThrow(
+      /HTTP 403/,
+    );
+  });
+
+  it('refuses to interpret a body with no status rather than guess at one', async () => {
+    setFetch(async () => jsonResponse({ verification_id: 'i1' }));
+
+    await expect(gateway().fetchDigiLockerStatus({ verificationId: 'i1' })).rejects.toThrow(
+      /no status/,
+    );
+  });
+
+  it('fails closed without calling the supplier when it is not configured', async () => {
+    const fetchMock = jest.fn();
+    setFetch(fetchMock);
+
+    await expect(
+      gateway({ secret: '' }).fetchDigiLockerStatus({ verificationId: 'i1' }),
+    ).rejects.toThrow(/not configured/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
