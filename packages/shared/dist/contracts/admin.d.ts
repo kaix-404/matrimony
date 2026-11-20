@@ -457,16 +457,16 @@ export declare const AdminSessionViewSchema: z.ZodObject<{
     roles: z.ZodArray<z.ZodEnum<["SUPER_ADMIN", "ADMIN", "MODERATION_ADMIN", "FINANCE_ADMIN"]>, "many">;
     permissions: z.ZodArray<z.ZodEnum<["user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage", ...("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[]]>, "many">;
 }, "strict", z.ZodTypeAny, {
+    name: string;
     email: string;
     id: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
-    name: string;
     permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
 }, {
+    name: string;
     email: string;
     id: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
-    name: string;
     permissions: ("user:read" | "user:suspend" | "user:delete" | "user:change_category" | "user:restore" | "profile:read" | "profile:approve" | "profile:reject" | "profile:suspend" | "profile:update" | "photo:review" | "payment:read" | "payment:refund" | "unlock:read" | "unlock:grant" | "report:review" | "pricing:read" | "pricing:write" | "notification:send" | "audit:read" | "data_request:handle" | "identity_verify:read" | "identity_verify:review" | "master_data:read" | "master_data:write" | "system:read" | "admin:manage")[];
 }>;
 export type AdminSessionView = z.infer<typeof AdminSessionViewSchema>;
@@ -600,9 +600,53 @@ export interface AdminVerificationView {
      */
     consentedAt: string | null;
     verifiedAt: string | null;
+    /**
+     * A short-lived signed link to a manually uploaded identity document, or null.
+     *
+     * Only a manual check has one: a DigiLocker check keeps no copy at all, which
+     * is the point of using it. Minted at read time and never stored.
+     */
+    documentUrl: string | null;
+    /** When a document was put forward for review; null for DigiLocker rows. */
+    documentSubmittedAt: string | null;
+    /** When an administrator decided a manual check; null until then. */
+    reviewedAt: string | null;
+    reviewNote: string | null;
     createdAt: string;
     updatedAt: string;
 }
+/**
+ * Approving or rejecting a manually uploaded identity document.
+ *
+ * `REJECT` must say why. The member sees the reason on their verification
+ * screen, and "your document was refused" with no explanation leaves them
+ * re-uploading the same file. `APPROVE` carries no note, and one sent anyway is
+ * refused rather than stored, so a stale form cannot attach a complaint to a
+ * check that passed.
+ */
+export declare const AdminReviewVerificationSchema: z.ZodEffects<z.ZodEffects<z.ZodObject<{
+    decision: z.ZodEnum<["APPROVE", "REJECT"]>;
+    note: z.ZodOptional<z.ZodString>;
+}, "strict", z.ZodTypeAny, {
+    decision: "APPROVE" | "REJECT";
+    note?: string | undefined;
+}, {
+    decision: "APPROVE" | "REJECT";
+    note?: string | undefined;
+}>, {
+    decision: "APPROVE" | "REJECT";
+    note?: string | undefined;
+}, {
+    decision: "APPROVE" | "REJECT";
+    note?: string | undefined;
+}>, {
+    decision: "APPROVE" | "REJECT";
+    note?: string | undefined;
+}, {
+    decision: "APPROVE" | "REJECT";
+    note?: string | undefined;
+}>;
+export type AdminReviewVerificationInput = z.infer<typeof AdminReviewVerificationSchema>;
 /**
  * Creating an administrator.
  *
@@ -623,28 +667,28 @@ export declare const AdminCreateSchema: z.ZodEffects<z.ZodObject<{
      */
     phone: z.ZodOptional<z.ZodEffects<z.ZodEffects<z.ZodEffects<z.ZodString, string, string>, string, string>, string, string>>;
 }, "strict", z.ZodTypeAny, {
+    name: string;
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
-    name: string;
     phone?: string | undefined;
 }, {
+    name: string;
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
-    name: string;
     phone?: string | undefined;
 }>, {
+    name: string;
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
-    name: string;
     phone?: string | undefined;
 }, {
+    name: string;
     email: string;
     password: string;
     roles: ("SUPER_ADMIN" | "ADMIN" | "MODERATION_ADMIN" | "FINANCE_ADMIN")[];
-    name: string;
     phone?: string | undefined;
 }>;
 export type AdminCreateInput = z.infer<typeof AdminCreateSchema>;
@@ -1165,8 +1209,8 @@ export declare const AdminProfileViewSchema: z.ZodObject<{
     rejection_reason: z.ZodNullable<z.ZodString>;
 }, "strict", z.ZodTypeAny, {
     status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-    id: string;
     name: string;
+    id: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
     user_id: string;
@@ -1176,8 +1220,8 @@ export declare const AdminProfileViewSchema: z.ZodObject<{
     submitted_at: string;
 }, {
     status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-    id: string;
     name: string;
+    id: string;
     reviewed_at: string | null;
     rejection_reason: string | null;
     user_id: string;
@@ -1201,8 +1245,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
         rejection_reason: z.ZodNullable<z.ZodString>;
     }, "strict", z.ZodTypeAny, {
         status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-        id: string;
         name: string;
+        id: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
         user_id: string;
@@ -1212,8 +1256,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
         submitted_at: string;
     }, {
         status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-        id: string;
         name: string;
+        id: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
         user_id: string;
@@ -1229,8 +1273,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
     hasMore: boolean;
     profiles: {
         status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-        id: string;
         name: string;
+        id: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
         user_id: string;
@@ -1244,8 +1288,8 @@ export declare const AdminProfileListResponseSchema: z.ZodObject<{
     hasMore: boolean;
     profiles: {
         status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
-        id: string;
         name: string;
+        id: string;
         reviewed_at: string | null;
         rejection_reason: string | null;
         user_id: string;
@@ -1328,6 +1372,7 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     updated_at: z.ZodString;
 }, "strict", z.ZodTypeAny, {
     status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
     id: string;
     rejection_reason: string | null;
     user_id: string;
@@ -1336,7 +1381,6 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
     first_name: string;
     last_name: string | null;
-    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
     date_of_birth: string;
     time_of_birth: string | null;
     place_of_birth: string | null;
@@ -1390,6 +1434,7 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     updated_at: string;
 }, {
     status: "SUSPENDED" | "DELETED" | "REJECTED" | "PENDING_REVIEW" | "APPROVED" | "DRAFT";
+    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
     id: string;
     rejection_reason: string | null;
     user_id: string;
@@ -1398,7 +1443,6 @@ export declare const AdminProfileDetailSchema: z.ZodObject<{
     visibility: "ACTIVE" | "PAUSED" | "HIDDEN";
     first_name: string;
     last_name: string | null;
-    gender: "MALE" | "FEMALE" | "OTHER" | "PREFER_NOT_TO_SAY";
     date_of_birth: string;
     time_of_birth: string | null;
     place_of_birth: string | null;

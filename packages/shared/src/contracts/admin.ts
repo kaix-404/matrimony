@@ -553,9 +553,47 @@ export interface AdminVerificationView {
    */
   consentedAt: string | null;
   verifiedAt: string | null;
+  /**
+   * A short-lived signed link to a manually uploaded identity document, or null.
+   *
+   * Only a manual check has one: a DigiLocker check keeps no copy at all, which
+   * is the point of using it. Minted at read time and never stored.
+   */
+  documentUrl: string | null;
+  /** When a document was put forward for review; null for DigiLocker rows. */
+  documentSubmittedAt: string | null;
+  /** When an administrator decided a manual check; null until then. */
+  reviewedAt: string | null;
+  reviewNote: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+/**
+ * Approving or rejecting a manually uploaded identity document.
+ *
+ * `REJECT` must say why. The member sees the reason on their verification
+ * screen, and "your document was refused" with no explanation leaves them
+ * re-uploading the same file. `APPROVE` carries no note, and one sent anyway is
+ * refused rather than stored, so a stale form cannot attach a complaint to a
+ * check that passed.
+ */
+export const AdminReviewVerificationSchema = z
+  .object({
+    decision: z.enum(['APPROVE', 'REJECT']),
+    note: z.string().trim().max(500).optional(),
+  })
+  .strict()
+  .refine((value) => value.decision !== 'REJECT' || (value.note ?? '').length > 0, {
+    message: 'A rejection requires a reason',
+    path: ['note'],
+  })
+  .refine((value) => value.decision !== 'APPROVE' || value.note === undefined, {
+    message: 'An approval carries no rejection reason',
+    path: ['note'],
+  });
+
+export type AdminReviewVerificationInput = z.infer<typeof AdminReviewVerificationSchema>;
 
 // ---------------------------------------------------------------------------
 // Admin management (section 24: roles and administrators)

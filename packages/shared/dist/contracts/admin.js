@@ -17,7 +17,8 @@
  * the key rather than only in the database.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.AdminUpdateMasterListValueSchema = exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileUpdateSchema = exports.AdminProfileDetailSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminSuspendProfileSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminSetPhoneSchema = exports.AdminCreateSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminSessionViewSchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminCreateMasterListValueSchema = exports.MASTER_LIST_VALUE_MAX_LENGTH = exports.AdminMasterListsResponseSchema = exports.AdminMasterListViewSchema = exports.AdminMasterListValueViewSchema = exports.AdminRejectProfileSchema = exports.AdminProfileUpdateSchema = exports.AdminProfileDetailSchema = exports.AdminProfileListResponseSchema = exports.AdminProfileViewSchema = exports.AdminSuspendProfileSchema = exports.AdminListProfilesQuerySchema = exports.AdminReviewPhotoSchema = exports.AdminPhotoListResponseSchema = exports.AdminPhotoViewSchema = exports.AdminListPhotosQuerySchema = exports.AdminReviewReportSchema = exports.AdminListReportsQuerySchema = exports.AdminResolveDataRequestSchema = exports.AdminListDataRequestsQuerySchema = exports.AdminGrantUnlockSchema = exports.AdminPublishPricingSchema = exports.AdminRestoreUserSchema = exports.AdminChangeCategorySchema = exports.AdminListAdminsQuerySchema = exports.AdminAssignRoleSchema = exports.AdminSetPhoneSchema = exports.AdminCreateSchema = exports.AdminReviewVerificationSchema = exports.AdminListVerificationsQuerySchema = exports.ADMIN_VERIFICATION_STATUSES = exports.AdminListUsersQuerySchema = exports.ADMIN_USER_STATUSES = exports.AdminSessionViewSchema = exports.AdminPrincipalSchema = exports.AdminMfaDisableViewSchema = exports.AdminMfaDisableSchema = exports.AdminMfaActivateViewSchema = exports.AdminMfaActivateSchema = exports.AdminMfaSetupViewSchema = exports.AdminMfaVerifySchema = exports.AdminLoginResponseSchema = exports.AdminMfaChallengeSchema = exports.AdminMfaCodeSchema = exports.AdminRefreshSchema = exports.AdminTokenPairSchema = exports.AdminLoginSchema = exports.AdminRoleSlugSchema = exports.AdminPermissionKeySchema = exports.ADMIN_PERMISSIONS = void 0;
+exports.AdminUpdateMasterListValueSchema = void 0;
 exports.permissionCatalogueRows = permissionCatalogueRows;
 const zod_1 = require("zod");
 const auth_js_1 = require("./auth.js");
@@ -368,6 +369,29 @@ exports.AdminListVerificationsQuerySchema = zod_1.z.object({
     limit: zod_1.z.coerce.number().int().positive().max(100).optional().default(20),
     cursor: zod_1.z.string().min(1).optional(),
     status: zod_1.z.enum(exports.ADMIN_VERIFICATION_STATUSES).optional(),
+});
+/**
+ * Approving or rejecting a manually uploaded identity document.
+ *
+ * `REJECT` must say why. The member sees the reason on their verification
+ * screen, and "your document was refused" with no explanation leaves them
+ * re-uploading the same file. `APPROVE` carries no note, and one sent anyway is
+ * refused rather than stored, so a stale form cannot attach a complaint to a
+ * check that passed.
+ */
+exports.AdminReviewVerificationSchema = zod_1.z
+    .object({
+    decision: zod_1.z.enum(['APPROVE', 'REJECT']),
+    note: zod_1.z.string().trim().max(500).optional(),
+})
+    .strict()
+    .refine((value) => value.decision !== 'REJECT' || (value.note ?? '').length > 0, {
+    message: 'A rejection requires a reason',
+    path: ['note'],
+})
+    .refine((value) => value.decision !== 'APPROVE' || value.note === undefined, {
+    message: 'An approval carries no rejection reason',
+    path: ['note'],
 });
 // ---------------------------------------------------------------------------
 // Admin management (section 24: roles and administrators)

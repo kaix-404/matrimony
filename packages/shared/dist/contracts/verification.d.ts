@@ -2,7 +2,17 @@
  * Identity verification contracts — Phase 6 (KYC).
  */
 import { z } from 'zod';
-export declare const IdentityVerificationProviderSchema: z.ZodEnum<["DIGILOCKER", "AADHAAR_UIDAI"]>;
+/**
+ * The method a check was made with.
+ *
+ * `MANUAL_DOCUMENT` is the fallback: the member uploads a copy of their Aadhaar
+ * and an administrator approves or rejects it. It exists because the DigiLocker
+ * supplier can be unreachable for reasons that have nothing to do with a member
+ * — in production it refuses this deployment's IP addresses — and identity
+ * verification gates discovery for the whole product, so one supplier's network
+ * policy must not be able to stop everyone from joining.
+ */
+export declare const IdentityVerificationProviderSchema: z.ZodEnum<["DIGILOCKER", "AADHAAR_UIDAI", "MANUAL_DOCUMENT"]>;
 export type IdentityVerificationProvider = z.infer<typeof IdentityVerificationProviderSchema>;
 export declare const IdentityVerificationVendorSchema: z.ZodEnum<["CASHFREE"]>;
 export type IdentityVerificationVendor = z.infer<typeof IdentityVerificationVendorSchema>;
@@ -16,7 +26,7 @@ export type IdentityVerificationVendor = z.infer<typeof IdentityVerificationVend
 export declare const IdentityVerificationStatusSchema: z.ZodEnum<["NOT_STARTED", "PENDING", "VERIFIED", "FAILED", "EXPIRED"]>;
 export type IdentityVerificationStatus = z.infer<typeof IdentityVerificationStatusSchema>;
 export declare const InitiateVerificationSchema: z.ZodObject<{
-    provider: z.ZodEnum<["DIGILOCKER", "AADHAAR_UIDAI"]>;
+    provider: z.ZodEnum<["DIGILOCKER", "AADHAAR_UIDAI", "MANUAL_DOCUMENT"]>;
     /**
      * Which version of the Aadhaar-processing notice the user was shown. H3 makes
      * consent demonstrable, and a consent to "v1" is not consent to whatever v2
@@ -24,16 +34,16 @@ export declare const InitiateVerificationSchema: z.ZodObject<{
      */
     policy_version: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
-    provider: "DIGILOCKER" | "AADHAAR_UIDAI";
+    provider: "DIGILOCKER" | "AADHAAR_UIDAI" | "MANUAL_DOCUMENT";
     policy_version?: string | undefined;
 }, {
-    provider: "DIGILOCKER" | "AADHAAR_UIDAI";
+    provider: "DIGILOCKER" | "AADHAAR_UIDAI" | "MANUAL_DOCUMENT";
     policy_version?: string | undefined;
 }>;
 export type InitiateVerificationRequest = z.infer<typeof InitiateVerificationSchema>;
 export declare const VerificationStatusResponseSchema: z.ZodObject<{
     status: z.ZodEnum<["NOT_STARTED", "PENDING", "VERIFIED", "FAILED", "EXPIRED"]>;
-    provider: z.ZodNullable<z.ZodOptional<z.ZodEnum<["DIGILOCKER", "AADHAAR_UIDAI"]>>>;
+    provider: z.ZodNullable<z.ZodOptional<z.ZodEnum<["DIGILOCKER", "AADHAAR_UIDAI", "MANUAL_DOCUMENT"]>>>;
     vendor: z.ZodNullable<z.ZodOptional<z.ZodEnum<["CASHFREE"]>>>;
     aadhaarLast4: z.ZodNullable<z.ZodOptional<z.ZodString>>;
     nameOnId: z.ZodNullable<z.ZodOptional<z.ZodString>>;
@@ -51,8 +61,8 @@ export declare const VerificationStatusResponseSchema: z.ZodObject<{
     /** Absolute expiry of `redirect_url`; past this the app must start again. */
     providerReferenceExpiresAt: z.ZodNullable<z.ZodOptional<z.ZodString>>;
 }, "strip", z.ZodTypeAny, {
-    status: "PENDING" | "FAILED" | "EXPIRED" | "NOT_STARTED" | "VERIFIED";
-    provider?: "DIGILOCKER" | "AADHAAR_UIDAI" | null | undefined;
+    status: "NOT_STARTED" | "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
+    provider?: "DIGILOCKER" | "AADHAAR_UIDAI" | "MANUAL_DOCUMENT" | null | undefined;
     vendor?: "CASHFREE" | null | undefined;
     aadhaarLast4?: string | null | undefined;
     nameOnId?: string | null | undefined;
@@ -63,8 +73,8 @@ export declare const VerificationStatusResponseSchema: z.ZodObject<{
     redirect_url?: string | null | undefined;
     providerReferenceExpiresAt?: string | null | undefined;
 }, {
-    status: "PENDING" | "FAILED" | "EXPIRED" | "NOT_STARTED" | "VERIFIED";
-    provider?: "DIGILOCKER" | "AADHAAR_UIDAI" | null | undefined;
+    status: "NOT_STARTED" | "PENDING" | "VERIFIED" | "FAILED" | "EXPIRED";
+    provider?: "DIGILOCKER" | "AADHAAR_UIDAI" | "MANUAL_DOCUMENT" | null | undefined;
     vendor?: "CASHFREE" | null | undefined;
     aadhaarLast4?: string | null | undefined;
     nameOnId?: string | null | undefined;
@@ -96,13 +106,13 @@ export declare const VerificationWebhookDataSchema: z.ZodObject<{
         dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     }, "strip", z.ZodTypeAny, {
-        gender?: string | undefined;
         name?: string | undefined;
         dob?: string | undefined;
+        gender?: string | undefined;
     }, {
-        gender?: string | undefined;
         name?: string | undefined;
         dob?: string | undefined;
+        gender?: string | undefined;
     }>>;
     document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -115,13 +125,13 @@ export declare const VerificationWebhookDataSchema: z.ZodObject<{
         dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     }, "strip", z.ZodTypeAny, {
-        gender?: string | undefined;
         name?: string | undefined;
         dob?: string | undefined;
+        gender?: string | undefined;
     }, {
-        gender?: string | undefined;
         name?: string | undefined;
         dob?: string | undefined;
+        gender?: string | undefined;
     }>>;
     document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -134,13 +144,13 @@ export declare const VerificationWebhookDataSchema: z.ZodObject<{
         dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
     }, "strip", z.ZodTypeAny, {
-        gender?: string | undefined;
         name?: string | undefined;
         dob?: string | undefined;
+        gender?: string | undefined;
     }, {
-        gender?: string | undefined;
         name?: string | undefined;
         dob?: string | undefined;
+        gender?: string | undefined;
     }>>;
     document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
     document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -158,13 +168,13 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
             dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
             gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         }, "strip", z.ZodTypeAny, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }>>;
         document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -177,13 +187,13 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
             dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
             gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         }, "strip", z.ZodTypeAny, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }>>;
         document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -196,13 +206,13 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
             dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
             gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         }, "strip", z.ZodTypeAny, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }>>;
         document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -220,13 +230,13 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
             dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
             gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         }, "strip", z.ZodTypeAny, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }>>;
         document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -239,13 +249,13 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
             dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
             gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         }, "strip", z.ZodTypeAny, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }>>;
         document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -258,13 +268,13 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
             dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
             gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         }, "strip", z.ZodTypeAny, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }>>;
         document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -282,13 +292,13 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
             dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
             gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         }, "strip", z.ZodTypeAny, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }>>;
         document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -301,13 +311,13 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
             dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
             gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         }, "strip", z.ZodTypeAny, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }>>;
         document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -320,13 +330,13 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
             dob: z.ZodOptional<z.ZodOptional<z.ZodString>>;
             gender: z.ZodOptional<z.ZodOptional<z.ZodString>>;
         }, "strip", z.ZodTypeAny, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }, {
-            gender?: string | undefined;
             name?: string | undefined;
             dob?: string | undefined;
+            gender?: string | undefined;
         }>>;
         document_requested: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
         document_consent: z.ZodOptional<z.ZodNullable<z.ZodArray<z.ZodString, "many">>>;
@@ -334,6 +344,66 @@ export declare const VerificationWebhookSchema: z.ZodObject<{
 }, z.ZodTypeAny, "passthrough">>;
 export type VerificationWebhook = z.infer<typeof VerificationWebhookSchema>;
 export type VerificationWebhookData = z.infer<typeof VerificationWebhookDataSchema>;
+/**
+ * What a member may upload.
+ *
+ * A photo of the card is the realistic case, so images are accepted alongside a
+ * PDF (many people have a scanned copy). SVG is excluded everywhere in this
+ * product because it is a script container.
+ */
+export declare const MANUAL_DOCUMENT_MIME_TYPES: readonly ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+export declare const MAX_MANUAL_DOCUMENT_BYTES: number;
+/**
+ * Reserves an upload for a document check.
+ *
+ * The same handshake as photos and biodata: reserve a key, send the bytes, then
+ * submit the key. The reservation is what bounds the upload before any bytes
+ * move.
+ */
+export declare const InitiateManualDocumentUploadSchema: z.ZodObject<{
+    mime_type: z.ZodEnum<["image/jpeg", "image/png", "image/webp", "application/pdf"]>;
+    byte_size: z.ZodNumber;
+}, "strict", z.ZodTypeAny, {
+    mime_type: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
+    byte_size: number;
+}, {
+    mime_type: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
+    byte_size: number;
+}>;
+export type InitiateManualDocumentUploadInput = z.infer<typeof InitiateManualDocumentUploadSchema>;
+/** A reserved upload slot, the same shape the other uploads return. */
+export declare const ManualDocumentTicketSchema: z.ZodObject<{
+    upload_url: z.ZodString;
+    object_key: z.ZodString;
+    expires_in_seconds: z.ZodNumber;
+}, "strict", z.ZodTypeAny, {
+    upload_url: string;
+    object_key: string;
+    expires_in_seconds: number;
+}, {
+    upload_url: string;
+    object_key: string;
+    expires_in_seconds: number;
+}>;
+export type ManualDocumentTicket = z.infer<typeof ManualDocumentTicketSchema>;
+/**
+ * Puts the uploaded document forward for review.
+ *
+ * `policy_version` is required here, unlike the DigiLocker initiate where it is
+ * optional: this path *stores a copy of an identity document*, so the version of
+ * the notice the member was shown is part of the record, not a detail.
+ */
+export declare const SubmitManualDocumentSchema: z.ZodObject<{
+    object_key: z.ZodString;
+    policy_version: z.ZodString;
+}, "strict", z.ZodTypeAny, {
+    policy_version: string;
+    object_key: string;
+}, {
+    policy_version: string;
+    object_key: string;
+}>;
+export type SubmitManualDocumentInput = z.infer<typeof SubmitManualDocumentSchema>;
 /** Event names Cashfree Secure ID sends for the DigiLocker journey. */
 export declare const DIGILOCKER_EVENTS: {
     readonly success: "DIGILOCKER_VERIFICATION_SUCCESS";

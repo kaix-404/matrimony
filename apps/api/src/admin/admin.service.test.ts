@@ -271,6 +271,12 @@ function setup() {
       failureCode: null as string | null,
       failureReason: null as string | null,
       verifiedAt: new Date('2026-10-05T06:00:00.000Z') as Date | null,
+      documentObjectKey: null as string | null,
+      documentMimeType: null as string | null,
+      documentSubmittedAt: null as Date | null,
+      reviewedAt: null as Date | null,
+      reviewedByAdminId: null as string | null,
+      reviewNote: null as string | null,
       createdAt: new Date('2026-10-05T05:55:00.000Z'),
       updatedAt: new Date('2026-10-05T06:00:00.000Z'),
       user: { mobile: '9876543210', status: 'ACTIVE' },
@@ -289,10 +295,42 @@ function setup() {
       failureCode: 'DIGILOCKER_CONSENT_DENIED' as string | null,
       failureReason: 'The member declined to share the Aadhaar document.' as string | null,
       verifiedAt: null as Date | null,
+      documentObjectKey: null as string | null,
+      documentMimeType: null as string | null,
+      documentSubmittedAt: null as Date | null,
+      reviewedAt: null as Date | null,
+      reviewedByAdminId: null as string | null,
+      reviewNote: null as string | null,
       createdAt: new Date('2026-10-06T09:30:00.000Z'),
       updatedAt: new Date('2026-10-06T09:31:00.000Z'),
       user: { mobile: '9123456780', status: 'PENDING_VERIFICATION' },
       consentRecord: null as { grantedAt: Date } | null,
+    },
+    {
+      // The manual fallback, waiting for a person. It is the only row with a
+      // document, which is what makes the signed-link behaviour observable.
+      id: 'ver_3',
+      userId: 'user_3',
+      provider: 'MANUAL_DOCUMENT',
+      vendor: null as string | null,
+      status: 'PENDING' as string,
+      aadhaarLast4: null as string | null,
+      yearOfBirth: null as number | null,
+      failureCode: null as string | null,
+      failureReason: null as string | null,
+      verifiedAt: null as Date | null,
+      documentObjectKey: 'verification/user_3/doc.jpg' as string | null,
+      documentMimeType: 'image/jpeg' as string | null,
+      documentSubmittedAt: new Date('2026-10-07T08:00:00.000Z') as Date | null,
+      reviewedAt: null as Date | null,
+      reviewedByAdminId: null as string | null,
+      reviewNote: null as string | null,
+      createdAt: new Date('2026-10-07T08:00:00.000Z'),
+      updatedAt: new Date('2026-10-07T08:00:00.000Z'),
+      user: { mobile: '9000000001', status: 'PENDING_VERIFICATION' },
+      consentRecord: { grantedAt: new Date('2026-10-07T07:59:00.000Z') } as {
+        grantedAt: Date;
+      } | null,
     },
   ];
 
@@ -442,6 +480,15 @@ function setup() {
           return typeof take === 'number' ? filtered.slice(0, take) : filtered;
         },
       ),
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        verifications.find((row) => row.id === where.id) ?? null,
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+          const row = verifications.find((r) => r.id === where.id)!;
+          Object.assign(row, data);
+          return row;
+        },
+      ),
     },
     report: {
       findMany: async ({ where }: { where?: { status?: string } } = {}) =>
@@ -559,6 +606,22 @@ function setup() {
   // signing itself is covered by the storage tests.
   const storage = { presignDownload: async (key: string) => `https://cdn.test/${key}?sig=abc` };
   const sms = { configured: true, sendOtp: jest.fn(async () => ({ providerMessageId: 'x' })) };
+  /**
+   * The identity state machine, recorded rather than re-implemented: its own
+   * suite covers what an approval does, so what is checked here is that the
+   * console asks for the decision and audits what came back.
+   */
+  const verificationDecisions: Array<Record<string, unknown>> = [];
+  const identityService = {
+    decideManualVerification: async (input: Record<string, unknown>) => {
+      verificationDecisions.push(input);
+      const row = verifications.find((entry) => entry.id === input['verificationId'])!;
+      Object.assign(row, {
+        status: input['decision'] === 'APPROVE' ? 'VERIFIED' : 'FAILED',
+        reviewedAt: clock.now(),
+      });
+    },
+  };
   const build = (overrides: { smsConfigured?: boolean; nodeEnv?: string } = {}) =>
     new AdminService(
       prisma as never,
@@ -571,6 +634,7 @@ function setup() {
         },
       } as never,
       storage as never,
+      identityService as never,
       { ...sms, configured: overrides.smsConfigured ?? true } as never,
       { NODE_ENV: overrides.nodeEnv ?? 'test' } as never,
     );
@@ -592,6 +656,7 @@ function setup() {
     dataRequests,
     reports,
     verifications,
+    verificationDecisions,
   };
 }
 
@@ -644,6 +709,61 @@ describe('AdminService.listRoles', () => {
   });
 });
 
+describe('AdminService.reviewVerification', () => {
+  it('delegates the decision and audits the change it produced', async () => {
+    const { service, audit, verificationDecisions, verifications } = setup();
+
+    const view = await service.reviewVerification('ver_3', { decision: 'APPROVE' }, 'admin_actor');
+
+    expect(verificationDecisions).toEqual([
+      {
+        verificationId: 'ver_3',
+        decision: 'APPROVE',
+        note: undefined,
+        adminId: 'admin_actor',
+      },
+    ]);
+    expect(view.status).toBe('VERIFIED');
+    expect(view.documentUrl).toBe('https://cdn.test/verification/user_3/doc.jpg?sig=abc');
+    expect(verifications.find((row) => row.id === 'ver_3')!.status).toBe('VERIFIED');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorAdminId: 'admin_actor',
+        action: 'identity_verification:review',
+        resourceId: 'ver_3',
+        previousValue: { status: 'PENDING' },
+        newValue: { status: 'VERIFIED', decision: 'APPROVE' },
+      }),
+    );
+  });
+
+  it('passes a rejection reason through to the member', async () => {
+    const { service, verificationDecisions } = setup();
+
+    await service.reviewVerification(
+      'ver_3',
+      { decision: 'REJECT', note: 'The photograph is too blurred to read.' },
+      'admin_actor',
+    );
+
+    expect(verificationDecisions[0]).toEqual({
+      verificationId: 'ver_3',
+      decision: 'REJECT',
+      note: 'The photograph is too blurred to read.',
+      adminId: 'admin_actor',
+    });
+  });
+
+  it('404s for a check that does not exist, without deciding anything', async () => {
+    const { service, verificationDecisions } = setup();
+
+    await expect(
+      service.reviewVerification('missing', { decision: 'APPROVE' }, 'admin_actor'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(verificationDecisions).toHaveLength(0);
+  });
+});
+
 describe('AdminService.listVerifications', () => {
   it('maps a passed check to the support view, timestamps included', async () => {
     const { service } = setup();
@@ -663,6 +783,10 @@ describe('AdminService.listVerifications', () => {
       failureReason: null,
       consentedAt: '2026-10-05T05:54:59.000Z',
       verifiedAt: '2026-10-05T06:00:00.000Z',
+      documentUrl: null,
+      documentSubmittedAt: null,
+      reviewedAt: null,
+      reviewNote: null,
       createdAt: '2026-10-05T05:55:00.000Z',
       updatedAt: '2026-10-05T06:00:00.000Z',
     });
@@ -709,12 +833,27 @@ describe('AdminService.listVerifications', () => {
     const lastPage = await service.listVerifications(5);
     expect(lastPage.hasMore).toBe(false);
     expect(lastPage.nextCursor).toBeNull();
-    expect(lastPage.verifications).toHaveLength(2);
+    expect(lastPage.verifications).toHaveLength(3);
 
     await service.listVerifications(500);
     expect(prisma.identityVerification.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({ take: 101 }),
     );
+  });
+
+  it('signs a link to the document only for a manual check', async () => {
+    const { service, storage } = setup();
+    const { verifications } = await service.listVerifications();
+
+    const manual = verifications.find((row) => row.id === 'ver_3')!;
+    expect(manual.documentUrl).toBe('https://cdn.test/verification/user_3/doc.jpg?sig=abc');
+    expect(manual.documentSubmittedAt).toBe('2026-10-07T08:00:00.000Z');
+
+    // A DigiLocker check keeps no copy at all, so there is nothing to sign even
+    // if someone asked for a link.
+    const digilocker = verifications.find((row) => row.id === 'ver_1')!;
+    expect(digilocker.documentUrl).toBeNull();
+    expect(storage).toBeDefined();
   });
 
   it('never selects the name on the ID or the supplier reference', async () => {

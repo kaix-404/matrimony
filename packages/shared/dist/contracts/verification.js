@@ -1,11 +1,25 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.DIGILOCKER_EVENTS = exports.VerificationWebhookSchema = exports.VerificationWebhookDataSchema = exports.VerificationStatusResponseSchema = exports.InitiateVerificationSchema = exports.IdentityVerificationStatusSchema = exports.IdentityVerificationVendorSchema = exports.IdentityVerificationProviderSchema = void 0;
+exports.DIGILOCKER_EVENTS = exports.SubmitManualDocumentSchema = exports.ManualDocumentTicketSchema = exports.InitiateManualDocumentUploadSchema = exports.MAX_MANUAL_DOCUMENT_BYTES = exports.MANUAL_DOCUMENT_MIME_TYPES = exports.VerificationWebhookSchema = exports.VerificationWebhookDataSchema = exports.VerificationStatusResponseSchema = exports.InitiateVerificationSchema = exports.IdentityVerificationStatusSchema = exports.IdentityVerificationVendorSchema = exports.IdentityVerificationProviderSchema = void 0;
 /**
  * Identity verification contracts — Phase 6 (KYC).
  */
 const zod_1 = require("zod");
-exports.IdentityVerificationProviderSchema = zod_1.z.enum(['DIGILOCKER', 'AADHAAR_UIDAI']);
+/**
+ * The method a check was made with.
+ *
+ * `MANUAL_DOCUMENT` is the fallback: the member uploads a copy of their Aadhaar
+ * and an administrator approves or rejects it. It exists because the DigiLocker
+ * supplier can be unreachable for reasons that have nothing to do with a member
+ * — in production it refuses this deployment's IP addresses — and identity
+ * verification gates discovery for the whole product, so one supplier's network
+ * policy must not be able to stop everyone from joining.
+ */
+exports.IdentityVerificationProviderSchema = zod_1.z.enum([
+    'DIGILOCKER',
+    'AADHAAR_UIDAI',
+    'MANUAL_DOCUMENT',
+]);
 exports.IdentityVerificationVendorSchema = zod_1.z.enum(['CASHFREE']);
 /**
  * `NOT_STARTED` is a response-only state: it is what the status endpoint says
@@ -87,6 +101,61 @@ exports.VerificationWebhookSchema = zod_1.z
     data: exports.VerificationWebhookDataSchema.optional(),
 })
     .passthrough();
+// ---------------------------------------------------------------------------
+// Manual document review
+// ---------------------------------------------------------------------------
+/**
+ * What a member may upload.
+ *
+ * A photo of the card is the realistic case, so images are accepted alongside a
+ * PDF (many people have a scanned copy). SVG is excluded everywhere in this
+ * product because it is a script container.
+ */
+exports.MANUAL_DOCUMENT_MIME_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'application/pdf',
+];
+exports.MAX_MANUAL_DOCUMENT_BYTES = 10 * 1024 * 1024;
+/**
+ * Reserves an upload for a document check.
+ *
+ * The same handshake as photos and biodata: reserve a key, send the bytes, then
+ * submit the key. The reservation is what bounds the upload before any bytes
+ * move.
+ */
+exports.InitiateManualDocumentUploadSchema = zod_1.z
+    .object({
+    mime_type: zod_1.z.enum(exports.MANUAL_DOCUMENT_MIME_TYPES),
+    byte_size: zod_1.z
+        .number()
+        .int()
+        .positive()
+        .max(exports.MAX_MANUAL_DOCUMENT_BYTES),
+})
+    .strict();
+/** A reserved upload slot, the same shape the other uploads return. */
+exports.ManualDocumentTicketSchema = zod_1.z
+    .object({
+    upload_url: zod_1.z.string().url(),
+    object_key: zod_1.z.string().min(1),
+    expires_in_seconds: zod_1.z.number().int().positive(),
+})
+    .strict();
+/**
+ * Puts the uploaded document forward for review.
+ *
+ * `policy_version` is required here, unlike the DigiLocker initiate where it is
+ * optional: this path *stores a copy of an identity document*, so the version of
+ * the notice the member was shown is part of the record, not a detail.
+ */
+exports.SubmitManualDocumentSchema = zod_1.z
+    .object({
+    object_key: zod_1.z.string().min(1).max(512),
+    policy_version: zod_1.z.string().min(1).max(40),
+})
+    .strict();
 /** Event names Cashfree Secure ID sends for the DigiLocker journey. */
 exports.DIGILOCKER_EVENTS = {
     success: 'DIGILOCKER_VERIFICATION_SUCCESS',

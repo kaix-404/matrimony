@@ -20,6 +20,9 @@ import type {
   DiscoveryResponse,
   ExpiredUnlockResponse,
   InitiateBiodataUploadInput,
+  InitiateManualDocumentUploadInput,
+  ManualDocumentTicket,
+  SubmitManualDocumentInput,
   ListNotificationsResponse,
   LockedProfileResponse,
   MasterListsResponse,
@@ -652,6 +655,46 @@ class ApiClient {
     return this.fetchJson('verification/initiate', {
       method: 'POST',
       body: JSON.stringify(body),
+      headers: authHeaders(token),
+    });
+  }
+
+  /**
+   * Reserves an upload for the document fallback.
+   *
+   * The fallback exists because the DigiLocker supplier can be unreachable for
+   * reasons that have nothing to do with the member, and KYC gates discovery for
+   * everyone. Same handshake as photos: reserve, send bytes, submit the key.
+   */
+  async initiateManualDocumentUpload(
+    input: InitiateManualDocumentUploadInput,
+    token: string,
+  ): Promise<ManualDocumentTicket> {
+    return this.fetchJson('verification/manual/upload', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: authHeaders(token),
+    });
+  }
+
+  /** Sends the document bytes to the API — the website's upload path. */
+  async uploadManualDocumentBytes(
+    objectKey: string,
+    blob: Blob,
+    mimeType: string,
+    token: string,
+  ): Promise<void> {
+    return this.putFileThroughApi('verification/manual/content', objectKey, blob, mimeType, token);
+  }
+
+  /** Puts the uploaded document into the review queue; nothing is verified yet. */
+  async submitManualDocument(
+    input: SubmitManualDocumentInput,
+    token: string,
+  ): Promise<VerificationStatusResponse> {
+    return this.fetchJson('verification/manual/submit', {
+      method: 'POST',
+      body: JSON.stringify(input),
       headers: authHeaders(token),
     });
   }

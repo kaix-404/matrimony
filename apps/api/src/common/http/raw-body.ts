@@ -14,12 +14,15 @@ const DRAIN_ALLOWANCE_BYTES = 2 * 1024 * 1024;
 /**
  * Reads a file the client is sending to the API itself.
  *
- * This exists only for the website's upload path (see `StorageService.putObject`).
+ * This exists only for the website's upload paths (see `StorageService.putObject`):
+ * photos, biodata documents and identity documents all arrive this way, because a
+ * browser PUT to the bucket needs a CORS rule this deployment cannot write.
+ *
  * It is safe to read the stream here because Nest's Express adapter registers
- * parsers for `application/json` and `application/x-www-form-urlencoded` only:
- * a body declared as `image/jpeg`, `application/pdf` or `text/plain` is not
- * consumed by anything before this, so the raw stream is still intact and
- * `req.body` is empty.
+ * parsers for `application/json` and `application/x-www-form-urlencoded` only: a
+ * body declared as `image/jpeg`, `application/pdf` or `text/plain` is not consumed
+ * by anything before this, so the raw stream is still intact and `req.body` is
+ * empty.
  *
  * The cap is applied while reading rather than after, so an oversized upload is
  * never buffered in full.

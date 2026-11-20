@@ -91,6 +91,12 @@ export default function VerificationScreen() {
 
   const status = state?.status ?? 'NOT_STARTED';
   const verified = status === 'VERIFIED';
+  // A manual check is decided by a person, not by a webhook, so the screen says
+  // something different: there is no DigiLocker tab to reopen and no session to
+  // expire, and the outcome arrives after a review rather than in a browser.
+  const manualFlow = state?.provider === 'MANUAL_DOCUMENT';
+  const manualPending = manualFlow && status === 'PENDING';
+  const manualRejected = manualFlow && status === 'FAILED';
   // A PENDING row only moves when the vendor's webhook arrives. Once the
   // attempt's session has lapsed no webhook can complete it, so "waiting"
   // would strand the member on a check that will never finish.
@@ -115,16 +121,34 @@ export default function VerificationScreen() {
           <>
             <PrimaryButton
               label={
-                linkExpired
-                  ? 'Get a new link'
-                  : status === 'PENDING'
-                    ? 'Reopen DigiLocker'
-                    : 'Verify with DigiLocker'
+                manualPending
+                  ? 'Check status'
+                  : manualFlow
+                    ? 'Upload a new document'
+                    : linkExpired
+                      ? 'Get a new link'
+                      : status === 'PENDING'
+                        ? 'Reopen DigiLocker'
+                        : 'Verify with DigiLocker'
               }
-              onPress={() => void start()}
+              onPress={() => {
+                if (!manualFlow) return void start();
+                if (manualPending) return void load();
+                router.push('/verification-document');
+              }}
               loading={starting}
             />
-            <PrimaryButton variant="outline" label="Check status" onPress={() => void load()} />
+            {manualFlow ? (
+              manualPending ? null : (
+                <PrimaryButton variant="outline" label="Check status" onPress={() => void load()} />
+              )
+            ) : (
+              <PrimaryButton
+                variant="outline"
+                label="Upload your Aadhaar instead"
+                onPress={() => router.push('/verification-document')}
+              />
+            )}
           </>
         )
       }
@@ -132,8 +156,9 @@ export default function VerificationScreen() {
       {verified ? (
         <>
           <Text style={styles.lead}>
-            Your identity has been verified. Only a masked Aadhaar reference is kept — we never
-            store your Aadhaar number.
+            {manualFlow
+              ? 'Your identity has been verified. The document you uploaded is kept as the evidence for that decision and is deleted with your account.'
+              : 'Your identity has been verified. Only a masked Aadhaar reference is kept — we never store your Aadhaar number.'}
           </Text>
           <View style={styles.card}>
             {state?.nameOnId ? <Row label="Name on ID" value={state.nameOnId} /> : null}
@@ -157,36 +182,61 @@ export default function VerificationScreen() {
             Your profile will be offline until KYC is completed.
           </Text>
 
-          {linkExpired ? (
-            <Text style={styles.error}>
-              That DigiLocker link expired before the check was completed. Request a new one to
-              finish verifying.
-            </Text>
-          ) : status === 'PENDING' ? (
-            <Text style={styles.note}>
-              Waiting for DigiLocker. Finish the steps in the browser, then tap “Check status”.
-            </Text>
-          ) : null}
+          {manualFlow ? (
+            manualPending ? (
+              <Text style={styles.note}>
+                Your Aadhaar copy is with our review team, who usually decide within a day. Tap
+                “Check status” after that — you will get a notification either way.
+              </Text>
+            ) : manualRejected ? (
+              <Text style={styles.error}>
+                Your document could not be accepted
+                {state?.failureReason ? `: ${state.failureReason}` : '.'} Upload a clearer copy to
+                try again.
+              </Text>
+            ) : (
+              <Text style={styles.note}>
+                Upload a photo or scan of your Aadhaar and our team will review it. This path keeps a
+                copy of the document; DigiLocker does not.
+              </Text>
+            )
+          ) : (
+            <>
+              {linkExpired ? (
+                <Text style={styles.error}>
+                  That DigiLocker link expired before the check was completed. Request a new one to
+                  finish verifying.
+                </Text>
+              ) : status === 'PENDING' ? (
+                <Text style={styles.note}>
+                  Waiting for DigiLocker. Finish the steps in the browser, then tap “Check status”.
+                </Text>
+              ) : null}
 
-          {status === 'FAILED' ? (
-            <Text style={styles.error}>
-              The check could not be completed
-              {state?.failureReason ? ` (${state.failureReason.toLowerCase().replace(/_/g, ' ')})` : ''}.
-              You can try again.
-            </Text>
-          ) : null}
+              {status === 'FAILED' ? (
+                <Text style={styles.error}>
+                  The check could not be completed
+                  {state?.failureReason
+                    ? ` (${state.failureReason.toLowerCase().replace(/_/g, ' ')})`
+                    : ''}
+                  . You can try again, or upload your Aadhaar instead.
+                </Text>
+              ) : null}
 
-          {status === 'EXPIRED' ? (
-            <Text style={styles.error}>
-              The verification link expired before it was completed. Start again to get a new one.
-            </Text>
-          ) : null}
+              {status === 'EXPIRED' ? (
+                <Text style={styles.error}>
+                  The verification link expired before it was completed. Start again to get a new
+                  one.
+                </Text>
+              ) : null}
 
-          <Text style={styles.note}>
-            By continuing you consent to your Aadhaar details being processed for identity
-            verification. No Aadhaar number or document copy is stored — only a masked reference,
-            the name and year of birth that appear on the ID.
-          </Text>
+              <Text style={styles.note}>
+                By continuing you consent to your Aadhaar details being processed for identity
+                verification. No Aadhaar number or document copy is stored — only a masked reference,
+                the name and year of birth that appear on the ID.
+              </Text>
+            </>
+          )}
         </>
       )}
 

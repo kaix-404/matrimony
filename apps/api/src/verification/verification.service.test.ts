@@ -1,4 +1,9 @@
-import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { NOTIFICATION_EVENTS } from '@matrimony/shared';
 import { VerificationService, parseBirthYear } from './verification.service';
 import type { VerificationGateway } from './verification.gateway';
@@ -15,6 +20,8 @@ import type { NotificationsService } from '../notifications/notifications.servic
 interface FakeIdentity {
   id: string;
   userId: string;
+  provider: string;
+  vendor: string | null;
   providerReference: string | null;
   providerReferenceExpiresAt: Date | null;
   status: string;
@@ -24,6 +31,12 @@ interface FakeIdentity {
   nameOnId: string | null;
   yearOfBirth: number | null;
   consentRecordId: string | null;
+  documentObjectKey: string | null;
+  documentMimeType: string | null;
+  documentSubmittedAt: Date | null;
+  reviewedAt: Date | null;
+  reviewedByAdminId: string | null;
+  reviewNote: string | null;
 }
 
 interface FakeUser {
@@ -78,6 +91,8 @@ function harness() {
         const row: FakeIdentity = {
           id: `i${seq++}`,
           userId: 'u1',
+          provider: 'DIGILOCKER',
+          vendor: 'CASHFREE',
           providerReference: null,
           providerReferenceExpiresAt: null,
           status: 'PENDING',
@@ -87,6 +102,12 @@ function harness() {
           nameOnId: null,
           yearOfBirth: null,
           consentRecordId: null,
+          documentObjectKey: null,
+          documentMimeType: null,
+          documentSubmittedAt: null,
+          reviewedAt: null,
+          reviewedByAdminId: null,
+          reviewNote: null,
           ...data,
         };
         identities.push(row);
@@ -131,15 +152,34 @@ function harness() {
     },
   };
 
+  /**
+   * The bucket, reduced to what the manual path touches: a reservation, the
+   * bytes written to it, and the head that proves something is there.
+   */
+  const storage = {
+    objects: new Map<string, { bytes: Buffer; mime: string }>(),
+    presignUpload: async (key: string, mime: string) => `https://storage.test/${key}?sig=${mime}`,
+    putObject: async (key: string, body: Buffer, mime: string) => {
+      storage.objects.set(key, { bytes: body, mime });
+    },
+    headObject: async (key: string) => {
+      const hit = storage.objects.get(key);
+      return hit ? { byteLength: hit.bytes.byteLength, contentType: hit.mime } : null;
+    },
+  };
+
   return {
     users,
     notifications,
     identities,
     consents,
+    storage,
     seedIdentity(overrides: Partial<FakeIdentity> = {}): FakeIdentity {
       const row: FakeIdentity = {
         id: `i${seq++}`,
         userId: 'u1',
+        provider: 'DIGILOCKER',
+        vendor: 'CASHFREE',
         providerReference: 'ref-1',
         providerReferenceExpiresAt: null,
         status: 'PENDING',
@@ -149,6 +189,12 @@ function harness() {
         nameOnId: null,
         yearOfBirth: null,
         consentRecordId: null,
+        documentObjectKey: null,
+        documentMimeType: null,
+        documentSubmittedAt: null,
+        reviewedAt: null,
+        reviewedByAdminId: null,
+        reviewNote: null,
         ...overrides,
       };
       identities.push(row);
@@ -170,6 +216,7 @@ function harness() {
         prisma as never,
         gateway,
         notifications as unknown as NotificationsService,
+        storage as never,
       );
     },
   };
@@ -506,5 +553,187 @@ describe('parseBirthYear', () => {
   it('returns null for something it cannot read', () => {
     expect(parseBirthYear('not-a-date')).toBeNull();
     expect(parseBirthYear(undefined)).toBeNull();
+  });
+});
+
+/**
+ * The manual fallback (D9).
+ *
+ * Submitting a document verifies nobody: it records consent, stores the key and
+ * leaves the row PENDING for a person. The decision is then the same transition
+ * the DigiLocker webhook applies, which is what lets everything downstream —
+ * `identityVerifiedAt`, `can_discover`, the setup-fee gate — stay unaware of
+ * which method produced it.
+ */
+describe('VerificationService.submitManualDocument', () => {
+  const submit = {
+    object_key: 'verification/u1/doc.jpg',
+    policy_version: 'manual-document-v1',
+  };
+
+  it('records consent, keeps the key and leaves the check pending for a person', async () => {
+    const h = harness();
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+    h.storage.objects.set(submit.object_key, { bytes: Buffer.alloc(3, 1), mime: 'image/jpeg' });
+
+    const result = await h.service(gateway()).submitManualDocument('u1', submit);
+
+    expect(result.status).toBe('PENDING');
+    expect(result.provider).toBe('MANUAL_DOCUMENT');
+    expect(h.consents[0]?.policyVersion).toBe('manual-document-v1');
+
+    const row = h.identities[0]!;
+    expect(row.provider).toBe('MANUAL_DOCUMENT');
+    // No supplier is involved in a manual review.
+    expect(row.vendor).toBeNull();
+    expect(row.documentObjectKey).toBe(submit.object_key);
+    expect(row.documentSubmittedAt).toBeInstanceOf(Date);
+    // The consent record is referenced from the row, so the ordering is auditable.
+    expect(row.consentRecordId).toBe(h.consents[0]?.id);
+    // Nothing is verified by submitting.
+    expect(h.users[0]!.identityVerifiedAt).toBeNull();
+  });
+
+  it("refuses a key outside the caller's own folder", async () => {
+    const h = harness();
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+    h.storage.objects.set('verification/u2/doc.jpg', {
+      bytes: Buffer.alloc(3, 1),
+      mime: 'image/jpeg',
+    });
+
+    await expect(
+      h
+        .service(gateway())
+        .submitManualDocument('u1', { ...submit, object_key: 'verification/u2/doc.jpg' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(h.consents).toHaveLength(0);
+    expect(h.identities).toHaveLength(0);
+  });
+
+  it('refuses a key with nothing stored behind it', async () => {
+    const h = harness();
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+
+    await expect(h.service(gateway()).submitManualDocument('u1', submit)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(h.identities).toHaveLength(0);
+  });
+
+  it('replaces an earlier failed attempt instead of stacking rows', async () => {
+    const h = harness();
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+    h.seedIdentity({ provider: 'MANUAL_DOCUMENT', status: 'FAILED' });
+    h.storage.objects.set(submit.object_key, { bytes: Buffer.alloc(3, 1), mime: 'image/jpeg' });
+
+    await h.service(gateway()).submitManualDocument('u1', submit);
+
+    expect(h.identities).toHaveLength(1);
+    expect(h.identities[0]!.status).toBe('PENDING');
+  });
+
+  it('keeps a check that has already passed', async () => {
+    const h = harness();
+    h.seedUser('u1', 'AWAITING_SETUP_FEE');
+    h.seedIdentity({ status: 'VERIFIED', verifiedAt: new Date() });
+
+    const result = await h.service(gateway()).submitManualDocument('u1', submit);
+
+    expect(result.status).toBe('VERIFIED');
+    expect(h.consents).toHaveLength(0);
+  });
+});
+
+describe('VerificationService.decideManualVerification', () => {
+  it('verifies the account the way a DigiLocker success does', async () => {
+    const h = harness();
+    const identity = h.seedIdentity({ provider: 'MANUAL_DOCUMENT' });
+    const user = h.seedUser('u1', 'PENDING_VERIFICATION');
+
+    await h.service(gateway()).decideManualVerification({
+      verificationId: identity.id,
+      decision: 'APPROVE',
+      adminId: 'admin_1',
+    });
+
+    expect(identity.status).toBe('VERIFIED');
+    expect(identity.verifiedAt).toBeInstanceOf(Date);
+    expect(identity.reviewedByAdminId).toBe('admin_1');
+    expect(user.status).toBe('AWAITING_SETUP_FEE');
+    expect(user.identityVerifiedAt).toBeInstanceOf(Date);
+    expect(h.notifications.created[0]?.event).toBe(NOTIFICATION_EVENTS.IDENTITY_VERIFIED);
+  });
+
+  it('tells the member why a document was refused and leaves the account where it was', async () => {
+    const h = harness();
+    const identity = h.seedIdentity({ provider: 'MANUAL_DOCUMENT' });
+    const user = h.seedUser('u1', 'PENDING_VERIFICATION');
+
+    await h.service(gateway()).decideManualVerification({
+      verificationId: identity.id,
+      decision: 'REJECT',
+      note: 'The photograph is too blurred to read.',
+      adminId: 'admin_1',
+    });
+
+    expect(identity.status).toBe('FAILED');
+    expect(identity.failureCode).toBe('MANUAL_DOCUMENT_REJECTED');
+    expect(identity.failureReason).toBe('The photograph is too blurred to read.');
+    expect(user.status).toBe('PENDING_VERIFICATION');
+    expect(user.identityVerifiedAt).toBeNull();
+    expect(h.notifications.created[0]?.event).toBe(
+      NOTIFICATION_EVENTS.IDENTITY_VERIFICATION_FAILED,
+    );
+  });
+
+  it('refuses to decide a DigiLocker check', async () => {
+    const h = harness();
+    const identity = h.seedIdentity();
+
+    await expect(
+      h.service(gateway()).decideManualVerification({
+        verificationId: identity.id,
+        decision: 'APPROVE',
+        adminId: 'admin_1',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(identity.status).toBe('PENDING');
+  });
+
+  it('refuses a check that is no longer awaiting review', async () => {
+    const h = harness();
+    const identity = h.seedIdentity({ provider: 'MANUAL_DOCUMENT', status: 'FAILED' });
+
+    await expect(
+      h.service(gateway()).decideManualVerification({
+        verificationId: identity.id,
+        decision: 'APPROVE',
+        adminId: 'admin_1',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(identity.status).toBe('FAILED');
+  });
+
+  it('treats a second approval as the same outcome', async () => {
+    const h = harness();
+    const identity = h.seedIdentity({ provider: 'MANUAL_DOCUMENT' });
+    h.seedUser('u1', 'PENDING_VERIFICATION');
+    const service = h.service(gateway());
+
+    await service.decideManualVerification({
+      verificationId: identity.id,
+      decision: 'APPROVE',
+      adminId: 'admin_1',
+    });
+    await service.decideManualVerification({
+      verificationId: identity.id,
+      decision: 'APPROVE',
+      adminId: 'admin_2',
+    });
+
+    // Announced once: the second administrator asked for what already happened.
+    expect(h.notifications.created).toHaveLength(1);
+    expect(identity.reviewedByAdminId).toBe('admin_1');
   });
 });

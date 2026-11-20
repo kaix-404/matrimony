@@ -32,23 +32,6 @@ export const InitiatePhotoUploadSchema = z
 export type InitiatePhotoUploadInput = z.infer<typeof InitiatePhotoUploadSchema>;
 
 /**
- * Which reserved upload a body belongs to, when the bytes come to the API.
- *
- * The website sends photo and biodata bytes through the API rather than to the
- * bucket (a browser PUT needs a bucket CORS rule this deployment cannot write),
- * and the body is the file itself — so the object key travels in the query
- * string. It is only ever a lookup key: the services check that it names an
- * upload this caller reserved.
- */
-export const UploadObjectQuerySchema = z
-  .object({
-    object_key: z.string().min(1).max(512),
-  })
-  .strict();
-
-export type UploadObjectQuery = z.infer<typeof UploadObjectQuerySchema>;
-
-/**
  * The client confirms the upload and reports what it actually wrote.
  *
  * `width_px`/`height_px` come from the client because the API never sees the

@@ -85,6 +85,38 @@ The variable names are `CASHFREE_CLIENT_ID`, `CASHFREE_CLIENT_SECRET` and
 `CASHFREE_ENVIRONMENT`, and a value wrapped in quotes is sent with the quotes
 (surrounding whitespace is trimmed, quotes are not).
 
+## The fallback that does not need Cashfree: manual document review
+
+If the supplier cannot be used at all — in production it refuses this
+deployment's IP addresses, which made the API answer `503` to every attempt — the
+member can verify by uploading a copy of their Aadhaar instead. It reaches the
+same state: the row is `VERIFIED`, `identityVerifiedAt` is set, and an account in
+`PENDING_VERIFICATION` moves to `AWAITING_SETUP_FEE`, exactly as a DigiLocker
+success does.
+
+- **Member side.** The verification screen offers *Upload your Aadhaar instead*.
+  The file is a JPEG/PNG/WebP or PDF up to 10 MB (the website posts it through
+  the API, for the same CORS reason the other uploads do). Submitting records an
+  `AADHAAR_PROCESSING` consent with `manual-document-v1` and writes the row as
+  `PENDING` with the object key. Nothing is verified by submitting.
+- **Console side.** **Identity checks** shows the row with *Open document* — a
+  signed link that expires in minutes, never a stored URL — plus **Approve
+  identity** and **Reject** with a reason. Both are behind `identity_verify:review`
+  (Moderation Admin holds it; support's `identity_verify:read` does not) and both
+  write an audit line.
+- **A rejection** sets `FAILED` with `MANUAL_DOCUMENT_REJECTED` and the reviewer's
+  note as `failureReason`, pushes the member a notification, and leaves the
+  account in `PENDING_VERIFICATION` so they can upload a clearer copy.
+- **Retention.** The document copy is kept as the evidence for the decision and is
+  erased (key and MIME type nulled, `nameOnId` cleared) by the account-retention
+  sweep when the account is anonymised. The object itself is left to the storage
+  lifecycle sweep, like deleted photos.
+
+Turning on Cashfree is still preferable when it works: it keeps no copy at all.
+Nothing needs to be turned off once it does — a member who verified manually
+keeps the verification, and a DigiLocker attempt only starts for an account that
+is not already `VERIFIED`.
+
 ## What is still not automatic
 
 An identity check that the vendor never calls back about stays `PENDING`; there is
@@ -92,5 +124,6 @@ no sweeper that expires it. The member is not stranded, though: the app compares
 the attempt's `providerReferenceExpiresAt` with the status and, once the session
 has lapsed, replaces "waiting" with a request for a new link. Re-initiating
 overwrites the stuck row, so a fresh attempt needs no operator. The console's
-**Identity checks** queue only shows such a row (filter **Awaiting member**); it
-is a read-only list, and no administrator action expires an attempt.
+**Identity checks** queue only shows such a row (filter **Awaiting member**); no
+administrator action expires a DigiLocker attempt — the only decisions the console
+takes are on manually uploaded documents.

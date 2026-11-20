@@ -36,6 +36,7 @@ export default function RootLayout() {
           <Stack.Screen name="notifications" />
           <Stack.Screen name="checkout" />
           <Stack.Screen name="verification" />
+          <Stack.Screen name="verification-document" />
           <Stack.Screen name="setup-fee" />
           <Stack.Screen name="variants" />
         </Stack>

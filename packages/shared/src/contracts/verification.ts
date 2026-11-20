@@ -3,7 +3,21 @@
  */
 import { z } from 'zod';
 
-export const IdentityVerificationProviderSchema = z.enum(['DIGILOCKER', 'AADHAAR_UIDAI']);
+/**
+ * The method a check was made with.
+ *
+ * `MANUAL_DOCUMENT` is the fallback: the member uploads a copy of their Aadhaar
+ * and an administrator approves or rejects it. It exists because the DigiLocker
+ * supplier can be unreachable for reasons that have nothing to do with a member
+ * — in production it refuses this deployment's IP addresses — and identity
+ * verification gates discovery for the whole product, so one supplier's network
+ * policy must not be able to stop everyone from joining.
+ */
+export const IdentityVerificationProviderSchema = z.enum([
+  'DIGILOCKER',
+  'AADHAAR_UIDAI',
+  'MANUAL_DOCUMENT',
+]);
 export type IdentityVerificationProvider = z.infer<typeof IdentityVerificationProviderSchema>;
 
 export const IdentityVerificationVendorSchema = z.enum(['CASHFREE']);
@@ -102,6 +116,75 @@ export const VerificationWebhookSchema = z
 
 export type VerificationWebhook = z.infer<typeof VerificationWebhookSchema>;
 export type VerificationWebhookData = z.infer<typeof VerificationWebhookDataSchema>;
+
+// ---------------------------------------------------------------------------
+// Manual document review
+// ---------------------------------------------------------------------------
+
+/**
+ * What a member may upload.
+ *
+ * A photo of the card is the realistic case, so images are accepted alongside a
+ * PDF (many people have a scanned copy). SVG is excluded everywhere in this
+ * product because it is a script container.
+ */
+export const MANUAL_DOCUMENT_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+] as const;
+
+export const MAX_MANUAL_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * Reserves an upload for a document check.
+ *
+ * The same handshake as photos and biodata: reserve a key, send the bytes, then
+ * submit the key. The reservation is what bounds the upload before any bytes
+ * move.
+ */
+export const InitiateManualDocumentUploadSchema = z
+  .object({
+    mime_type: z.enum(MANUAL_DOCUMENT_MIME_TYPES),
+    byte_size: z
+      .number()
+      .int()
+      .positive()
+      .max(MAX_MANUAL_DOCUMENT_BYTES),
+  })
+  .strict();
+
+export type InitiateManualDocumentUploadInput = z.infer<
+  typeof InitiateManualDocumentUploadSchema
+>;
+
+/** A reserved upload slot, the same shape the other uploads return. */
+export const ManualDocumentTicketSchema = z
+  .object({
+    upload_url: z.string().url(),
+    object_key: z.string().min(1),
+    expires_in_seconds: z.number().int().positive(),
+  })
+  .strict();
+
+export type ManualDocumentTicket = z.infer<typeof ManualDocumentTicketSchema>;
+
+/**
+ * Puts the uploaded document forward for review.
+ *
+ * `policy_version` is required here, unlike the DigiLocker initiate where it is
+ * optional: this path *stores a copy of an identity document*, so the version of
+ * the notice the member was shown is part of the record, not a detail.
+ */
+export const SubmitManualDocumentSchema = z
+  .object({
+    object_key: z.string().min(1).max(512),
+    policy_version: z.string().min(1).max(40),
+  })
+  .strict();
+
+export type SubmitManualDocumentInput = z.infer<typeof SubmitManualDocumentSchema>;
 
 /** Event names Cashfree Secure ID sends for the DigiLocker journey. */
 export const DIGILOCKER_EVENTS = {

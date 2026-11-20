@@ -41,6 +41,7 @@ import type {
   AdminRestoreUserView,
   AdminReviewPhotoInput,
   AdminReviewReportInput,
+  AdminReviewVerificationInput,
   AdminRoleSlug,
   AdminRoleView,
   AdminSessionView,
@@ -70,6 +71,7 @@ import type { Env } from '../config/env';
 import { AuditService } from './audit.service';
 import { resolvePermissionsForRoles } from './rbac/resolve-permissions';
 import { hashPassword } from '../common/crypto/password';
+import { VerificationService } from '../verification/verification.service';
 
 /** The row shape every administrator read selects, so one mapper covers them all. */
 interface AdminRow {
@@ -134,6 +136,11 @@ const VERIFICATION_SELECT = {
   failureCode: true,
   failureReason: true,
   verifiedAt: true,
+  documentObjectKey: true,
+  documentSubmittedAt: true,
+  reviewedAt: true,
+  reviewedByAdminId: true,
+  reviewNote: true,
   createdAt: true,
   updatedAt: true,
   user: { select: { mobile: true, status: true } },
@@ -151,6 +158,11 @@ interface VerificationRow {
   failureCode: string | null;
   failureReason: string | null;
   verifiedAt: Date | null;
+  documentObjectKey: string | null;
+  documentSubmittedAt: Date | null;
+  reviewedAt: Date | null;
+  reviewedByAdminId: string | null;
+  reviewNote: string | null;
   createdAt: Date;
   updatedAt: Date;
   user: { mobile: string; status: string };
@@ -158,7 +170,10 @@ interface VerificationRow {
 }
 
 /** Copies fields by name, so a selected column cannot leak by spreading the row. */
-function toVerificationView(row: VerificationRow): AdminVerificationView {
+function toVerificationView(
+  row: VerificationRow,
+  documentUrl: string | null,
+): AdminVerificationView {
   return {
     id: row.id,
     userId: row.userId,
@@ -173,6 +188,10 @@ function toVerificationView(row: VerificationRow): AdminVerificationView {
     failureReason: row.failureReason,
     consentedAt: row.consentRecord ? row.consentRecord.grantedAt.toISOString() : null,
     verifiedAt: row.verifiedAt ? row.verifiedAt.toISOString() : null,
+    documentUrl,
+    documentSubmittedAt: row.documentSubmittedAt ? row.documentSubmittedAt.toISOString() : null,
+    reviewedAt: row.reviewedAt ? row.reviewedAt.toISOString() : null,
+    reviewNote: row.reviewNote,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -518,6 +537,12 @@ export class AdminService {
     private readonly clock: ClockService,
     private readonly notifications: NotificationsService,
     private readonly storage: StorageService,
+    /**
+     * The identity state machine, injected rather than re-implemented: approving
+     * a document must produce exactly what a DigiLocker success produces, and two
+     * implementations of "the account is verified now" is how they drift.
+     */
+    private readonly verifications: VerificationService,
     private readonly sms: SmsGateway,
     @Inject('ENV') env: Env,
   ) {
@@ -639,9 +664,81 @@ export class AdminService {
     });
     const hasMore = items.length > take;
     const rows = hasMore ? items.slice(0, take) : items;
-    const verifications = rows.map(toVerificationView);
+    // A manual check is the only one with a document, and the link is minted at
+    // read time for that reason: a URL stored anywhere would either expire
+    // uselessly or never expire at all.
+    const verifications = await Promise.all(
+      rows.map(async (row) => toVerificationView(row, await this.documentUrlFor(row))),
+    );
     const nextCursor = hasMore ? (verifications[verifications.length - 1]?.id ?? null) : null;
     return { verifications, nextCursor, hasMore };
+  }
+
+  /**
+   * A short-lived link to a manually uploaded document, or null when there is
+   * none. A DigiLocker row has no copy at all, which is the point of using it.
+   */
+  private async documentUrlFor(row: VerificationRow): Promise<string | null> {
+    if (row.provider !== 'MANUAL_DOCUMENT' || row.documentObjectKey === null) return null;
+    return this.storage.presignDownload(row.documentObjectKey).catch(() => null);
+  }
+
+  /**
+   * Approves or rejects a manually uploaded identity document.
+   *
+   * The decision itself is not made here. It goes through `VerificationService`,
+   * which owns the transition and the member's notification, so an approval is
+   * indistinguishable downstream from a DigiLocker success — same row state, same
+   * `identityVerifiedAt`, same move to AWAITING_SETUP_FEE. The console's job is
+   * the audit line and the view.
+   *
+   * Repeating the decision already recorded is not an error (two administrators
+   * on the same stale queue is the outcome both wanted), and the audit line is
+   * written only for a real change.
+   */
+  async reviewVerification(
+    id: string,
+    input: AdminReviewVerificationInput,
+    actingAdminId: string,
+  ): Promise<AdminVerificationView> {
+    const row = await this.prisma.identityVerification.findUnique({
+      where: { id },
+      select: VERIFICATION_SELECT,
+    });
+    if (!row) {
+      throw new NotFoundException('Identity check not found');
+    }
+
+    const previousStatus = row.status;
+
+    await this.verifications.decideManualVerification({
+      verificationId: id,
+      decision: input.decision,
+      note: input.note,
+      adminId: actingAdminId,
+    });
+
+    const updated = await this.prisma.identityVerification.findUnique({
+      where: { id },
+      select: VERIFICATION_SELECT,
+    });
+    if (!updated) {
+      throw new NotFoundException('Identity check not found');
+    }
+
+    if (previousStatus !== updated.status) {
+      await this.audit.record({
+        actorAdminId: actingAdminId,
+        action: 'identity_verification:review',
+        resourceType: 'IdentityVerification',
+        resourceId: id,
+        previousValue: { status: previousStatus },
+        newValue: { status: updated.status, decision: input.decision },
+        reason: input.note ?? null,
+      });
+    }
+
+    return toVerificationView(updated, await this.documentUrlFor(updated));
   }
 
   /**

@@ -17,7 +17,11 @@ import type { Request } from 'express';
 import { AuthUser, JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BiodataService, MAX_BIODATA_BYTES } from './biodata.service';
 import { MAX_PHOTO_BYTES, PhotoService } from './photo.service';
-import { bareContentType, readUploadBody } from './raw-body';
+import { bareContentType, readUploadBody } from '../common/http/raw-body';
+import {
+  UploadObjectQuerySchema,
+  type UploadObjectQuery,
+} from '../common/validation/upload-object-query';
 import { ProfileService } from './profile.service';
 import { ProfileVisibility } from '../prisma/prisma-client';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
@@ -37,11 +41,9 @@ import {
   CompletePhotoUploadSchema,
   InitiatePhotoUploadSchema,
   SetVisibilitySchema,
-  UploadObjectQuerySchema,
   type CompletePhotoUploadInput,
   type InitiatePhotoUploadInput,
   type SetVisibilityInput,
-  type UploadObjectQuery,
 } from './dto';
 import {
   InitiateBiodataUploadSchema,

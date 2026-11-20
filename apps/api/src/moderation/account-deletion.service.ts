@@ -219,6 +219,22 @@ export class AccountDeletionService {
         );
       }
 
+      // A manually uploaded ID is the most sensitive thing an account can hold.
+      // Its key goes with the person even though the verification outcome stays
+      // — like a payment record, what happened survives, who it happened to does
+      // not. The object itself is left to the storage lifecycle sweep, exactly as
+      // deleted photos are.
+      ops.push(
+        this.prisma.identityVerification.updateMany({
+          where: { userId: account.id },
+          data: {
+            documentObjectKey: null,
+            documentMimeType: null,
+            nameOnId: null,
+          },
+        }),
+      );
+
       await this.prisma.$transaction(ops as never);
       purged += 1;
     }

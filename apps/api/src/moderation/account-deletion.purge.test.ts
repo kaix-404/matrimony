@@ -67,10 +67,19 @@ function profile(overrides: Partial<ProfileRow> = {}): ProfileRow {
   };
 }
 
+interface VerificationRow {
+  id: string;
+  userId: string;
+  documentObjectKey: string | null;
+  documentMimeType: string | null;
+  nameOnId: string | null;
+}
+
 interface ServiceFixture {
   service: AccountDeletionService;
   users: UserRow[];
   profiles: ProfileRow[];
+  verifications: VerificationRow[];
   photos: { id: string; profileId: string }[];
   interests: { profileId: string; interestKey: string }[];
   payments: { id: string; userId: string }[];
@@ -88,6 +97,15 @@ function makeService(
   const users = opts.users ?? [user()];
   const profiles = opts.profiles ?? [profile()];
   const photos = [{ id: 'photo_one', profileId: PROFILE }];
+  const verifications: VerificationRow[] = [
+    {
+      id: 'ver_one',
+      userId: USER,
+      documentObjectKey: 'verification/user_one/doc.jpg',
+      documentMimeType: 'image/jpeg',
+      nameOnId: 'Asha Rao',
+    },
+  ];
   const interests = [{ profileId: PROFILE, interestKey: 'TRAVEL' }];
   const payments = [{ id: 'pay_one', userId: USER }];
   const unlocks = [{ id: 'unlock_one', userId: USER }];
@@ -155,6 +173,24 @@ function makeService(
         return { count: before - interests.length };
       },
     },
+    identityVerification: {
+      updateMany: async ({
+        where,
+        data,
+      }: {
+        where: { userId: string };
+        data: Partial<VerificationRow>;
+      }) => {
+        calls.push({ model: 'identityVerification', op: 'updateMany' });
+        let count = 0;
+        for (const row of verifications) {
+          if (row.userId !== where.userId) continue;
+          Object.assign(row, data);
+          count += 1;
+        }
+        return { count };
+      },
+    },
     // Present so a call to them would be recorded and fail the "payment records
     // are kept" assertion, which is the point of declaring them at all.
     payment: {
@@ -189,6 +225,7 @@ function makeService(
     ),
     users,
     profiles,
+    verifications,
     photos,
     interests,
     payments,
@@ -198,6 +235,18 @@ function makeService(
 }
 
 describe('AccountDeletionService.purgeDue', () => {
+  it('erases the identity document key and keeps the verification outcome', async () => {
+    const { service, verifications } = makeService();
+
+    await service.purgeDue();
+
+    // The row survives — a verification is a record, not a person — but the
+    // evidence behind it and the name on the card do not.
+    expect(verifications[0]!.documentObjectKey).toBeNull();
+    expect(verifications[0]!.documentMimeType).toBeNull();
+    expect(verifications[0]!.nameOnId).toBeNull();
+  });
+
   it('anonymises an account past its retention window', async () => {
     const { service, users, profiles } = makeService();
 

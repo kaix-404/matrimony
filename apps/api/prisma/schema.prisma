@@ -80,6 +80,11 @@ enum IdentityVerificationProvider {
   DIGILOCKER
   /// Direct UIDAI Aadhaar API. Requires an AUA/KUA licence we do not hold.
   AADHAAR_UIDAI
+  /// Manual review: the member uploads a copy of their Aadhaar and an
+  /// administrator decides. The fallback for when DigiLocker cannot be reached
+  /// at all — in production Cashfree refuses this deployment's IPs — so identity
+  /// verification is not hostage to one supplier's network policy.
+  MANUAL_DOCUMENT
 }
 
 /// Which supplier performed the check, for audit and reconciliation.
@@ -371,6 +376,19 @@ model IdentityVerification {
   failureReason              String?
   /// Provider reference lifetime; a re-verify is required once elapsed.
   providerReferenceExpiresAt DateTime?
+
+  /// Manual review only: the uploaded Aadhaar copy, held as an object key.
+  /// Never a public URL — the console mints a short-lived signed GET when an
+  /// administrator opens the queue. The copy is kept as the evidence for the
+  /// decision (and for a dispute about it), and is erased with the account.
+  documentObjectKey   String?
+  documentMimeType    String?
+  documentSubmittedAt DateTime?
+  /// The decision on a manual check. DigiLocker rows leave these null: the
+  /// supplier's signed webhook is the decision there, not a person.
+  reviewedAt        DateTime?
+  reviewedByAdminId String?
+  reviewNote        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -5,6 +5,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { StorageModule } from '../storage/storage.module';
 import { HealthModule } from '../health/health.module';
 import { SmsModule } from '../sms/sms.module';
+import { VerificationModule } from '../verification/verification.module';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { AdminMasterDataController } from './master-data.admin.controller';
@@ -31,7 +32,20 @@ import { PermissionsGuard } from './rbac/permissions.guard';
   // `HealthModule` supplies the readiness report the System status page reads;
   // it is exported for that one route. It imports nothing from here, so the
   // dependency stays one-way.
-  imports: [PrismaModule, AuthModule, NotificationsModule, StorageModule, HealthModule, SmsModule],
+  // `VerificationModule` is here for one call: approving a manually uploaded
+  // document has to run the same state transition as the DigiLocker webhook, and
+  // re-implementing "the account is verified" in the console is how the two
+  // drift apart. It imports nothing from this module, so the dependency stays
+  // one-way.
+  imports: [
+    PrismaModule,
+    AuthModule,
+    NotificationsModule,
+    StorageModule,
+    HealthModule,
+    SmsModule,
+    VerificationModule,
+  ],
   providers: [
     AdminService,
     AdminMasterDataService,

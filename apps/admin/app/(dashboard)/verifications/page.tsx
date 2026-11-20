@@ -6,6 +6,7 @@ import { describeError } from '@/lib/errors';
 import { formatDateTime } from '@/lib/format';
 import { readParam } from '@/lib/query';
 import { Pager } from '../pager';
+import { VerificationReviewControls } from './review-controls';
 import { VerificationStatusBadge } from './status-badge';
 
 /**
@@ -16,9 +17,15 @@ import { VerificationStatusBadge } from './status-badge';
  * — the handle support actually has — and puts the failure reason next to the
  * status instead of behind a detail page, because the reason is the answer.
  *
- * It shows state, never evidence. The Aadhaar name, the supplier reference and
- * the screening payload are not part of `AdminVerificationView`; the four masked
- * digits are, only because they are how a member identifies the check.
+ * It shows state, never the supplier's payload. The Aadhaar name, the supplier
+ * reference and the screening payload are not part of `AdminVerificationView`;
+ * the four masked digits are, only because they are how a member identifies the
+ * check.
+ *
+ * One state is different: a manually uploaded document sits here waiting for a
+ * person, and its link plus the approve/reject controls appear on the row. That
+ * is the fallback for when DigiLocker cannot be reached at all, and it produces
+ * exactly what a supplier success produces.
  *
  * `force-dynamic` for the same reason as the moderation queue: a verdict lands
  * by webhook the moment the member finishes in DigiLocker, so a cached page
@@ -79,8 +86,9 @@ export default async function VerificationsPage({
     <>
       <h1>Identity checks</h1>
       <p className="lede">
-        Aadhaar checks through DigiLocker, newest first. A check passes only when the supplier
-        confirms it by webhook; nothing here can be set by hand.
+        Aadhaar checks, newest first. A DigiLocker check passes only when the supplier confirms it
+        by webhook and cannot be set by hand. A check whose document a member uploaded passes only
+        when an administrator approves it below.
       </p>
 
       <div className="filters">
@@ -112,6 +120,7 @@ export default async function VerificationsPage({
                 <tr>
                   <th>Member</th>
                   <th>Status</th>
+                  <th>Document</th>
                   <th>Failure reason</th>
                   <th>Consent given</th>
                   <th>Started</th>
@@ -137,6 +146,31 @@ export default async function VerificationsPage({
                         {check.provider}
                         {check.vendor !== null ? ` / ${check.vendor}` : ''}
                       </div>
+                    </td>
+                    <td>
+                      {check.documentUrl !== null ? (
+                        <a href={check.documentUrl} target="_blank" rel="noreferrer">
+                          Open document
+                        </a>
+                      ) : (
+                        <span style={{ color: 'var(--muted)' }}>-</span>
+                      )}
+                      {check.documentSubmittedAt !== null ? (
+                        <div className="mono" style={{ color: 'var(--muted)', fontSize: 12 }}>
+                          submitted {formatDateTime(check.documentSubmittedAt)}
+                        </div>
+                      ) : null}
+                      {check.reviewedAt !== null ? (
+                        <div className="mono" style={{ color: 'var(--muted)', fontSize: 12 }}>
+                          decided {formatDateTime(check.reviewedAt)}
+                        </div>
+                      ) : null}
+                      {check.reviewNote !== null ? (
+                        <div style={{ fontSize: 12 }}>{check.reviewNote}</div>
+                      ) : null}
+                      {check.status === 'PENDING' && check.provider === 'MANUAL_DOCUMENT' ? (
+                        <VerificationReviewControls verificationId={check.id} />
+                      ) : null}
                     </td>
                     <td>
                       {check.failureReason ?? check.failureCode ?? (

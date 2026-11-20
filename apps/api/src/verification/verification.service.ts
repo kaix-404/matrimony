@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -8,14 +9,18 @@ import {
 import { PrismaClient, ConsentType, ConsentStatus } from '../prisma/prisma-client';
 import {
   DIGILOCKER_EVENTS,
+  MANUAL_DOCUMENT_MIME_TYPES,
+  MAX_MANUAL_DOCUMENT_BYTES,
   NOTIFICATION_EVENTS,
   type IdentityVerificationProvider,
   type IdentityVerificationStatus,
   type InitiateVerificationRequest,
+  type SubmitManualDocumentInput,
   type VerificationStatusResponse,
   type VerificationWebhook,
 } from '@matrimony/shared';
 import { NotificationsService } from '../notifications/notifications.service';
+import { StorageService } from '../storage/s3.service';
 import { VerificationGateway } from './verification.gateway';
 
 /**
@@ -27,6 +32,19 @@ const VERIFICATION_UNAVAILABLE_CODE = 'VERIFICATION_UNAVAILABLE';
 
 /** The version recorded when a client does not name one. */
 const DEFAULT_POLICY_VERSION = 'v1';
+
+/**
+ * `failureCode` written when an administrator refuses a document.
+ *
+ * A code rather than the note, because the note is prose for the member and this
+ * column is what a support query filters on. The reason they were given lives in
+ * `failureReason`.
+ */
+const MANUAL_REJECTION_CODE = 'MANUAL_DOCUMENT_REJECTED';
+
+/** What the member is told when a reviewer rejects without saying why. */
+const DEFAULT_MANUAL_REJECTION =
+  'The document could not be accepted. Please upload a clearer copy of your Aadhaar.';
 
 /**
  * D9 makes identity verification mandatory: a VERIFIED check is the only thing
@@ -50,6 +68,7 @@ export class VerificationService {
     private readonly prisma: PrismaClient,
     private readonly gateway: VerificationGateway,
     private readonly notifications: NotificationsService,
+    private readonly storage: StorageService,
   ) {}
 
   /**
@@ -146,6 +165,246 @@ export class VerificationService {
     });
 
     return { ...this.toResponse(updated), redirect_url: session.url };
+  }
+
+  /**
+   * Reserves an upload for the manual fallback.
+   *
+   * The same three steps as every other upload in this product — reserve a key,
+   * send the bytes, submit the key — and for the same reason: the size is bounded
+   * before a byte moves, and the object lives under a prefix this member owns, so
+   * the submit step is a string check rather than a lookup.
+   *
+   * A check that has already passed is refused rather than replaced: asking a
+   * verified member for their Aadhaar again is a request for data there is no
+   * longer any purpose in collecting.
+   */
+  async initiateManualUpload(
+    userId: string,
+    input: { mime_type: string; byte_size: number },
+  ): Promise<{ upload_url: string; object_key: string; expires_in_seconds: number }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    assertDocumentType(input.mime_type);
+
+    if (input.byte_size <= 0 || input.byte_size > MAX_MANUAL_DOCUMENT_BYTES) {
+      throw new BadRequestException('The document must be between 1 byte and 10 MB');
+    }
+
+    const existing = await this.prisma.identityVerification.findUnique({ where: { userId } });
+    if (existing?.status === 'VERIFIED') {
+      throw new ConflictException('Identity verification is already complete');
+    }
+
+    const objectKey = `verification/${userId}/${randomKey()}`;
+    const uploadUrl = await this.storage.presignUpload(objectKey, input.mime_type, input.byte_size);
+
+    return { upload_url: uploadUrl, object_key: objectKey, expires_in_seconds: 300 };
+  }
+
+  /**
+   * Stores document bytes the API received itself — the website's upload path.
+   *
+   * The website cannot PUT to the bucket (a browser PUT is cross-origin and the
+   * bucket has no CORS rule this deployment can write), exactly as for photos.
+   * The prefix check is what keeps this from writing anywhere but the caller's
+   * own verification folder.
+   */
+  async uploadManualBytes(
+    userId: string,
+    objectKey: string,
+    body: Buffer,
+    mimeType: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (!objectKey.startsWith(`verification/${userId}/`)) {
+      throw new NotFoundException('No upload was found for that key');
+    }
+
+    assertDocumentType(mimeType);
+
+    if (body.byteLength === 0 || body.byteLength > MAX_MANUAL_DOCUMENT_BYTES) {
+      throw new BadRequestException('The document must be between 1 byte and 10 MB');
+    }
+
+    await this.storage.putObject(objectKey, body, mimeType);
+  }
+
+  /**
+   * Puts an uploaded document forward for review.
+   *
+   * This is where the row is written, not at upload time: an abandoned upload
+   * must not sit in the review queue as something an administrator might approve.
+   * The object is checked in storage first, so a submission that points at a key
+   * with nothing behind it is refused here rather than becoming a queue entry
+   * whose evidence is missing.
+   *
+   * Consent to processing an Aadhaar copy is recorded before the row exists, and
+   * referenced from it — the ordering H3 asks for, made auditable rather than
+   * implied.
+   */
+  async submitManualDocument(
+    userId: string,
+    input: SubmitManualDocumentInput,
+  ): Promise<VerificationStatusResponse> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    if (!input.object_key.startsWith(`verification/${userId}/`)) {
+      throw new NotFoundException('No upload was found for that key');
+    }
+
+    const existing = await this.prisma.identityVerification.findUnique({ where: { userId } });
+    // A passed check is final, as on the DigiLocker path: a second submission
+    // must not replace a verification the member already has.
+    if (existing?.status === 'VERIFIED') return this.toResponse(existing);
+
+    const head = await this.storage.headObject(input.object_key).catch(() => null);
+    if (!head || head.byteLength === 0) {
+      throw new NotFoundException('The uploaded document could not be read');
+    }
+    if (head.byteLength > MAX_MANUAL_DOCUMENT_BYTES) {
+      throw new BadRequestException('The document must be at most 10 MB');
+    }
+    if (head.contentType !== null) assertDocumentType(head.contentType);
+
+    const now = new Date();
+
+    const consent = await this.prisma.consentRecord.create({
+      data: {
+        userId,
+        type: ConsentType.AADHAAR_PROCESSING,
+        status: ConsentStatus.GRANTED,
+        policyVersion: input.policy_version,
+        grantedAt: now,
+        deviceId: null,
+      },
+    });
+
+    // One row per account, as on the DigiLocker path. The old attempt is replaced
+    // rather than updated so the row describes this submission only; the consent
+    // record it referenced is its own row and stays for the audit trail.
+    if (existing) {
+      await this.prisma.identityVerification.delete({ where: { userId } });
+    }
+
+    const identity = await this.prisma.identityVerification.create({
+      data: {
+        userId,
+        provider: 'MANUAL_DOCUMENT' as never,
+        // No supplier is involved in a manual review.
+        vendor: null,
+        status: 'PENDING' as never,
+        consentRecordId: consent.id,
+        documentObjectKey: input.object_key,
+        documentMimeType: head.contentType,
+        documentSubmittedAt: now,
+      },
+    });
+
+    this.logger.log(`Manual document submitted for verification ${identity.id}; awaiting review`);
+
+    return this.toResponse(identity);
+  }
+
+  /**
+   * An administrator's decision on a manual check.
+   *
+   * The effect is deliberately identical to a DigiLocker success: the row is
+   * VERIFIED, and an account that is still PENDING_VERIFICATION moves to
+   * AWAITING_SETUP_FEE. That sameness is the point of the fallback — nothing
+   * downstream should need to know which method produced the verification, and
+   * `identityVerifiedAt` is what `can_discover` reads either way.
+   *
+   * Approval of a check that already passed is a no-op (two administrators on a
+   * stale page are asking for the same outcome). Anything else is a conflict: a
+   * failed or expired manual check is not "approved" after the fact, the member
+   * re-submits and gets a fresh decision.
+   */
+  async decideManualVerification(input: {
+    verificationId: string;
+    decision: 'APPROVE' | 'REJECT';
+    note?: string;
+    adminId: string;
+  }): Promise<void> {
+    const identity = await this.prisma.identityVerification.findUnique({
+      where: { id: input.verificationId },
+    });
+    if (!identity) throw new NotFoundException('Identity check not found');
+
+    if (identity.provider !== 'MANUAL_DOCUMENT') {
+      throw new BadRequestException('Only a document check can be decided by hand');
+    }
+    if (identity.status === 'VERIFIED') return;
+    if (identity.status !== 'PENDING') {
+      throw new ConflictException('This check is no longer awaiting review');
+    }
+
+    const now = new Date();
+
+    if (input.decision === 'APPROVE') {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.identityVerification.update({
+          where: { id: identity.id },
+          data: {
+            status: 'VERIFIED' as never,
+            verifiedAt: now,
+            failureCode: null,
+            failureReason: null,
+            reviewedAt: now,
+            reviewedByAdminId: input.adminId,
+            reviewNote: null,
+            updatedAt: now,
+          },
+        });
+
+        // Guarded exactly as the webhook path is: a late decision cannot pull an
+        // account that has moved on (or been suspended) back through the funnel.
+        await tx.user.updateMany({
+          where: { id: identity.userId, status: 'PENDING_VERIFICATION' },
+          data: {
+            identityVerifiedAt: now,
+            status: 'AWAITING_SETUP_FEE',
+            statusChangedAt: now,
+            statusChangeReason:
+              'Identity document approved; awaiting the one-time account setup fee.',
+          },
+        });
+      });
+
+      await this.notifyOutcome(identity.userId, 'VERIFIED');
+      this.logger.log(`Manual identity document approved on verification ${identity.id}`);
+      return;
+    }
+
+    await this.prisma.identityVerification.update({
+      where: { id: identity.id },
+      data: {
+        status: 'FAILED' as never,
+        verifiedAt: null,
+        failureCode: MANUAL_REJECTION_CODE,
+        failureReason: input.note ?? DEFAULT_MANUAL_REJECTION,
+        reviewedAt: now,
+        reviewedByAdminId: input.adminId,
+        reviewNote: input.note ?? null,
+        updatedAt: now,
+      },
+    });
+
+    await this.notifyOutcome(identity.userId, 'FAILED');
+    this.logger.log(`Manual identity document rejected on verification ${identity.id}`);
   }
 
   /**
@@ -361,6 +620,24 @@ function statusForEvent(eventType: string): 'VERIFIED' | 'FAILED' | 'EXPIRED' | 
     default:
       return null;
   }
+}
+
+/**
+ * Refuses anything that is not an image or a PDF.
+ *
+ * SVG is excluded for the same reason it is excluded from photos: it is a script
+ * container, and this file is opened in an administrator's browser.
+ */
+function assertDocumentType(mimeType: string): void {
+  if (!(MANUAL_DOCUMENT_MIME_TYPES as readonly string[]).includes(mimeType)) {
+    throw new BadRequestException('Upload a JPEG, PNG, WebP or PDF of your Aadhaar');
+  }
+}
+
+function randomKey(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**

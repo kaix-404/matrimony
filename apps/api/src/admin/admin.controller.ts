@@ -33,6 +33,7 @@ import {
   AdminRestoreUserSchema,
   AdminReviewPhotoSchema,
   AdminReviewReportSchema,
+  AdminReviewVerificationSchema,
   AdminRoleSlugSchema,
   type AdminAssignRoleInput,
   type AdminCategoryChangeView,
@@ -64,11 +65,13 @@ import {
   type AdminRestoreUserView,
   type AdminReviewPhotoInput,
   type AdminReviewReportInput,
+  type AdminReviewVerificationInput,
   type AdminRoleSlug,
   type AdminRoleView,
   type AdminSessionView,
   type AdminUserDetailView,
   type AdminUserView,
+  type AdminVerificationView,
 } from '@matrimony/shared';
 import { ZodValidationPipe } from '../common/validation/zod-validation.pipe';
 import { HealthService, type HealthReport } from '../health/health.service';
@@ -148,6 +151,27 @@ export class AdminController {
     query: AdminListVerificationsQuery,
   ) {
     return this.adminService.listVerifications(query.limit, query.cursor, query.status);
+  }
+
+  /**
+   * Approves or rejects a document one member uploaded (the D9 fallback).
+   *
+   * Behind `identity_verify:review`, not the read permission: deciding a check by
+   * hand is the sensitive half, and a support agent who only answers questions
+   * about one has no business exercising it. Only manual rows are reachable here
+   * — a DigiLocker check is decided by the supplier's signed webhook and the
+   * service refuses anything else.
+   */
+  @Post('verifications/:id/review')
+  @RequirePermission('identity_verify:review')
+  @HttpCode(200)
+  async reviewVerification(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AdminReviewVerificationSchema))
+    body: AdminReviewVerificationInput,
+    @AdminUser() principal: AdminPrincipal,
+  ): Promise<AdminVerificationView> {
+    return this.adminService.reviewVerification(id, body, principal.id);
   }
 
   @Get('roles')

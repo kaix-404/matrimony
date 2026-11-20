@@ -6,6 +6,8 @@ import {
   Headers,
   HttpCode,
   Post,
+  Put,
+  Query,
   Req,
   UnauthorizedException,
   UseGuards,
@@ -13,12 +15,23 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthUser, JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { bareContentType, readUploadBody } from '../common/http/raw-body';
 import { ZodValidationPipe, toFieldIssues } from '../common/validation/zod-validation.pipe';
 import {
+  UploadObjectQuerySchema,
+  type UploadObjectQuery,
+} from '../common/validation/upload-object-query';
+import {
+  InitiateManualDocumentUploadSchema,
   InitiateVerificationSchema,
+  MAX_MANUAL_DOCUMENT_BYTES,
+  SubmitManualDocumentSchema,
   VerificationWebhookSchema,
   type AccessTokenClaims,
+  type InitiateManualDocumentUploadInput,
   type InitiateVerificationRequest,
+  type ManualDocumentTicket,
+  type SubmitManualDocumentInput,
   type VerificationStatusResponse,
 } from '@matrimony/shared';
 import { VerificationService } from './verification.service';
@@ -58,6 +71,69 @@ export class VerificationController {
   @UseGuards(JwtAuthGuard)
   async status(@AuthUser() claims: AccessTokenClaims): Promise<VerificationStatusResponse> {
     return this.verification.getVerificationStatus(claims.sub);
+  }
+
+  // -- manual document review (the D9 fallback) -----------------------------
+
+  /**
+   * Reserves an upload for a document check.
+   *
+   * The fallback exists because the DigiLocker supplier can be unreachable for
+   * reasons that have nothing to do with a member, and KYC gates discovery for
+   * the whole product. Same three-step handshake as photos: reserve, send bytes,
+   * submit the key — so the app learns one upload pattern.
+   */
+  @Post('manual/upload')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(201)
+  async initiateManualUpload(
+    @AuthUser() claims: AccessTokenClaims,
+    @Body(new ZodValidationPipe(InitiateManualDocumentUploadSchema))
+    body: InitiateManualDocumentUploadInput,
+  ): Promise<ManualDocumentTicket> {
+    return this.verification.initiateManualUpload(claims.sub, body);
+  }
+
+  /**
+   * Receives the document bytes on the website's behalf.
+   *
+   * A browser cannot PUT to the bucket (cross-origin, and the bucket's CORS rule
+   * is not something this deployment can write), so the bytes come here and are
+   * written under the caller's own `verification/` prefix.
+   */
+  @Put('manual/content')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(204)
+  async uploadManualContent(
+    @AuthUser() claims: AccessTokenClaims,
+    @Query(new ZodValidationPipe(UploadObjectQuerySchema)) query: UploadObjectQuery,
+    @Headers('content-type') contentType: string | undefined,
+    @Req() req: Request,
+  ): Promise<void> {
+    const body = await readUploadBody(req, MAX_MANUAL_DOCUMENT_BYTES);
+    await this.verification.uploadManualBytes(
+      claims.sub,
+      query.object_key,
+      body,
+      bareContentType(contentType),
+    );
+  }
+
+  /**
+   * Puts the uploaded document into the review queue.
+   *
+   * Nothing is verified here: the row goes to PENDING and an administrator's
+   * decision is what moves it, exactly as the supplier's signed webhook is what
+   * moves a DigiLocker row.
+   */
+  @Post('manual/submit')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(200)
+  async submitManualDocument(
+    @AuthUser() claims: AccessTokenClaims,
+    @Body(new ZodValidationPipe(SubmitManualDocumentSchema)) body: SubmitManualDocumentInput,
+  ): Promise<VerificationStatusResponse> {
+    return this.verification.submitManualDocument(claims.sub, body);
   }
 
   /**

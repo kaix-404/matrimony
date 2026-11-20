@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 import {
   GetBucketCorsCommand,
+  HeadObjectCommand,
   PutBucketCorsCommand,
   PutObjectCommand,
   GetObjectCommand,
@@ -170,6 +171,32 @@ export class StorageService implements OnApplicationBootstrap {
         ContentLength: body.byteLength,
       }),
     );
+  }
+
+  /**
+   * What is actually stored under a key, or null when nothing is.
+   *
+   * Used where a client claims it uploaded something: the manual identity
+   * document is submitted by key, and an approval that rested on a key with no
+   * object behind it would be a verification of nothing. Cheaper than reading
+   * the object, because the only question is whether it is there and how big.
+   */
+  async headObject(
+    objectKey: string,
+  ): Promise<{ byteLength: number; contentType: string | null } | null> {
+    try {
+      const head = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: objectKey }),
+      );
+      return {
+        byteLength: head.ContentLength ?? 0,
+        contentType: head.ContentType ?? null,
+      };
+    } catch (error) {
+      const name = (error as { name?: string }).name;
+      if (name === 'NotFound' || name === 'NoSuchKey' || name === '404') return null;
+      throw error;
+    }
   }
 
   /**
