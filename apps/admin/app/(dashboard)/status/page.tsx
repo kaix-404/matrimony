@@ -119,7 +119,7 @@ function shortRevision(revision: string | null | undefined): string {
  * in flight — reporting "Running now" for it would be the same lie in a new place.
  */
 function sweepState(sweep: ReconciliationStatus): { label: string; tone: 'done' | 'wip' } {
-  if (sweep.stale === true) return { label: 'Stalled', tone: 'wip' };
+  if (sweep.stale) return { label: 'Stalled', tone: 'wip' };
   if (sweep.inFlight) return { label: 'Running now', tone: 'wip' };
   if (sweep.runs === 0) return { label: 'Never ran', tone: 'wip' };
   if (sweep.consecutiveFailures > 0) {
@@ -341,11 +341,10 @@ export default async function StatusPage() {
                   <dd>{report.reconciliation.lastError ?? '-'}</dd>
                 </dl>
 
-                {report.reconciliation.stale === true ? (
+                {report.reconciliation.stale ? (
                   <p className="notice">
-                    No sweep has run for longer than one interval, so the timer that starts it has
-                    probably stopped. A clean last run does not mean it is still working; restarting
-                    the API re-arms the timer.
+                    No sweep for longer than one interval: the timer that starts it has probably
+                    stopped, and restarting the API re-arms it.
                   </p>
                 ) : null}
 

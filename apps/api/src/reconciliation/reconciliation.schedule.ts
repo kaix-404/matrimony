@@ -17,9 +17,8 @@ export const RECONCILIATION_SWEEP_INTERVAL_MS = 10 * 60_000;
 /**
  * How old the last sweep may be before it is reported as stopped.
  *
- * The timer is armed start-to-start, so a healthy sweep's finish can be nearly a
- * full interval old the instant before the next one begins; the extra minute
- * covers that gap and a late-firing timer. It is not slack for a long sweep — a
- * sweep still running is judged from when it started.
+ * A healthy finish is at most one interval old, so the extra minute only has to
+ * absorb a timer that fires late. It is not slack for a long sweep: a sweep still
+ * running is judged from when it started.
  */
 export const RECONCILIATION_STALE_AFTER_MS = RECONCILIATION_SWEEP_INTERVAL_MS + 60_000;

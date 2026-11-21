@@ -30,9 +30,7 @@ type StoredStatus = Omit<ReconciliationStatus, 'stale'>;
  */
 function lastActivityAt(state: StoredStatus): number | null {
   const at = state.inFlight ? state.startedAt : state.lastRun?.finishedAt;
-  if (!at) return null;
-  const parsed = Date.parse(at);
-  return Number.isNaN(parsed) ? null : parsed;
+  return at ? Date.parse(at) : null;
 }
 
 /**

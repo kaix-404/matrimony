@@ -206,13 +206,22 @@ something only the log knows:
     "error": null
   },
   "consecutiveFailures": 0,
-  "lastError": null
+  "lastError": null,
+  "stale": false
 }
 ```
 
 - `runs: 0` more than two minutes after boot means the recovery path never ran.
 - `consecutiveFailures` above zero means every recent sweep threw; `lastError`
-  carries the vendor's message. `checks.reconciliation` is `down` in both cases.
+  carries the vendor's message.
+- `stale: true` means nothing has started or finished for one interval plus a
+  minute, so the timer has stopped and no further sweep will happen — a clean
+  last run says nothing about that. A sweep that has been in flight that long is
+  stale too: it is wedged, and it also blocks every later tick.
+- `checks.reconciliation` is `down` in all three states — never ran, failing, or
+  stale — and the console's System status page draws the same verdict as
+  `Stalled`. Restarting the instance is the repair: the boot sweep re-arms the
+  timer as well as reconciling once.
 - A pass that threw publishes `null` for its counts rather than zeros, so "could
   not ask" never reads as "nothing outstanding".
 
