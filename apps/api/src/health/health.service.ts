@@ -106,14 +106,17 @@ export class HealthService {
     const database = await this.prisma.isHealthy();
     const clock = this.driftGuard.isHealthy();
     const uptimeSeconds = Math.floor((Date.now() - this.bootedAt) / 1000);
-    const reconciliation = this.reconciliationState.snapshot();
-    // Down means the recovery path is not doing its job — it never started, or
-    // every recent run threw. Like the provider flags, being down here does not
-    // fail readiness: an instance whose sweeper is broken still serves members,
-    // and taking it out of rotation would turn a silent repair into an outage.
+    const reconciliation = this.reconciliationState.snapshot(this.clock.now());
+    // Down means the recovery path is not doing its job — it never started, it
+    // stopped (no sweep for longer than an interval, so the timer died even if
+    // the last run was clean), or every recent run threw. Like the provider
+    // flags, being down here does not fail readiness: an instance whose sweeper
+    // is broken still serves members, and taking it out of rotation would turn a
+    // silent repair into an outage.
     const neverRan =
       reconciliation.runs === 0 && uptimeSeconds >= RECONCILIATION_BOOT_GRACE_SECONDS;
-    const reconciliationUp = !neverRan && reconciliation.consecutiveFailures === 0;
+    const reconciliationUp =
+      !neverRan && !reconciliation.stale && reconciliation.consecutiveFailures === 0;
     return {
       status: database && clock ? 'ok' : 'degraded',
       service: 'matrimony-api',

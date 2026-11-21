@@ -70,6 +70,7 @@ async function build(
             lastRun: null,
             consecutiveFailures: 0,
             lastError: null,
+            stale: false,
             ...options.reconciliation,
           }),
         },
@@ -141,6 +142,21 @@ describe('HealthController (section 46 readiness)', () => {
       consecutiveFailures: 9,
       lastError: 'Cashfree DigiLocker status failed (HTTP 403)',
     });
+  });
+
+  it('marks reconciliation down when the timer has stopped, without failing readiness', async () => {
+    const controller = await build({ reconciliation: { runs: 12, stale: true } }).then((ref) =>
+      ref.get(HealthController),
+    );
+
+    const report = await controller.ready();
+
+    // Nothing failed and nothing is running: the last sweep was clean, and the
+    // timer that should have started the next one died. That is not "Running
+    // normally", and it must not take the instance out of rotation either.
+    expect(report.status).toBe('ok');
+    expect(report.checks.reconciliation).toBe('down');
+    expect(report.reconciliation).toMatchObject({ consecutiveFailures: 0, stale: true });
   });
 
   it('reports a charge that cannot be confirmed as its own state', async () => {

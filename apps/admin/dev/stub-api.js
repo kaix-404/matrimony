@@ -33,12 +33,7 @@ const role = (slug, name, keys) => ({
 });
 
 const roles = [
-  role('SUPER_ADMIN', 'Super Admin', [
-    'admin:manage',
-    'user:read',
-    'report:review',
-    'system:read',
-  ]),
+  role('SUPER_ADMIN', 'Super Admin', ['admin:manage', 'user:read', 'report:review', 'system:read']),
   role('ADMIN', 'Admin', ['admin:manage', 'user:read']),
   role('MODERATION_ADMIN', 'Moderation Admin', ['report:review', 'identity_verify:read']),
   role('FINANCE_ADMIN', 'Finance Admin', ['payment:read', 'data_request:handle']),
@@ -321,19 +316,44 @@ const routes = {
   },
   // The permission-checked readiness mirror the System status page reads. The
   // public `/health/ready` is not stubbed: this is the route the console calls.
-  '/api/v1/admin/system/health': {
-    status: 'ok',
-    serverTime: '2026-11-12T12:00:00.000Z',
-    uptimeSeconds: 3600,
-    checks: {
-      database: 'up',
-      clock: 'up',
-      identityVerification: 'up',
-      sms: 'up',
-      email: 'down',
-      push: 'up',
-    },
-    flags: { aiRecommendations: 'off' },
+  // Built per request, not once: the Release and sweep cards are judged against
+  // these timestamps, so a stub left running for an hour would otherwise show
+  // the console the "Stalled" state it renders for a dead timer.
+  '/api/v1/admin/system/health': () => {
+    const now = Date.now();
+    const sweptAt = new Date(now - 4 * 60_000).toISOString();
+    return {
+      status: 'ok',
+      revision: 'cf17aa3c9f1b3a5e8d2c4b6a0f9e1d3c5b7a9f2e',
+      serverTime: new Date(now).toISOString(),
+      uptimeSeconds: Math.floor(process.uptime()),
+      checks: {
+        database: 'up',
+        clock: 'up',
+        identityVerification: 'up',
+        sms: 'up',
+        email: 'down',
+        push: 'up',
+        reconciliation: 'up',
+      },
+      reconciliation: {
+        runs: 7,
+        inFlight: false,
+        startedAt: sweptAt,
+        lastRun: {
+          finishedAt: sweptAt,
+          durationMs: 842,
+          payments: { checked: 3, settled: 1, unpaid: 2, failed: 0 },
+          recorded: { checked: 5, replayed: 1, skipped: 4, failed: 0 },
+          identity: { checked: 2, settled: 2, pending: 0, failed: 0 },
+          error: null,
+        },
+        consecutiveFailures: 0,
+        lastError: null,
+        stale: false,
+      },
+      flags: { aiRecommendations: 'off' },
+    };
   },
   '/api/v1/master-data/net-worth-categories': categories,
   '/api/v1/admin/admins': { admins: [self, other], nextCursor: null, hasMore: false },
@@ -595,13 +615,16 @@ http
         return;
       }
 
-      const payload = routes[req.url];
-      console.log(req.method, req.url, payload ? 200 : 404);
-      if (!payload) {
+      const route = routes[req.url];
+      console.log(req.method, req.url, route ? 200 : 404);
+      if (!route) {
         res.writeHead(404, { 'content-type': 'application/json' });
         res.end(JSON.stringify({ message: 'not found in stub: ' + req.url }));
         return;
       }
+      // A function route is built at request time, for payloads whose values are
+      // relative to now (the system health report's uptime and sweep timestamps).
+      const payload = typeof route === 'function' ? route() : route;
       res.writeHead(200, { 'content-type': 'application/json' });
       res.end(JSON.stringify(payload));
     });

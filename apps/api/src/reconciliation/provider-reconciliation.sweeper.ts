@@ -14,6 +14,7 @@ import {
   type VerificationReconcileSummary,
 } from '../verification/verification.service';
 import { ReconciliationStatusService } from './reconciliation-status.service';
+import { RECONCILIATION_SWEEP_INTERVAL_MS } from './reconciliation.schedule';
 
 /**
  * Asks the providers what they recorded that this API never wrote.
@@ -59,14 +60,6 @@ import { ReconciliationStatusService } from './reconciliation-status.service';
  */
 @Injectable()
 export class ProviderReconciliationSweeper implements OnApplicationBootstrap, OnModuleDestroy {
-  /**
-   * Ten minutes: long enough that a member who pays and waits is settled within
-   * one interval, short enough that the vendor read is not a poll. The charge is
-   * bounded by `RECONCILE.batch` in each pass, so a sweep with nothing
-   * outstanding costs three indexed queries and no vendor calls.
-   */
-  private static readonly SWEEP_INTERVAL_MS = 10 * 60_000;
-
   private readonly logger = new Logger(ProviderReconciliationSweeper.name);
   private timer: NodeJS.Timeout | null = null;
   /** True while a sweep is in flight; guards against overlapping runs. */
@@ -81,7 +74,7 @@ export class ProviderReconciliationSweeper implements OnApplicationBootstrap, On
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
       void this.safeSweep('scheduled');
-    }, ProviderReconciliationSweeper.SWEEP_INTERVAL_MS);
+    }, RECONCILIATION_SWEEP_INTERVAL_MS);
     this.timer.unref();
     // The boot sweep is the one that matters on this plan: it is the first
     // moment after a wake-up at which anything can be reconciled.

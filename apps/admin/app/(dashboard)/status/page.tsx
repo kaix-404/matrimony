@@ -61,6 +61,14 @@ interface ReconciliationStatus {
   lastRun: ReconciliationRun | null;
   consecutiveFailures: number;
   lastError: string | null;
+  /**
+   * The API's verdict that nothing has run for longer than an interval.
+   *
+   * Optional because it arrived with this field's release: an admin newer than
+   * the API it reads must still render, and an older report is only as wrong as
+   * it was before the timer could be judged.
+   */
+  stale?: boolean;
 }
 
 /** What each integration means for a member, so "down" is not a dead end. */
@@ -104,10 +112,14 @@ function shortRevision(revision: string | null | undefined): string {
 }
 
 /**
- * The sweep in a word, from the three facts that distinguish its failure modes:
- * it never started, it is running, or it has been failing every interval.
+ * The sweep in a word, from the facts that distinguish its failure modes: it
+ * stopped, it never started, it is running, or it is failing every interval.
+ *
+ * Stale is checked before `inFlight`, because a sweep that hung is still flagged
+ * in flight — reporting "Running now" for it would be the same lie in a new place.
  */
 function sweepState(sweep: ReconciliationStatus): { label: string; tone: 'done' | 'wip' } {
+  if (sweep.stale === true) return { label: 'Stalled', tone: 'wip' };
   if (sweep.inFlight) return { label: 'Running now', tone: 'wip' };
   if (sweep.runs === 0) return { label: 'Never ran', tone: 'wip' };
   if (sweep.consecutiveFailures > 0) {
@@ -328,6 +340,14 @@ export default async function StatusPage() {
                   <dt>Last error</dt>
                   <dd>{report.reconciliation.lastError ?? '-'}</dd>
                 </dl>
+
+                {report.reconciliation.stale === true ? (
+                  <p className="notice">
+                    No sweep has run for longer than one interval, so the timer that starts it has
+                    probably stopped. A clean last run does not mean it is still working; restarting
+                    the API re-arms the timer.
+                  </p>
+                ) : null}
 
                 {report.reconciliation.lastRun === null ? (
                   <p className="notice">No sweep has finished since this instance started.</p>
