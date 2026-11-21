@@ -4,11 +4,16 @@ import {
   type OnApplicationBootstrap,
   type OnModuleDestroy,
 } from '@nestjs/common';
-import { PaymentsService, type PaymentReconcileSummary } from '../payments/payments.service';
+import {
+  PaymentsService,
+  type PaymentReconcileSummary,
+  type RecordedReconcileSummary,
+} from '../payments/payments.service';
 import {
   VerificationService,
   type VerificationReconcileSummary,
 } from '../verification/verification.service';
+import { ReconciliationStatusService } from './reconciliation-status.service';
 
 /**
  * Asks the providers what they recorded that this API never wrote.
@@ -26,25 +31,39 @@ import {
  * So this is the compensating read: the same provider APIs that would have sent
  * the event, asked directly for anything still outstanding.
  *
+ * There is a cheaper repair for the half of that failure which never reached the
+ * vendor at all: a delivery that got far enough to be recorded in `WebhookEvent`
+ * and then lost its handler — a crash between the insert and the settlement, or
+ * a process killed mid-transaction. Those rows are already in this database and
+ * carry the full payload, so the sweep replays them through the same handler the
+ * live webhook uses. That pass needs no vendor call, which is why it still
+ * recovers payments while Cashfree refuses this host's IPs.
+ *
  * Two properties matter. It runs at boot as well as on an interval, because a
  * sleeping instance's first chance to act is the boot itself — a sweep that only
  * ran on a timer would leave a member waiting up to a full interval for a state
- * the database could already be told. And one provider failing must not stop the
- * other: Cashfree currently refuses this deployment's IPs, so its half will
- * often fail while Razorpay's half is exactly the half that matters.
+ * the database could already be told. And one pass failing must not stop the
+ * others: Cashfree currently refuses this deployment's IPs, so its half will
+ * often fail while Razorpay's halves — the read and the replay — are exactly the
+ * parts that matter.
  *
  * A timer rather than a cron dependency, like the other sweepers here: no new
  * package, and a failure is caught and logged instead of becoming an uncaught
  * exception inside `setInterval`. `unref()` so a pending sweep never holds the
  * process open on shutdown.
+ *
+ * Every finished sweep writes its counts to `ReconciliationStatusService`, which
+ * the health report renders: "the sweep died at boot" and "the sweep has failed
+ * nine times running" are then facts on `/health/ready`, not something only the
+ * log knows.
  */
 @Injectable()
 export class ProviderReconciliationSweeper implements OnApplicationBootstrap, OnModuleDestroy {
   /**
    * Ten minutes: long enough that a member who pays and waits is settled within
    * one interval, short enough that the vendor read is not a poll. The charge is
-   * bounded by `RECONCILE.batch` in each service, so a sweep with nothing
-   * outstanding costs two indexed queries and no vendor calls.
+   * bounded by `RECONCILE.batch` in each pass, so a sweep with nothing
+   * outstanding costs three indexed queries and no vendor calls.
    */
   private static readonly SWEEP_INTERVAL_MS = 10 * 60_000;
 
@@ -56,6 +75,7 @@ export class ProviderReconciliationSweeper implements OnApplicationBootstrap, On
   constructor(
     private readonly payments: PaymentsService,
     private readonly verifications: VerificationService,
+    private readonly status: ReconciliationStatusService,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -89,47 +109,77 @@ export class ProviderReconciliationSweeper implements OnApplicationBootstrap, On
       return;
     }
     this.sweeping = true;
+    const startedAtMs = Date.now();
+    this.status.begin(new Date(startedAtMs));
+
+    let payments: PaymentReconcileSummary | null = null;
+    let recorded: RecordedReconcileSummary | null = null;
+    let identity: VerificationReconcileSummary | null = null;
+    let error: string | null = null;
 
     try {
-      const payments = await this.runPayments();
-      const identity = await this.runVerifications();
+      const read = await this.run('payments', () => this.payments.reconcilePending());
+      payments = read.summary;
+      error ??= read.error;
+
+      // Before the vendor read rather than after: this pass settles what is
+      // already in our own table, and doing it first means a replay can never
+      // race the read for the same capture in one sweep.
+      const replay = await this.run('recorded events', () =>
+        this.payments.replayRecordedWebhooks(),
+      );
+      recorded = replay.summary;
+      error ??= replay.error;
+
+      const checks = await this.run('identity', () => this.verifications.reconcilePending());
+      identity = checks.summary;
+      error ??= checks.error;
 
       if (reason !== 'startup') return;
 
       this.logger.log(
         `[reconcile] startup sweep — payments: ${describePayments(payments)}; ` +
-          `identity: ${describeVerifications(identity)}`,
+          `events: ${describeRecorded(recorded)}; identity: ${describeVerifications(identity)}`,
+      );
+    } catch (unexpected) {
+      // `run` catches everything the passes throw; this is the guard for a bug
+      // in the composition itself, so one broken release cannot leave the sweep
+      // pretending it completed.
+      error = unexpected instanceof Error ? unexpected.message : String(unexpected);
+      this.logger.error(
+        '[reconcile] sweep failed unexpectedly.',
+        unexpected instanceof Error ? unexpected.stack : String(unexpected),
       );
     } finally {
-      // Released even when a provider run throws, or one failure would wedge
-      // every later sweep for the life of the process.
+      // Released even when a pass throws, or one failure would wedge every later
+      // sweep for the life of the process. `finish` also releases the in-flight
+      // flag the health report reads.
+      this.status.finish({
+        finishedAt: new Date().toISOString(),
+        durationMs: Date.now() - startedAtMs,
+        payments,
+        recorded,
+        identity,
+        error,
+      });
       this.sweeping = false;
     }
   }
 
-  private async runPayments(): Promise<PaymentReconcileSummary | null> {
+  private async run<T>(
+    label: 'payments' | 'recorded events' | 'identity',
+    work: () => Promise<T>,
+  ): Promise<{ summary: T | null; error: string | null }> {
     try {
-      return await this.payments.reconcilePending();
+      return { summary: await work(), error: null };
     } catch (error) {
       const code = (error as Error & { code?: string })?.code ?? '';
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
-        `[reconcile] payments sweep failed; will retry on the next interval.${code ? ` [${code}]` : ''}`,
+        `[reconcile] ${label} sweep failed; will retry on the next interval.${code ? ` [${code}]` : ''}`,
         error instanceof Error ? error.stack : String(error),
       );
-      return null;
-    }
-  }
-
-  private async runVerifications(): Promise<VerificationReconcileSummary | null> {
-    try {
-      return await this.verifications.reconcilePending();
-    } catch (error) {
-      const code = (error as Error & { code?: string })?.code ?? '';
-      this.logger.error(
-        `[reconcile] identity sweep failed; will retry on the next interval.${code ? ` [${code}]` : ''}`,
-        error instanceof Error ? error.stack : String(error),
-      );
-      return null;
+      return { summary: null, error: message };
     }
   }
 }
@@ -137,6 +187,11 @@ export class ProviderReconciliationSweeper implements OnApplicationBootstrap, On
 function describePayments(summary: PaymentReconcileSummary | null): string {
   if (!summary) return 'failed';
   return `${summary.checked} due, ${summary.settled} settled, ${summary.unpaid} unpaid, ${summary.failed} errors`;
+}
+
+function describeRecorded(summary: RecordedReconcileSummary | null): string {
+  if (!summary) return 'failed';
+  return `${summary.checked} unprocessed, ${summary.replayed} replayed, ${summary.skipped} need a human, ${summary.failed} errors`;
 }
 
 function describeVerifications(summary: VerificationReconcileSummary | null): string {

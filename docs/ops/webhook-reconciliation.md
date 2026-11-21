@@ -27,6 +27,50 @@ can be reconciled) and then **every 10 minutes** while the instance is awake. Th
 boot sweep is fired without awaiting, so a slow or refused provider call never
 delays readiness.
 
+## Recorded deliveries (no vendor involved)
+
+`handleWebhook` writes the `WebhookEvent` row _before_ it settles anything, so a
+delivery that arrived and then lost its handler — a crash mid-transaction, a
+process killed during the boot window — leaves a retryable record with the
+already-verified payload. Before this, the only thing that retried it was
+Razorpay redelivering the event, which is exactly what does not happen once the
+instance has been asleep long enough for Razorpay to stop.
+
+The sweep replays those rows, oldest first, through the same `applyEvent` the
+live webhook uses:
+
+|          | Recorded deliveries                                                              |
+| -------- | -------------------------------------------------------------------------------- |
+| Read     | `WebhookEvent` rows with `processedAt is null`, between 2 minutes and 7 days old |
+| Repaired | whatever the delivery would have done: a capture settled, a failure recorded     |
+| Effect   | identical to the live webhook, because it is the same handler                    |
+| Code     | `replayRecordedWebhooks` in `apps/api/src/payments/payments.service.ts`          |
+
+This pass makes **no vendor call**, which is what makes it the half of the
+recovery that keeps working while Cashfree refuses this host's IPs. It is
+idempotent for the same reason the webhook is: a capture whose payment is already
+settled claims nothing, and a replayed row is marked processed so the next sweep
+ignores it.
+
+A row is left alone for exactly one reason: it already carries a
+`processingError`. The live handler ran that payload and recorded why it could not
+be applied — a verdict about the payload, which is why it is permanent. Those
+rows are counted as `need a human`, and they are excluded by the query rather than
+only filtered out of the batch, so a pile of them cannot fill every batch and
+starve the deliveries that can still recover.
+
+A delivery whose **replay** failed is not in that category. Replay failures are
+usually transient — a deadlock, a dropped connection, a statement timeout — so the
+attempt is recorded on the row (`replayAttempts`, `replayError`,
+`lastReplayAttemptAt`) and the next sweep tries it again. The sweep never writes
+`processingError`, so nothing but the live handler can park a delivery; a payload
+that fails on every attempt stays visible through its rising `replayAttempts`, and
+the seven-day lookback is what eventually stops it being tried.
+
+The query is served by the index `WebhookEvent (provider, processedAt, createdAt)`
+— the filter columns in the order it sorts by — added in migration
+`20261121120000_webhook_replay_bookkeeping_and_index`.
+
 ## Bounds
 
 Both halves use the same limits, deliberately small because they run on a free
@@ -77,7 +121,14 @@ Filter the API log for `[reconcile]`.
 how you know the path ran rather than being silently skipped:
 
 ```
-[reconcile] startup sweep — payments: 0 due, 0 settled, 0 unpaid, 0 errors; identity: 0 due, 0 applied, 0 unfinished, 0 errors
+[reconcile] startup sweep — payments: 0 due, 0 settled, 0 unpaid, 0 errors; events: 0 unprocessed, 0 replayed, 0 need a human, 0 errors; identity: 0 due, 0 applied, 0 unfinished, 0 errors
+```
+
+**When a recorded delivery was replayed** (no vendor was asked):
+
+```
+[reconcile] replayed recorded webhook payment.captured:pay_R1a2b3c for payment cm3x…; the delivery never reached a running API.
+[reconcile] recorded events: 1 unprocessed, 1 replayed, 0 need a human, 0 errors.
 ```
 
 **When a payment was recovered** (the line that proves the feature works):
@@ -104,13 +155,14 @@ attempt would hide the fact behind its repetitions:
 
 **Failure lines, and what each means:**
 
-| Line                                                                                           | Meaning                                                                                              |
-| ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `[reconcile] could not read order order_…: …`                                                  | Razorpay unreachable, timed out, or rejected the key; retried next sweep.                            |
-| `[reconcile] previous sweep is still running; skipping this one.`                              | The last sweep has not finished — expected once per tick while a provider is hanging, and harmless.  |
-| `[reconcile] identity: could not read N attempts from Cashfree; … HTTP 403`                    | Cashfree refused this host's IP — see below. Not a code fault.                                       |
-| `[reconcile] payments sweep failed` / `identity sweep failed`                                  | The database query itself failed; the other provider still ran.                                      |
-| `[reconcile] order … is captured at Razorpay but payment … is FAILED; needs a human decision.` | Money was taken against a row already terminal. Not written automatically: settle or refund by hand. |
+| Line                                                                                              | Meaning                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[reconcile] could not read order order_…: …`                                                     | Razorpay unreachable, timed out, or rejected the key; retried next sweep.                                                                                     |
+| `[reconcile] previous sweep is still running; skipping this one.`                                 | The last sweep has not finished — expected once per tick while a provider is hanging, and harmless.                                                           |
+| `[reconcile] identity: could not read N attempts from Cashfree; … HTTP 403`                       | Cashfree refused this host's IP — see below. Not a code fault.                                                                                                |
+| `[reconcile] payments sweep failed` / `identity sweep failed`                                     | The database query itself failed; the other provider still ran.                                                                                               |
+| `[reconcile] recorded webhook … could not be applied on replay: …; will retry on the next sweep.` | The handler or the database failed under the replay. The row stays unprocessed and `replayAttempts` rises; retried every 10 minutes until the 7-day lookback. |
+| `[reconcile] order … is captured at Razorpay but payment … is FAILED; needs a human decision.`    | Money was taken against a row already terminal. Not written automatically: settle or refund by hand.                                                          |
 
 **In the database**, for the payment named in the log:
 
@@ -118,14 +170,55 @@ attempt would hide the fact behind its repetitions:
 select id, status, purpose, "gatewayPaymentId", "paidAt", "amountVerifiedAt"
 from "Payment" where id = '<payment id>';
 
-select "eventId", "eventType", "processedAt" from "WebhookEvent"
-where "paymentId" = '<payment id>';
+select "eventId", "eventType", "processedAt", "processingError",
+       "replayAttempts", "replayError"
+from "WebhookEvent" where "paymentId" = '<payment id>';
 ```
+
+On a row the sweep has worked on, `processedAt` is set once it was applied.
+`processingError` is the live handler's verdict and is never written by the
+sweep; `replayAttempts` / `replayError` are the sweep's, and a count that keeps
+rising means the payload fails on its merits and a human should look at it.
 
 A recovered payment has `status = 'SUCCESS'`, a `paidAt`, and a `WebhookEvent`
 row dated at the sweep. For an identity check, `IdentityVerification.status` is
 `VERIFIED` with `verifiedAt` set, and the member's `User.status` has moved from
 `PENDING_VERIFICATION` to `AWAITING_SETUP_FEE`.
+
+## The health payload
+
+The sweep reports itself on `GET /health/ready`, and on the console's
+`system/health` route, so "it died at boot" is a fact in the payload rather than
+something only the log knows:
+
+```json
+"checks": { "…": "…", "reconciliation": "up" },
+"reconciliation": {
+  "runs": 3,
+  "inFlight": false,
+  "startedAt": "2026-11-20T09:30:00.000Z",
+  "lastRun": {
+    "finishedAt": "2026-11-20T09:30:00.812Z",
+    "durationMs": 812,
+    "payments": { "checked": 0, "settled": 0, "unpaid": 0, "failed": 0 },
+    "recorded": { "checked": 0, "replayed": 0, "skipped": 0, "failed": 0 },
+    "identity": { "checked": 0, "settled": 0, "pending": 0, "failed": 0 },
+    "error": null
+  },
+  "consecutiveFailures": 0,
+  "lastError": null
+}
+```
+
+- `runs: 0` more than two minutes after boot means the recovery path never ran.
+- `consecutiveFailures` above zero means every recent sweep threw; `lastError`
+  carries the vendor's message. `checks.reconciliation` is `down` in both cases.
+- A pass that threw publishes `null` for its counts rather than zeros, so "could
+  not ask" never reads as "nothing outstanding".
+
+Like the provider flags, `reconciliation: down` does **not** fail readiness: an
+instance whose sweeper is broken still serves members, and this is a repair path
+rather than a dependency of serving traffic.
 
 ## Two things this does not fix
 

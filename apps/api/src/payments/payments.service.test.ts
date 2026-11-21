@@ -84,13 +84,45 @@ type UnlockRow = {
 };
 
 type WebhookRow = {
+  provider: string;
   eventId: string;
   eventType: string;
   payload: unknown;
   processedAt: Date | null;
   paymentId: string | null;
   processingError: string | null;
+  replayAttempts: number;
+  replayError: string | null;
+  lastReplayAttemptAt: Date | null;
+  createdAt: Date;
 };
+
+/** The `WebhookEvent` predicates the recorded-delivery replay uses. */
+type WebhookWhere = {
+  provider?: string;
+  processedAt?: null;
+  processingError?: null | { not: null };
+  createdAt?: { gte: Date; lte: Date };
+};
+
+/**
+ * Applied rather than ignored, so a version of the replay that dropped the
+ * provider, the grace window or the `processedAt` filter fails here instead of
+ * passing against a double that answers every question with yes.
+ */
+function matchesWebhook(row: WebhookRow, where: WebhookWhere): boolean {
+  if (where.provider && row.provider !== where.provider) return false;
+  if (where.processedAt === null && row.processedAt !== null) return false;
+  if (where.processingError === null && row.processingError !== null) return false;
+  if (where.processingError && typeof where.processingError === 'object') {
+    if (row.processingError === null) return false;
+  }
+  if (where.createdAt) {
+    const at = row.createdAt.getTime();
+    if (at < where.createdAt.gte.getTime() || at > where.createdAt.lte.getTime()) return false;
+  }
+  return true;
+}
 
 /** Mirrors the part of Prisma the service uses, in memory. */
 class FakePrisma {
@@ -265,14 +297,40 @@ class FakePrisma {
     create: async ({ data }: { data: Record<string, unknown> }) => {
       if (this.webhooks.some((w) => w.eventId === data.eventId)) throw new Error('P2002');
       const row = {
+        provider: 'RAZORPAY',
         processedAt: null,
         paymentId: null,
         processingError: null,
+        replayAttempts: 0,
+        replayError: null,
+        lastReplayAttemptAt: null,
+        createdAt: new Date('2026-10-04T10:00:00.000Z'),
         ...data,
       } as unknown as WebhookRow;
       this.webhooks.push(row);
       return row;
     },
+    /**
+     * The recorded-but-unprocessed query, oldest first and bounded by `take` —
+     * the batch bound matters, because the point of excluding the rows the live
+     * handler failed is that they cannot fill it.
+     */
+    findMany: async ({
+      where,
+      take,
+    }: {
+      where: WebhookWhere;
+      orderBy?: unknown;
+      take?: number;
+    }) => {
+      const matched = this.webhooks
+        .filter((w) => matchesWebhook(w, where))
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      return take === undefined ? matched : matched.slice(0, take);
+    },
+    /** The `need a human` count: same predicates, no batch. */
+    count: async ({ where }: { where: WebhookWhere }) =>
+      this.webhooks.filter((w) => matchesWebhook(w, where)).length,
     update: async ({
       where,
       data,
@@ -282,7 +340,18 @@ class FakePrisma {
     }) => {
       const row = this.webhooks.find((w) => w.eventId === where.eventId);
       if (!row) throw new Error(`no webhook ${where.eventId}`);
-      Object.assign(row, data);
+      // `replayAttempts` is written with Prisma's atomic increment; a fake that
+      // assigned the object would leave the counter comparing an object to a
+      // number and quietly pass.
+      for (const [key, value] of Object.entries(data)) {
+        const target = row as unknown as Record<string, unknown>;
+        if (value && typeof value === 'object' && 'increment' in value) {
+          target[key] =
+            Number(target[key] ?? 0) + Number((value as { increment: number }).increment);
+          continue;
+        }
+        target[key] = value;
+      }
       return row;
     },
   };
@@ -308,7 +377,8 @@ class FakeGateway extends PaymentGateway {
   failNext = false;
   /** Mutable so a test can pin the unconfigured path without a second class. */
   configured = true;
-  readonly webhookConfigured = true;
+  /** Mutable for the same reason as `configured`: to pin the no-secret path. */
+  webhookConfigured = true;
   /** What the "provider" holds for each order id, and what it was asked. */
   orderPayments = new Map<string, GatewayPayment[]>();
   paymentReads: string[] = [];
@@ -1214,5 +1284,224 @@ describe('PaymentsService.reconcilePending', () => {
 
     expect(summary).toEqual({ checked: 0, settled: 0, unpaid: 0, failed: 0 });
     expect(gateway.paymentReads).toHaveLength(0);
+  });
+});
+
+/**
+ * The pass that needs no vendor at all.
+ *
+ * `handleWebhook` records the delivery before it settles anything, so a
+ * delivery that arrived and then lost its handler leaves a row with a verified
+ * payload and no `processedAt`. These tests pin the two properties that matter:
+ * the row is replayed through the same handler the live webhook uses, and it is
+ * never replayed while the live handler might still be working on it.
+ */
+describe('PaymentsService.replayRecordedWebhooks', () => {
+  const ORDER = 'order_1';
+  // Inside the window and well past the two-minute grace; the frozen clock is
+  // 12:00, so this is two hours old.
+  const AT = new Date('2026-10-04T10:00:00.000Z');
+
+  function capturedBody(overrides: Record<string, unknown> = {}) {
+    return {
+      event: 'payment.captured',
+      payload: {
+        entity: {
+          id: 'pay_recorded',
+          entity: 'payment',
+          order_id: ORDER,
+          amount_received: 11682,
+          currency: 'INR',
+          method: 'upi',
+          status: 'captured',
+          ...overrides,
+        },
+      },
+    };
+  }
+
+  function record(prisma: FakePrisma, overrides: Partial<WebhookRow> = {}): WebhookRow {
+    const row: WebhookRow = {
+      provider: 'RAZORPAY',
+      eventId: 'payment.captured:pay_recorded',
+      eventType: 'payment.captured',
+      payload: capturedBody(),
+      processedAt: null,
+      paymentId: null,
+      processingError: null,
+      replayAttempts: 0,
+      replayError: null,
+      lastReplayAttemptAt: null,
+      createdAt: AT,
+      ...overrides,
+    };
+    prisma.webhooks.push(row);
+    return row;
+  }
+
+  it('settles a recorded delivery without asking the gateway anything', async () => {
+    const { service, prisma, gateway, notifications } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    const row = record(prisma);
+
+    const summary = await service.replayRecordedWebhooks();
+
+    expect(summary).toEqual({ checked: 1, replayed: 1, skipped: 0, failed: 0 });
+    expect(prisma.payments[0].status).toBe('SUCCESS');
+    expect(prisma.unlocks).toHaveLength(1);
+    expect(notifications.created[0]).toMatchObject({
+      event: NOTIFICATION_EVENTS.PAYMENT_SUCCESSFUL,
+    });
+    expect(row.processedAt).toBeInstanceOf(Date);
+    expect(row.paymentId).toBe('pay_1');
+    // The point of this pass: the payload came out of our own table, so it
+    // recovers money while the providers are unreachable.
+    expect(gateway.paymentReads).toHaveLength(0);
+  });
+
+  it('does not replay a delivery the live handler already failed', async () => {
+    const { service, prisma } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    const row = record(prisma, { processingError: 'database is on fire' });
+
+    const summary = await service.replayRecordedWebhooks();
+
+    // Counted so it is visible in the sweep line, never retried: the live
+    // handler already ran this payload and recorded why it could not be applied.
+    // Not even attempted, so it does not take a slot in the batch.
+    expect(summary).toEqual({ checked: 0, replayed: 0, skipped: 1, failed: 0 });
+    expect(row.processedAt).toBeNull();
+    expect(row.replayAttempts).toBe(0);
+    expect(prisma.payments[0].status).toBe('PENDING');
+  });
+
+  it('keeps the rows the live handler failed out of the batch, so they cannot starve it', async () => {
+    const { service, prisma } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+
+    // A full batch of permanently rejected deliveries, every one of them older
+    // than the only row that can still recover. A query that fetched them and
+    // skipped them in code would spend the whole batch here and never reach it.
+    for (let i = 0; i < 25; i += 1) {
+      record(prisma, {
+        eventId: `payment.captured:pay_stuck_${i}`,
+        payload: capturedBody({ id: `pay_stuck_${i}` }),
+        processingError: 'database is on fire',
+        createdAt: new Date(AT.getTime() - (i + 1) * 60_000),
+      });
+    }
+    const recoverable = record(prisma);
+
+    const summary = await service.replayRecordedWebhooks();
+
+    expect(summary).toEqual({ checked: 1, replayed: 1, skipped: 25, failed: 0 });
+    expect(recoverable.processedAt).toBeInstanceOf(Date);
+    expect(prisma.unlocks).toHaveLength(1);
+  });
+
+  it('leaves a delivery inside the grace window to the live handler', async () => {
+    const { service, prisma } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    // Thirty seconds old: a webhook may still be mid-flight on another instance.
+    record(prisma, { createdAt: new Date('2026-10-04T11:59:30.000Z') });
+
+    const summary = await service.replayRecordedWebhooks();
+
+    expect(summary).toEqual({ checked: 0, replayed: 0, skipped: 0, failed: 0 });
+    expect(prisma.payments[0].status).toBe('PENDING');
+  });
+
+  it('is idempotent: a replay already processed is not replayed again', async () => {
+    const { service, prisma, notifications } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    record(prisma);
+
+    await service.replayRecordedWebhooks();
+    const second = await service.replayRecordedWebhooks();
+
+    expect(second).toEqual({ checked: 0, replayed: 0, skipped: 0, failed: 0 });
+    expect(prisma.unlocks).toHaveLength(1);
+    expect(notifications.created).toHaveLength(1);
+  });
+
+  it('retries a delivery whose replay failed, and settles it once the failure passes', async () => {
+    const { service, prisma, notifications } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    const row = record(prisma);
+
+    // The transient failure this pass exists to survive: recorded, then the
+    // database drops the connection on the way to settlement.
+    const read = prisma.payment.findUnique;
+    let blip = true;
+    prisma.payment.findUnique = async (args) => {
+      if (blip) {
+        blip = false;
+        throw new Error('Connection terminated unexpectedly');
+      }
+      return read(args);
+    };
+
+    const first = await service.replayRecordedWebhooks();
+
+    expect(first).toEqual({ checked: 1, replayed: 0, skipped: 0, failed: 1 });
+    expect(row.processedAt).toBeNull();
+    // The live handler never rejected this payload, so nothing may park it.
+    expect(row.processingError).toBeNull();
+    expect(row.replayAttempts).toBe(1);
+    expect(row.replayError).toContain('Connection terminated');
+
+    // Next sweep: the row is still eligible, so the money is recovered.
+    const second = await service.replayRecordedWebhooks();
+
+    expect(second).toEqual({ checked: 1, replayed: 1, skipped: 0, failed: 0 });
+    expect(prisma.payments[0].status).toBe('SUCCESS');
+    expect(prisma.unlocks).toHaveLength(1);
+    expect(notifications.created).toHaveLength(1);
+    expect(row.processedAt).toBeInstanceOf(Date);
+  });
+
+  it('records a payload it cannot re-parse without treating it as a verdict', async () => {
+    const { service, prisma } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    const row = record(prisma, { payload: { event: 'payment.captured' } });
+
+    const summary = await service.replayRecordedWebhooks();
+
+    expect(summary).toEqual({ checked: 1, replayed: 0, skipped: 0, failed: 1 });
+    // Its own fields, never `processingError`: that column is the live handler's
+    // verdict, and writing this here would park the delivery for good.
+    expect(row.processingError).toBeNull();
+    expect(row.replayAttempts).toBe(1);
+    expect(row.replayError).toContain('missing an event type or entity id');
+    expect(row.lastReplayAttemptAt).toBeInstanceOf(Date);
+
+    // Still eligible: the next sweep tries again and the rising attempt count is
+    // what shows this payload is not a transient failure.
+    const second = await service.replayRecordedWebhooks();
+    expect(second).toEqual({ checked: 1, replayed: 0, skipped: 0, failed: 1 });
+    expect(row.replayAttempts).toBe(2);
+    expect(row.processedAt).toBeNull();
+  });
+
+  it('asks nothing at all when no webhook secret is configured', async () => {
+    const { service, prisma, gateway } = await makeService();
+    seed(prisma);
+    await service.createUnlockOrder(BUYER, 'profile_target');
+    record(prisma);
+    gateway.webhookConfigured = false;
+
+    const summary = await service.replayRecordedWebhooks();
+
+    // Nothing is ever recorded without a verified delivery, so a deployment with
+    // no secret has no rows and gets no query.
+    expect(summary).toEqual({ checked: 0, replayed: 0, skipped: 0, failed: 0 });
+    expect(prisma.payments[0].status).toBe('PENDING');
   });
 });

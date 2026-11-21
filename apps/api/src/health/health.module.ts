@@ -11,6 +11,7 @@ import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { ProviderReadinessReporter } from './provider-readiness.reporter';
 import { FeatureFlagsModule } from '../common/features/feature-flags.service';
+import { ReconciliationStatusModule } from '../reconciliation/reconciliation-status.module';
 import type { Env } from '../config/env';
 
 /**
@@ -25,9 +26,14 @@ import type { Env } from '../config/env';
  * factory into every bootstrap, including the rate-limit test that boots a small
  * slice of the app with a deliberately minimal environment. The factory keeps
  * that slice small and still uses one definition of how the vendor is built.
+ *
+ * `ReconciliationStatusModule` is the same bargain: it is one dependency-free
+ * provider holding the sweeper's last run, so this module can report whether
+ * reconciliation is working without importing the payments and verification
+ * graphs that the sweep itself needs.
  */
 @Module({
-  imports: [SmsModule, EmailModule, PushModule, FeatureFlagsModule],
+  imports: [SmsModule, EmailModule, PushModule, FeatureFlagsModule, ReconciliationStatusModule],
   controllers: [HealthController],
   // `HealthService` is exported so the admin surface can serve the same report
   // behind `system:read`. One implementation, so the public readiness route and

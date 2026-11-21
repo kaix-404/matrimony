@@ -10,6 +10,10 @@ import { PaymentGateway } from '../payments/payment.gateway';
 import { HealthController } from './health.controller';
 import { HealthService } from './health.service';
 import { FeatureFlagsService } from '../common/features/feature-flags.service';
+import {
+  ReconciliationStatusService,
+  type ReconciliationStatus,
+} from '../reconciliation/reconciliation-status.service';
 import type { Env } from '../config/env';
 
 /**
@@ -31,6 +35,8 @@ async function build(
     identity?: boolean;
     payments?: boolean;
     paymentWebhooks?: boolean;
+    reconciliation?: Partial<ReconciliationStatus>;
+    recommendations?: number;
   } = {},
 ) {
   const moduleRef = await Test.createTestingModule({
@@ -52,6 +58,20 @@ async function build(
         useValue: {
           configured: options.payments ?? false,
           webhookConfigured: options.paymentWebhooks ?? false,
+        },
+      },
+      {
+        provide: ReconciliationStatusService,
+        useValue: {
+          snapshot: (): ReconciliationStatus => ({
+            runs: 1,
+            inFlight: false,
+            startedAt: '2026-11-11T11:59:00.000Z',
+            lastRun: null,
+            consecutiveFailures: 0,
+            lastError: null,
+            ...options.reconciliation,
+          }),
         },
       },
       {
@@ -83,6 +103,43 @@ describe('HealthController (section 46 readiness)', () => {
       push: 'down',
       payments: 'down',
       paymentWebhooks: 'down',
+      reconciliation: 'up',
+    });
+  });
+
+  it('reports the last sweep, so a sweeper that never ran is visible', async () => {
+    const controller = await build({ reconciliation: { runs: 0 } }).then((ref) =>
+      ref.get(HealthController),
+    );
+
+    const report = await controller.ready();
+
+    // Booted milliseconds ago: a sweep that has not finished yet is normal, not
+    // a fault. `runs: 0` is what a reader looks at on an instance older than
+    // the grace period.
+    expect(report.checks.reconciliation).toBe('up');
+    expect(report.reconciliation.runs).toBe(0);
+  });
+
+  it('marks reconciliation down when sweeps keep failing, without failing readiness', async () => {
+    const controller = await build({
+      reconciliation: {
+        runs: 9,
+        consecutiveFailures: 9,
+        lastError: 'Cashfree DigiLocker status failed (HTTP 403)',
+      },
+    }).then((ref) => ref.get(HealthController));
+
+    const report = await controller.ready();
+
+    // The failure this reports is a silent repair path, not an outage: members
+    // are served either way, so it must not take the instance out of rotation.
+    expect(report.status).toBe('ok');
+    expect(report.checks.reconciliation).toBe('down');
+    expect(report.reconciliation).toMatchObject({
+      runs: 9,
+      consecutiveFailures: 9,
+      lastError: 'Cashfree DigiLocker status failed (HTTP 403)',
     });
   });
 

@@ -129,6 +129,27 @@ export interface PaymentReconcileSummary {
 }
 
 /**
+ * What one pass over recorded-but-unprocessed webhooks did.
+ *
+ * Separate from `PaymentReconcileSummary` because this pass asks no vendor
+ * anything: it reads rows this API already stored and never finished.
+ */
+export interface RecordedReconcileSummary {
+  /** Deliveries this pass attempted. */
+  checked: number;
+  /** Deliveries applied now, and marked processed. */
+  replayed: number;
+  /**
+   * Deliveries in the window that the live handler already failed, and which are
+   * never retried: the payload was rejected on its merits. Counted outside the
+   * batch so a pile of them still shows up in the sweep line.
+   */
+  skipped: number;
+  /** Attempts that failed this pass and will be made again on the next sweep. */
+  failed: number;
+}
+
+/**
  * The provider's account of a capture, from a webhook or a reconciliation read.
  *
  * One shape for both so the settlement path is literally the same code: a
@@ -505,6 +526,158 @@ export class PaymentsService {
     }
 
     return summary;
+  }
+
+  /**
+   * Replay deliveries that were recorded and then lost.
+   *
+   * `handleWebhook` writes the `WebhookEvent` row *before* it settles anything,
+   * precisely so a crash in between leaves a retryable record rather than a
+   * forgotten charge. Until now the only thing that retried it was Razorpay
+   * redelivering the event — which is exactly what does not happen when the
+   * instance was asleep long enough for Razorpay to give up. The row is still
+   * here, with the verified payload, so this pass applies it again through the
+   * same `applyEvent` the live webhook uses. No vendor call is involved, which is
+   * also why this half of the recovery keeps working against a provider that is
+   * refusing this host's IPs.
+   *
+   * Two bounds. The row must be older than the grace window, so a delivery that
+   * is being processed right now is never raced, and inside the seven-day
+   * lookback, because a settlement that old is a support question.
+   *
+   * A row is left alone for exactly one reason: the live handler already ran it
+   * and recorded a `processingError`. That verdict belongs to the payload rather
+   * than to this pass, so it is permanent — and those rows are excluded by the
+   * query instead of filtered out of the batch, because a pile of them would
+   * otherwise fill every batch and starve the rows that can still recover.
+   *
+   * Everything else is retried, including a delivery whose *replay* failed. A
+   * replay failure is usually transient — a deadlock, a dropped connection, a
+   * statement timeout — so treating it as a verdict would park a real capture
+   * for good, which is the same loss this pass exists to repair. The attempt is
+   * recorded on the row (see `recordReplayFailure`) so a delivery that fails
+   * every sweep is visible, and the seven-day lookback is what eventually stops
+   * it being tried.
+   *
+   * Idempotent by construction: replaying a capture whose payment is already
+   * settled claims nothing (the status guard in `confirmCapture` returns early),
+   * and replaying one that is not settles it exactly as the webhook would have.
+   */
+  async replayRecordedWebhooks(): Promise<RecordedReconcileSummary> {
+    const summary: RecordedReconcileSummary = { checked: 0, replayed: 0, skipped: 0, failed: 0 };
+
+    // A delivery is only ever recorded after its signature verified, so a
+    // deployment with no webhook secret has no rows: skip the query entirely.
+    if (!this.gateway.webhookConfigured) return summary;
+
+    const now = this.clock.now();
+    const window = {
+      gte: new Date(now.getTime() - RECONCILE.lookbackMs),
+      lte: new Date(now.getTime() - RECONCILE.graceMs),
+    };
+
+    // Counted rather than fetched: rows the live handler rejected are a fact
+    // worth reporting but never work, and counting them here keeps them from
+    // taking slots in the batch below.
+    summary.skipped = await this.prisma.webhookEvent.count({
+      where: {
+        provider: 'RAZORPAY',
+        processedAt: null,
+        processingError: { not: null },
+        createdAt: window,
+      },
+    });
+
+    const rows = await this.prisma.webhookEvent.findMany({
+      where: {
+        provider: 'RAZORPAY',
+        processedAt: null,
+        // The live handler's verdict is the only thing that parks a row.
+        processingError: null,
+        createdAt: window,
+      },
+      orderBy: { createdAt: 'asc' },
+      take: RECONCILE.batch,
+    });
+    summary.checked = rows.length;
+
+    for (const row of rows) {
+      let event: ParsedWebhook;
+      try {
+        // The same reduction the live handler performs, on the stored payload.
+        // It re-derives the event key from the body, so a row whose payload no
+        // longer parses is a contract change rather than lost data.
+        event = this.parseWebhook(row.payload);
+      } catch (error) {
+        await this.recordReplayFailure(row.eventId, error, 'could not be parsed again');
+        summary.failed += 1;
+        continue;
+      }
+
+      try {
+        const { paymentId } = await this.applyEvent(event);
+        await this.prisma.webhookEvent.update({
+          where: { eventId: row.eventId },
+          data: {
+            processedAt: this.clock.now(),
+            paymentId: paymentId ?? row.paymentId ?? null,
+          },
+        });
+        summary.replayed += 1;
+        this.logger.log(
+          `[reconcile] replayed recorded webhook ${row.eventId}` +
+            (paymentId ? ` for payment ${paymentId}` : '') +
+            '; the delivery never reached a running API.',
+        );
+      } catch (error) {
+        await this.recordReplayFailure(row.eventId, error, 'could not be applied on replay');
+        summary.failed += 1;
+      }
+    }
+
+    if (summary.checked > 0 || summary.skipped > 0) {
+      this.logger.log(
+        `[reconcile] recorded events: ${summary.checked} unprocessed, ${summary.replayed} replayed, ` +
+          `${summary.skipped} need a human, ${summary.failed} errors.`,
+      );
+    }
+
+    return summary;
+  }
+
+  /**
+   * Record why a replay did not apply a delivery — without parking it.
+   *
+   * Deliberately not `processingError`. That column is the live handler's verdict
+   * and the only thing that makes the sweep leave a row alone, so writing a
+   * replay's failure there would turn one deadlock into a delivery that is never
+   * tried again. These fields keep the reason and the count — `replayAttempts`
+   * rising sweep after sweep is how a genuinely broken payload becomes visible —
+   * while leaving the row eligible, which is what makes the next sweep a retry
+   * rather than the first sweep a verdict.
+   */
+  private async recordReplayFailure(
+    eventId: string,
+    error: unknown,
+    context: string,
+  ): Promise<void> {
+    const message = error instanceof Error ? error.message : String(error);
+    try {
+      await this.prisma.webhookEvent.update({
+        where: { eventId },
+        data: {
+          replayAttempts: { increment: 1 },
+          replayError: message,
+          lastReplayAttemptAt: this.clock.now(),
+        },
+      });
+    } catch {
+      // The row is unprocessed either way, and failing the sweep over a log
+      // field would hide the error it is trying to report.
+    }
+    this.logger.error(
+      `[reconcile] recorded webhook ${eventId} ${context}: ${message}; will retry on the next sweep.`,
+    );
   }
 
   // -------------------------------------------------------------------------

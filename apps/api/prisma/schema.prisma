@@ -1211,12 +1211,27 @@ model WebhookEvent {
 
   payload         Json
   processedAt     DateTime?
+  /// The live handler's verdict on this payload. Set only by `handleWebhook`
+  /// when applying the event threw, and the one reason the reconciliation sweep
+  /// leaves a recorded delivery alone.
   processingError String?
+
+  /// Replay bookkeeping, kept strictly separate from `processingError` because
+  /// the two mean opposite things: that column says the payload was rejected,
+  /// these say the *sweep* could not finish with it, which is usually
+  /// transient and is retried on the next interval.
+  replayAttempts      Int       @default(0)
+  replayError         String?
+  lastReplayAttemptAt DateTime?
 
   createdAt DateTime @default(now())
 
   @@index([eventType, createdAt(sort: Desc)])
   @@index([paymentId])
+  /// Exactly the columns the recorded-delivery replay filters on, in the order
+  /// it sorts by, so that query is one index range scan rather than a scan of
+  /// every delivery ever received.
+  @@index([provider, processedAt, createdAt])
 }
 
 // ===========================================================================
