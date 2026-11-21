@@ -41,6 +41,8 @@ interface HealthReport {
   pushBacklog?: PushBacklog | null;
   /** The clock watchdog's liveness; absent on an API older than the field. */
   clockGuard?: ClockGuard;
+  /** The overdue erasure queue, or null when the API could not read it. */
+  accountRetention?: AccountRetention | null;
   serverTime: string;
   uptimeSeconds: number;
   checks: Record<string, 'up' | 'down'>;
@@ -55,6 +57,14 @@ interface ReconciliationRun {
   recorded: { checked: number; replayed: number; skipped: number; failed: number } | null;
   identity: { checked: number; settled: number; pending: number; failed: number } | null;
   error: string | null;
+}
+
+/** The retention queue as the API measures it. Mirrors the API's `AccountRetentionReport`. */
+interface AccountRetention {
+  due: number;
+  oldestDueAt: string | null;
+  oldestOverdueSeconds: number | null;
+  overdue: boolean;
 }
 
 /** The clock drift check as the API reports it. Mirrors the API's `ClockGuardReport`. */
@@ -203,6 +213,19 @@ function humanSeconds(seconds: number): string {
  * correctly a no-op, so a growing queue is the expected state and calling it
  * delayed would send somebody looking for a timer that is doing the right thing.
  */
+/**
+ * The erasure queue in a word.
+ *
+ * "Due on the next sweep" is the normal state for anything overdue by less than
+ * two intervals: the sweep runs every six hours, so a deadline that passed this
+ * morning is not yet a fault.
+ */
+function retentionState(retention: AccountRetention): { label: string; tone: 'done' | 'wip' } {
+  if (retention.overdue) return { label: 'Overdue', tone: 'wip' };
+  if (retention.due > 0) return { label: 'Due on the next sweep', tone: 'done' };
+  return { label: 'Up to date', tone: 'done' };
+}
+
 function pushState(
   backlog: PushBacklog,
   configured: boolean,
@@ -479,6 +502,51 @@ export default async function StatusPage() {
                   <p className="notice">
                     Push is not configured on this deployment, so these rows are expected to wait
                     until FCM credentials are set.
+                  </p>
+                ) : null}
+              </>
+            )}
+          </div>
+
+          <div className="card">
+            <h2>Account retention</h2>
+            <p className="notice">
+              A deleted account is anonymised once its retention window closes. The six-hourly sweep
+              is the only reader of that deadline, so a missed purge is a legal overrun that changes
+              nothing anyone can see.
+            </p>
+            {report.accountRetention === undefined ? (
+              <p className="notice">This API build does not report retention yet.</p>
+            ) : report.accountRetention === null ? (
+              <p className="notice">
+                The API could not read the retention queue, so there is nothing to report here.
+              </p>
+            ) : (
+              <>
+                <dl className="meta">
+                  <dt>State</dt>
+                  <dd>
+                    <span className={`pill ${retentionState(report.accountRetention).tone}`}>
+                      {retentionState(report.accountRetention).label}
+                    </span>
+                  </dd>
+                  <dt>Past purge date</dt>
+                  <dd>{report.accountRetention.due}</dd>
+                  <dt>Oldest due</dt>
+                  <dd>
+                    {report.accountRetention.oldestDueAt === null
+                      ? '-'
+                      : `${formatDateTime(report.accountRetention.oldestDueAt)} (${humanSeconds(
+                          report.accountRetention.oldestOverdueSeconds ?? 0,
+                        )} overdue)`}
+                  </dd>
+                </dl>
+
+                {report.accountRetention.overdue ? (
+                  <p className="notice">
+                    The oldest account is more than two sweep intervals past its purge date, so the
+                    timer that anonymises accounts has probably stopped. Restarting the API re-arms
+                    it; the rows stay overdue until a sweep runs.
                   </p>
                 ) : null}
               </>

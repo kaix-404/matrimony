@@ -622,6 +622,9 @@ model User {
   @@index([networthCategory, status])
   @@index([status, deletedAt])
   @@index([createdAt(sort: Desc)])
+  /// Section 21 erasure deadline: the retention sweep and the readiness check
+  /// that watches it both read by anonymisation state, then by deadline.
+  @@index([isAnonymised, purgeAfter])
 }
 
 model RefreshToken {

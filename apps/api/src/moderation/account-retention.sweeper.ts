@@ -5,6 +5,7 @@ import {
   type OnModuleDestroy,
 } from '@nestjs/common';
 import { AccountDeletionService } from './account-deletion.service';
+import { ACCOUNT_RETENTION_INTERVAL_MS } from './account-retention.constants';
 
 /**
  * Periodically erases the PII of accounts whose retention window has closed.
@@ -25,10 +26,6 @@ import { AccountDeletionService } from './account-deletion.service';
  */
 @Injectable()
 export class AccountRetentionSweeper implements OnApplicationBootstrap, OnModuleDestroy {
-  // Six hours: the work is bulk erasure of a handful of rows a day, and the
-  // earliest a missed sweep matters is a day of retention overrun on an account
-  // that is already invisible.
-  private static readonly SWEEP_INTERVAL_MS = 6 * 60 * 60_000;
   private readonly logger = new Logger(AccountRetentionSweeper.name);
   private timer: NodeJS.Timeout | null = null;
 
@@ -40,7 +37,7 @@ export class AccountRetentionSweeper implements OnApplicationBootstrap, OnModule
     // escape as an unhandled rejection.
     this.timer = setInterval(() => {
       void this.safeSweep();
-    }, AccountRetentionSweeper.SWEEP_INTERVAL_MS);
+    }, ACCOUNT_RETENTION_INTERVAL_MS);
     this.timer.unref();
     // Sweep once at boot so a deployment that was down across a purge deadline
     // does not leave an overdue account waiting a full interval.

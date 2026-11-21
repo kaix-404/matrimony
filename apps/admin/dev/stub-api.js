@@ -380,6 +380,7 @@ const routes = {
         push: 'up',
         reconciliation: 'up',
         pushDispatch: 'up',
+        accountRetention: 'up',
       },
       reconciliation: {
         runs: 7,
@@ -402,6 +403,12 @@ const routes = {
         abandoned: 0,
         oldestAt: new Date(now - 90_000).toISOString(),
         oldestAgeSeconds: 90,
+        overdue: false,
+      },
+      accountRetention: {
+        due: 0,
+        oldestDueAt: null,
+        oldestOverdueSeconds: null,
         overdue: false,
       },
       flags: { aiRecommendations: 'off' },

@@ -15,6 +15,10 @@ import {
   type ReconciliationStatus,
 } from '../reconciliation/reconciliation-status.service';
 import { PushBacklogService, type PushBacklog } from '../notifications/push-backlog.service';
+import {
+  AccountRetentionStatusService,
+  type AccountRetentionReport,
+} from '../moderation/account-retention-status.service';
 import type { Env } from '../config/env';
 
 /**
@@ -38,6 +42,7 @@ async function build(
     paymentWebhooks?: boolean;
     reconciliation?: Partial<ReconciliationStatus>;
     pushBacklog?: Partial<PushBacklog> | null;
+    accountRetention?: Partial<AccountRetentionReport> | null;
     clockCheckedAtMs?: number | null;
     recommendations?: number;
   } = {},
@@ -107,6 +112,21 @@ async function build(
         },
       },
       {
+        provide: AccountRetentionStatusService,
+        useValue: {
+          measure: async (): Promise<AccountRetentionReport | null> =>
+            options.accountRetention === null
+              ? null
+              : {
+                  due: 0,
+                  oldestDueAt: null,
+                  oldestOverdueSeconds: null,
+                  overdue: false,
+                  ...options.accountRetention,
+                },
+        },
+      },
+      {
         provide: FeatureFlagsService,
         useValue: new FeatureFlagsService({
           FEATURE_AI_RECOMMENDATIONS: options.recommendations ?? false,
@@ -138,6 +158,7 @@ describe('HealthController (section 46 readiness)', () => {
       paymentWebhooks: 'down',
       reconciliation: 'up',
       pushDispatch: 'up',
+      accountRetention: 'up',
     });
   });
 
@@ -231,6 +252,45 @@ describe('HealthController (section 46 readiness)', () => {
     // yet a stopped watchdog.
     expect(report.clockGuard).toMatchObject({ lastCheckedAt: null, stale: false });
     expect(report.checks.clockGuard).toBe('up');
+  });
+
+  it('reports the retention queue, so a missed purge is visible', async () => {
+    const controller = await build({
+      accountRetention: {
+        due: 2,
+        oldestDueAt: '2026-11-01T00:00:00.000Z',
+        oldestOverdueSeconds: 3600,
+      },
+    }).then((ref) => ref.get(HealthController));
+
+    const report = await controller.ready();
+
+    expect(report.accountRetention).toMatchObject({ due: 2, oldestOverdueSeconds: 3600 });
+    expect(report.checks.accountRetention).toBe('up');
+  });
+
+  it('marks retention down when an account is more than two sweeps past its purge date', async () => {
+    const controller = await build({
+      accountRetention: { due: 3, oldestOverdueSeconds: 90_000, overdue: true },
+    }).then((ref) => ref.get(HealthController));
+
+    const report = await controller.ready();
+
+    // A missed erasure deadline is a compliance overrun, not an outage: the API
+    // still serves members, but the silence is now visible.
+    expect(report.status).toBe('ok');
+    expect(report.checks.accountRetention).toBe('down');
+  });
+
+  it('reports an unreadable retention queue as down rather than as nothing overdue', async () => {
+    const controller = await build({ accountRetention: null }).then((ref) =>
+      ref.get(HealthController),
+    );
+
+    const report = await controller.ready();
+
+    expect(report.accountRetention).toBeNull();
+    expect(report.checks.accountRetention).toBe('down');
   });
 
   it('reports the push queue, so a dispatcher that stopped is visible', async () => {

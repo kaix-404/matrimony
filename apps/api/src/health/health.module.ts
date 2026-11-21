@@ -13,6 +13,7 @@ import { ProviderReadinessReporter } from './provider-readiness.reporter';
 import { FeatureFlagsModule } from '../common/features/feature-flags.service';
 import { ReconciliationStatusModule } from '../reconciliation/reconciliation-status.module';
 import { PushBacklogService } from '../notifications/push-backlog.service';
+import { AccountRetentionStatusService } from '../moderation/account-retention-status.service';
 import type { Env } from '../config/env';
 
 /**
@@ -36,7 +37,8 @@ import type { Env } from '../config/env';
  * `PushBacklogService` is registered here rather than by importing
  * `NotificationsModule`, which would drag auth and the FCM gateway into every
  * bootstrap. It reads the queue with the shared Prisma client and the clock, and
- * nothing else.
+ * nothing else. `AccountRetentionStatusService` follows the same rule: one
+ * aggregate over `User`, instead of importing the moderation graph (OTP, auth).
  */
 @Module({
   imports: [SmsModule, EmailModule, PushModule, FeatureFlagsModule, ReconciliationStatusModule],
@@ -49,6 +51,7 @@ import type { Env } from '../config/env';
     HealthService,
     ProviderReadinessReporter,
     PushBacklogService,
+    AccountRetentionStatusService,
     {
       provide: VerificationGateway,
       inject: ['ENV'],

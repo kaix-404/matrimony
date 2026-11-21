@@ -16,6 +16,10 @@ import {
   type ReconciliationStatus,
 } from '../reconciliation/reconciliation-status.service';
 import { PushBacklogService, type PushBacklog } from '../notifications/push-backlog.service';
+import {
+  AccountRetentionStatusService,
+  type AccountRetentionReport,
+} from '../moderation/account-retention-status.service';
 
 /**
  * How long after boot a sweep that has never run is still normal.
@@ -104,6 +108,16 @@ export interface HealthReport {
    */
   pushBacklog: PushBacklog | null;
   /**
+   * Accounts past their notification-free retention deadline, or null when the
+   * queue could not be read.
+   *
+   * `deleteAccount` only writes `purgeAfter`; the six-hourly sweep is the only
+   * reader, so a stopped timer leaves a legal deadline passing in silence — no
+   * request fails, no screen changes, nobody is told. Counted from the data
+   * rather than from the timer, and it is also the number an audit asks for.
+   */
+  accountRetention: AccountRetentionReport | null;
+  /**
    * Feature flags as configured on this instance, e.g. `{ aiRecommendations: 'off' }`.
    *
    * Named values rather than booleans: a rollout is a percentage, and "off" and
@@ -128,6 +142,7 @@ export class HealthService {
     private readonly payments: PaymentGateway,
     private readonly reconciliationState: ReconciliationStatusService,
     private readonly pushBacklogQueue: PushBacklogService,
+    private readonly accountRetentionQueue: AccountRetentionStatusService,
     private readonly flags: FeatureFlagsService,
   ) {}
 
@@ -158,6 +173,7 @@ export class HealthService {
     };
     const reconciliation = this.reconciliationState.snapshot(now);
     const pushBacklog = await this.pushBacklogQueue.measure();
+    const accountRetention = await this.accountRetentionQueue.measure();
     // Down means the recovery path is not doing its job — it never started, it
     // stopped (no sweep for longer than an interval, so the timer died even if
     // the last run was clean), or every recent run threw. Like the provider
@@ -174,6 +190,11 @@ export class HealthService {
     // an unreadable queue is down rather than unknown-but-fine, because silence
     // is the failure being reported.
     const pushDispatchUp = !this.push.configured || (pushBacklog !== null && !pushBacklog.overdue);
+    // Unlike the providers, there is no "not configured" state here: erasure is
+    // always expected. An unreadable table is down for the same reason an
+    // unreadable push queue is — the answer is unknown, and the failure being
+    // reported is silence.
+    const retentionUp = accountRetention !== null && !accountRetention.overdue;
     return {
       status: database && clock ? 'ok' : 'degraded',
       service: 'matrimony-api',
@@ -216,10 +237,14 @@ export class HealthService {
         // age, so a dispatcher whose timer died is visible even though nothing
         // failed: the next tick simply never comes.
         pushDispatch: pushDispatchUp ? 'up' : 'down',
+        // Whether the section 21 deadline is being met. A stopped sweep shows up
+        // as accounts ageing past `purgeAfter`, which no other surface reports.
+        accountRetention: retentionUp ? 'up' : 'down',
       },
       clockGuard,
       reconciliation,
       pushBacklog,
+      accountRetention,
       flags: { aiRecommendations: this.flags.describe('aiRecommendations') },
     };
   }
