@@ -35,10 +35,32 @@ interface HealthReport {
    * to tell from here which release actually took effect.
    */
   revision?: string | null;
+  /** The sweeper's own state; absent on an API older than the field. */
+  reconciliation?: ReconciliationStatus;
   serverTime: string;
   uptimeSeconds: number;
   checks: Record<string, 'up' | 'down'>;
   flags: Record<string, string>;
+}
+
+/** What one sweep did, per pass. Mirrors the API's `ReconciliationRun`. */
+interface ReconciliationRun {
+  finishedAt: string;
+  durationMs: number;
+  payments: { checked: number; settled: number; unpaid: number; failed: number } | null;
+  recorded: { checked: number; replayed: number; skipped: number; failed: number } | null;
+  identity: { checked: number; settled: number; pending: number; failed: number } | null;
+  error: string | null;
+}
+
+/** The sweeper as this instance reports it. Mirrors the API's `ReconciliationStatus`. */
+interface ReconciliationStatus {
+  runs: number;
+  inFlight: boolean;
+  startedAt: string | null;
+  lastRun: ReconciliationRun | null;
+  consecutiveFailures: number;
+  lastError: string | null;
 }
 
 /** What each integration means for a member, so "down" is not a dead end. */
@@ -79,6 +101,59 @@ const FLAGS: { key: string; label: string }[] = [
 /** The commit as a person reads it: short enough to compare at a glance, full one on hover. */
 function shortRevision(revision: string | null | undefined): string {
   return revision ? revision.slice(0, 7) : 'Unknown - not deployed from a commit';
+}
+
+/**
+ * The sweep in a word, from the three facts that distinguish its failure modes:
+ * it never started, it is running, or it has been failing every interval.
+ */
+function sweepState(sweep: ReconciliationStatus): { label: string; tone: 'done' | 'wip' } {
+  if (sweep.inFlight) return { label: 'Running now', tone: 'wip' };
+  if (sweep.runs === 0) return { label: 'Never ran', tone: 'wip' };
+  if (sweep.consecutiveFailures > 0) {
+    return { label: `${sweep.consecutiveFailures} failing in a row`, tone: 'wip' };
+  }
+  return { label: 'Running normally', tone: 'done' };
+}
+
+/**
+ * One row per pass that ran.
+ *
+ * The counts are worded rather than put in shared columns because the passes
+ * count different things: an order nobody paid is "unpaid", a check the supplier
+ * has not finished is "pending", and a delivery the live handler rejected is
+ * "skipped". One column per meaning would be a table of half-empty cells.
+ */
+function sweepPasses(
+  run: ReconciliationRun,
+): { label: string; checked: number; outcome: string }[] {
+  const passes: { label: string; checked: number; outcome: string }[] = [];
+  if (run.payments) {
+    passes.push({
+      label: 'Payments (gateway)',
+      checked: run.payments.checked,
+      outcome: `${run.payments.settled} settled, ${run.payments.unpaid} unpaid, ${run.payments.failed} failed`,
+    });
+  }
+  if (run.recorded) {
+    passes.push({
+      label: 'Recorded webhooks',
+      checked: run.recorded.checked,
+      outcome: `${run.recorded.replayed} replayed, ${run.recorded.skipped} skipped, ${run.recorded.failed} failed`,
+    });
+  }
+  if (run.identity) {
+    passes.push({
+      label: 'Identity checks',
+      checked: run.identity.checked,
+      outcome: `${run.identity.settled} settled, ${run.identity.pending} pending, ${run.identity.failed} failed`,
+    });
+  }
+  return passes;
+}
+
+function duration(ms: number): string {
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} seconds`;
 }
 
 function uptime(seconds: number): string {
@@ -218,6 +293,66 @@ export default async function StatusPage() {
               <dt>Running for</dt>
               <dd>{uptime(report.uptimeSeconds)}</dd>
             </dl>
+          </div>
+
+          <div className="card">
+            <h2>Reconciliation sweep</h2>
+            <p className="notice">
+              The sweep repairs payments and identity checks whose webhook never arrived. Its
+              failure mode is silence, so it reports what it last did here rather than only in the
+              log.
+            </p>
+            {report.reconciliation === undefined ? (
+              <p className="notice">This API build does not report its sweep yet.</p>
+            ) : (
+              <>
+                <dl className="meta">
+                  <dt>State</dt>
+                  <dd>
+                    <span className={`pill ${sweepState(report.reconciliation).tone}`}>
+                      {sweepState(report.reconciliation).label}
+                    </span>
+                  </dd>
+                  <dt>Last run</dt>
+                  <dd>{formatDateTime(report.reconciliation.lastRun?.finishedAt)}</dd>
+                  <dt>Took</dt>
+                  <dd>
+                    {report.reconciliation.lastRun === null
+                      ? '-'
+                      : duration(report.reconciliation.lastRun.durationMs)}
+                  </dd>
+                  <dt>Runs since start</dt>
+                  <dd>{report.reconciliation.runs}</dd>
+                  <dt>Consecutive failures</dt>
+                  <dd>{report.reconciliation.consecutiveFailures}</dd>
+                  <dt>Last error</dt>
+                  <dd>{report.reconciliation.lastError ?? '-'}</dd>
+                </dl>
+
+                {report.reconciliation.lastRun === null ? (
+                  <p className="notice">No sweep has finished since this instance started.</p>
+                ) : (
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Pass</th>
+                        <th>Checked</th>
+                        <th>Outcome</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sweepPasses(report.reconciliation.lastRun).map((pass) => (
+                        <tr key={pass.label}>
+                          <td>{pass.label}</td>
+                          <td>{pass.checked}</td>
+                          <td>{pass.outcome}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
           </div>
         </>
       )}
