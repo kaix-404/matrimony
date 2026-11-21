@@ -306,6 +306,40 @@ const permissionsFor = (slugs) => [
   ),
 ];
 
+const base64url = (value) => Buffer.from(value).toString('base64url');
+
+/**
+ * A readable admin access token, not an opaque string.
+ *
+ * The console's edge gate decodes `exp` before every page render (lib/jwt.ts) to
+ * decide whether to swap the refresh token first. An opaque token never decodes,
+ * so each navigation looked expired and was bounced to `/login` through a refresh
+ * call the stub does not have — which is why signing in here used to go nowhere.
+ * The signature is never checked by the console; only the API verifies it.
+ */
+function accessToken() {
+  const now = Math.floor(Date.now() / 1000);
+  const claims = {
+    typ: 'admin_access',
+    sub: self.id,
+    roles: self.roles,
+    permissions: permissionsFor(self.roles),
+    iat: now,
+    exp: now + 12 * 60 * 60,
+  };
+  return `${base64url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))}.${base64url(
+    JSON.stringify(claims),
+  )}.stub-signature`;
+}
+
+/** The token pair both `/admin/auth/login` and `/admin/auth/refresh` answer with. */
+const sessionTokens = () => ({
+  access_token: accessToken(),
+  refresh_token: 'stub.refresh.token',
+  token_type: 'Bearer',
+  expires_in: 12 * 60 * 60,
+});
+
 const routes = {
   '/api/v1/admin/me': {
     id: self.id,
@@ -321,7 +355,11 @@ const routes = {
   // the console the "Stalled" state it renders for a dead timer.
   '/api/v1/admin/system/health': () => {
     const now = Date.now();
-    const sweptAt = new Date(now - 4 * 60_000).toISOString();
+    const sweepAgeMinutes = Number(process.env.STUB_SWEEP_AGE_MINUTES ?? 4);
+    const sweptAt = new Date(now - sweepAgeMinutes * 60_000).toISOString();
+    // Mirrors the API's RECONCILIATION_STALE_AFTER_MS: one interval plus a minute.
+    // Set STUB_SWEEP_AGE_MINUTES past 11 to see the console's Stalled state.
+    const stale = sweepAgeMinutes > 11;
     return {
       status: 'ok',
       revision: 'cf17aa3c9f1b3a5e8d2c4b6a0f9e1d3c5b7a9f2e',
@@ -350,7 +388,7 @@ const routes = {
         },
         consecutiveFailures: 0,
         lastError: null,
-        stale: false,
+        stale,
       },
       flags: { aiRecommendations: 'off' },
     };
@@ -457,14 +495,13 @@ http
             return;
           }
           res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(
-            JSON.stringify({
-              access_token: 'stub.access.token',
-              refresh_token: 'stub.refresh.token',
-              token_type: 'Bearer',
-              expires_in: 900,
-            }),
-          );
+          res.end(JSON.stringify(sessionTokens()));
+          return;
+        }
+
+        if (req.url === '/api/v1/admin/auth/refresh') {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(JSON.stringify(sessionTokens()));
           return;
         }
 

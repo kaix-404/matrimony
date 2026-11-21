@@ -27,6 +27,8 @@ npm run dev:stub                                # http://127.0.0.1:4999/api/v1
 ADMIN_API_BASE_URL=http://127.0.0.1:4999/api/v1 npm run dev
 ```
 
+Set `STUB_SWEEP_AGE_MINUTES` past 11 to make the stubbed reconciliation sweep older than its interval, which is how the System status page's `Stalled` state is checked.
+
 It has no auth: every request is treated as the moderator it defines. The queues are in memory, so an approval or a rejection moves rows between tabs exactly as the real service would, and restarting it puts them back.
 
 It mirrors the API only where the console depends on the rules — a rejection needs a reason, a profile is decided once. Anything else it answers optimistically. Treat the pages it shows as evidence that the console renders and posts the right things, not that the API agrees; that is what the API's own tests are for.
