@@ -69,6 +69,10 @@ limit 20;
 
 ## Repairing it
 
+An overdue queue also raises the `ops-alert` issue through `/health/alerts`, so this
+page is for the confirmation and the repair rather than the discovery. See
+`docs/ops/alerting.md`.
+
 Restarting the API is the repair for a stopped timer: the boot sweep runs
 immediately, then the six-hourly interval is re-armed. The rows stay overdue
 until that first sweep completes, so check `accountRetention.due` again a minute

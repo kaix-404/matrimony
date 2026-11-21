@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
-import { ServiceUnavailableException } from '@nestjs/common';
+import { RequestMethod, ServiceUnavailableException } from '@nestjs/common';
+import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { PrismaService } from '../prisma/prisma.module';
 import { ClockDriftGuard, ClockService } from '../common/clock/clock.service';
 import { VerificationGateway } from '../verification/verification.gateway';
@@ -252,6 +253,58 @@ describe('HealthController (section 46 readiness)', () => {
     // yet a stopped watchdog.
     expect(report.clockGuard).toMatchObject({ lastCheckedAt: null, stale: false });
     expect(report.checks.clockGuard).toBe('up');
+  });
+
+  it('exposes the alert probe at /health/alerts', () => {
+    // The scheduled prober treats a 404 as "not deployed" and stays quiet, so the
+    // route has to be pinned here and in CI instead: a regression that removes it
+    // would otherwise be silent on both sides.
+    expect(Reflect.getMetadata(PATH_METADATA, HealthController)).toBe('health');
+    expect(Reflect.getMetadata(PATH_METADATA, HealthController.prototype.alerts)).toBe('alerts');
+    expect(Reflect.getMetadata(METHOD_METADATA, HealthController.prototype.alerts)).toBe(
+      RequestMethod.GET,
+    );
+  });
+
+  it('answers the alert probe 200 when only unconfigured providers are down', async () => {
+    const controller = await build().then((ref) => ref.get(HealthController));
+    const status = jest.fn();
+
+    const alert = await controller.alerts({ status } as never);
+
+    // The default mocks leave email, SMS, push, identity and payments
+    // unconfigured, which is a deployment state and must never page anyone.
+    expect(alert.status).toBe('ok');
+    expect(alert.down).toEqual([]);
+    expect(status).toHaveBeenCalledWith(200);
+  });
+
+  it('answers 503 and names the stalled repair paths', async () => {
+    const controller = await build({
+      // Push configured, or the dispatcher is correctly a no-op and the queue is
+      // expected to grow: `push` is the check that answers for that deployment.
+      push: true,
+      accountRetention: { due: 3, oldestOverdueSeconds: 90_000, overdue: true },
+      pushBacklog: { due: 4, overdue: true },
+    }).then((ref) => ref.get(HealthController));
+    const status = jest.fn();
+
+    const alert = await controller.alerts({ status } as never);
+
+    expect(alert.status).toBe('down');
+    expect(alert.down).toEqual(['pushDispatch', 'accountRetention']);
+    expect(status).toHaveBeenCalledWith(503);
+  });
+
+  it('does not carry backlog counts or provider state into the public alert', async () => {
+    const controller = await build({
+      accountRetention: { due: 3, oldestOverdueSeconds: 90_000, overdue: true },
+    }).then((ref) => ref.get(HealthController));
+
+    const alert = await controller.alerts({ status: jest.fn() } as never);
+
+    // Only names and a timestamp: the endpoint is unauthenticated.
+    expect(Object.keys(alert).sort()).toEqual(['checkedAt', 'down', 'status']);
   });
 
   it('reports the retention queue, so a missed purge is visible', async () => {

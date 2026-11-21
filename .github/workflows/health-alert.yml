@@ -1,0 +1,89 @@
+name: Health alert
+
+# Polls the API's alert probe and raises a GitHub issue when a repair path has
+# stopped, then closes it when the probe is healthy again. See
+# docs/ops/alerting.md for why this runs here rather than on Render.
+
+on:
+  schedule:
+    # Every half hour. A free Render web service sleeps after 15 idle minutes, so
+    # each run pays the cold start and wakes the API only for the request; a
+    # five-minute monitor would keep it permanently awake and spend the
+    # workspace's 750 monthly instance hours on this service alone.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: health-alert
+  cancel-in-progress: false
+
+env:
+  ALERT_URL: https://matrimony-api-2bmy.onrender.com/api/v1/health/alerts
+  ALERT_LABEL: ops-alert
+
+jobs:
+  probe:
+    name: Probe
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Raise or clear the alert
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          url="$ALERT_URL"
+
+          # A sleeping instance takes about a minute to wake and this request is
+          # what wakes it, so the timeout has to cover a cold start rather than a
+          # normal response time.
+          status=$(curl --silent --show-error --location --max-time 120 \
+            --output "$RUNNER_TEMP/alert.json" --write-out '%{http_code}' "$url") || status=000
+          echo "GET $url -> HTTP $status"
+          cat "$RUNNER_TEMP/alert.json" 2>/dev/null || true
+
+          gh label create "$ALERT_LABEL" --force --color B60205 \
+            --description "A health check that repairs something has stopped" >/dev/null
+          open=$(gh issue list --label "$ALERT_LABEL" --state open --json number \
+            --jq '.[0].number // empty')
+
+          if [ "$status" = 200 ]; then
+            if [ -n "${open:-}" ]; then
+              gh issue close "$open" --comment \
+                "Recovered: \`$url\` answered 200 at $(date -u '+%Y-%m-%dT%H:%M:%SZ')."
+            fi
+            echo "probe healthy"
+            exit 0
+          fi
+
+          if [ "$status" = 404 ]; then
+            # The route is not deployed on this instance. That is a rollout
+            # state, not a stopped repair path, and the release that carries it
+            # cannot go out until the build quota resets. The route's existence
+            # is pinned instead where it can be checked before a deploy: the
+            # controller test asserts the path, and CI calls it on the built API.
+            echo "alert route not deployed (HTTP 404); not alerting"
+            exit 0
+          fi
+
+          if [ "$status" = 503 ] &&
+            jq --exit-status '.down | length > 0' "$RUNNER_TEMP/alert.json" >/dev/null 2>&1; then
+            detail=$(jq --raw-output '.down | join(", ")' "$RUNNER_TEMP/alert.json")
+          else
+            detail="the API did not answer its alert probe (HTTP $status)"
+          fi
+
+          if [ -n "${open:-}" ]; then
+            # Already open: the issue is the alert. A comment every half hour is
+            # how a real alert gets filtered out with the noise.
+            echo "still down: $detail"
+            exit 0
+          fi
+
+          gh issue create --label "$ALERT_LABEL" \
+            --title "Repair path down: $detail" \
+            --body "$(printf '`%s` reported **%s** at %s.\n\nRunbook: `docs/ops/alerting.md`.\n' \
+              "$url" "$detail" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')")"

@@ -128,14 +128,33 @@ jobs:
           node apps/api/dist/main.js &
           API_PID=$!
           # API_GLOBAL_PREFIX defaults to api/v1 (see apps/api/src/config/env.ts).
+          ready=0
           for attempt in $(seq 1 30); do
             if curl --fail --silent http://localhost:4000/api/v1/health/ready; then
               echo "readiness OK"
-              kill "$API_PID" 2>/dev/null || true
-              exit 0
+              ready=1
+              break
             fi
             sleep 1
           done
-          echo "API did not become ready" >&2
+          if [ "$ready" != 1 ]; then
+            echo "API did not become ready" >&2
+            kill "$API_PID" 2>/dev/null || true
+            exit 1
+          fi
+
+          # The alert prober stays quiet on a 404 and every check it covers can
+          # pass while the route is missing, so the built API has to prove the
+          # route is registered: the scheduled workflow cannot do that for it.
+          status=$(curl --silent --output /tmp/alerts.json --write-out '%{http_code}' \
+            http://localhost:4000/api/v1/health/alerts)
+          if [ "$status" != 200 ] || ! jq --exit-status '.status == "ok"' /tmp/alerts.json >/dev/null; then
+            echo "alert probe failed: HTTP $status" >&2
+            cat /tmp/alerts.json >&2 || true
+            kill "$API_PID" 2>/dev/null || true
+            exit 1
+          fi
+          echo "alert probe OK: $(cat /tmp/alerts.json)"
+
           kill "$API_PID" 2>/dev/null || true
-          exit 1
+          exit 0
