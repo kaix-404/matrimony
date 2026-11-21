@@ -224,8 +224,6 @@ describe('HealthController (section 46 readiness)', () => {
       process.env.RENDER_GIT_COMMIT = 'd1ff86e3c0bb5f30e1a7f3b0b0a1c55f4dfc1b2a';
       const controller = await build().then((ref) => ref.get(HealthController));
 
-      // The whole point of the field: one request says which release is running,
-      // instead of probing for a route the newer release added.
       await expect(controller.ready()).resolves.toMatchObject({
         revision: 'd1ff86e3c0bb5f30e1a7f3b0b0a1c55f4dfc1b2a',
       });
@@ -237,8 +235,6 @@ describe('HealthController (section 46 readiness)', () => {
 
       const report = await controller.ready();
 
-      // Null, never an empty string: a local instance must not claim it was
-      // deployed from a commit it has not got.
       expect(report.revision).toBeNull();
     });
   });

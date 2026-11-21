@@ -20,19 +20,7 @@ import {
  */
 const RECONCILIATION_BOOT_GRACE_SECONDS = 120;
 
-/**
- * The commit this process is running, from the platform's own variable.
- *
- * `RENDER_GIT_COMMIT` is injected by Render into the running container, so it is
- * the deployment's answer rather than the code's: comparing it with
- * `git rev-parse main` is what distinguishes "production is up to date" from
- * "the last three deploys failed and this is still the pre-September build".
- *
- * Read at report time rather than captured at import, so it is always the value
- * of the running process's environment and a test can set it without reloading
- * this module. Trimmed and nulled when empty: an unset variable must read as
- * "unknown", not as a commit named "".
- */
+/** The deployed commit; see {@link HealthReport.revision} for what it means. */
 function deployedRevision(): string | null {
   const commit = process.env.RENDER_GIT_COMMIT?.trim();
   return commit ? commit : null;
