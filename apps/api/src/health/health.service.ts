@@ -21,6 +21,24 @@ import {
 const RECONCILIATION_BOOT_GRACE_SECONDS = 120;
 
 /**
+ * The commit this process is running, from the platform's own variable.
+ *
+ * `RENDER_GIT_COMMIT` is injected by Render into the running container, so it is
+ * the deployment's answer rather than the code's: comparing it with
+ * `git rev-parse main` is what distinguishes "production is up to date" from
+ * "the last three deploys failed and this is still the pre-September build".
+ *
+ * Read at report time rather than captured at import, so it is always the value
+ * of the running process's environment and a test can set it without reloading
+ * this module. Trimmed and nulled when empty: an unset variable must read as
+ * "unknown", not as a commit named "".
+ */
+function deployedRevision(): string | null {
+  const commit = process.env.RENDER_GIT_COMMIT?.trim();
+  return commit ? commit : null;
+}
+
+/**
  * What this instance is configured for, as one report.
  *
  * Read by two callers with different needs. The public `/health/ready` route is
@@ -32,6 +50,21 @@ const RECONCILIATION_BOOT_GRACE_SECONDS = 120;
 export interface HealthReport {
   status: 'ok' | 'degraded';
   service: string;
+  /**
+   * The commit this instance was deployed from, as Render reports it.
+   *
+   * Everything else here describes what an instance is *configured* for; this is
+   * the only field that says *which release* is actually running. A deploy whose
+   * build never ran keeps serving the previous artifact, and until now the only
+   * way to tell was to probe for a route the newer release added and read a 404
+   * as "not deployed" — a conclusion that depends on guessing the route, and on
+   * that route having shipped in exactly the release being looked for.
+   *
+   * Null off Render (local development, tests), where there is no deployed
+   * commit to claim. Null rather than an empty string, so "not deployed from a
+   * commit" can never be mistaken for one.
+   */
+  revision: string | null;
   /** Server time, ISO-8601 UTC. Clients must never use their own clock for expiry. */
   serverTime: string;
   uptimeSeconds: number;
@@ -96,6 +129,7 @@ export class HealthService {
     return {
       status: database && clock ? 'ok' : 'degraded',
       service: 'matrimony-api',
+      revision: deployedRevision(),
       serverTime: this.clock.now().toISOString(),
       uptimeSeconds,
       checks: {

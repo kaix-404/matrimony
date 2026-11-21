@@ -212,6 +212,37 @@ describe('HealthController (section 46 readiness)', () => {
     });
   });
 
+  describe('the deployed revision', () => {
+    const original = process.env.RENDER_GIT_COMMIT;
+
+    afterEach(() => {
+      if (original === undefined) delete process.env.RENDER_GIT_COMMIT;
+      else process.env.RENDER_GIT_COMMIT = original;
+    });
+
+    it('reports the commit Render deployed, so production can be compared with main', async () => {
+      process.env.RENDER_GIT_COMMIT = 'd1ff86e3c0bb5f30e1a7f3b0b0a1c55f4dfc1b2a';
+      const controller = await build().then((ref) => ref.get(HealthController));
+
+      // The whole point of the field: one request says which release is running,
+      // instead of probing for a route the newer release added.
+      await expect(controller.ready()).resolves.toMatchObject({
+        revision: 'd1ff86e3c0bb5f30e1a7f3b0b0a1c55f4dfc1b2a',
+      });
+    });
+
+    it('reports null where there is no deployed commit to report', async () => {
+      delete process.env.RENDER_GIT_COMMIT;
+      const controller = await build().then((ref) => ref.get(HealthController));
+
+      const report = await controller.ready();
+
+      // Null, never an empty string: a local instance must not claim it was
+      // deployed from a commit it has not got.
+      expect(report.revision).toBeNull();
+    });
+  });
+
   it('hands the console the degraded report rather than an error', async () => {
     const health = (await build({ database: false })).get(HealthService);
 
