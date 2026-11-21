@@ -26,6 +26,15 @@ export const metadata = { title: 'System status - Networth Matrimony Admin' };
 
 interface HealthReport {
   status: 'ok' | 'degraded';
+  /**
+   * The commit the API is running, or null when it was not deployed from one.
+   *
+   * Optional because the admin deploys independently of the API: a page newer
+   * than the report it reads has to render rather than show `undefined`. A
+   * failed build leaves the previous artifact serving, so this is the only way
+   * to tell from here which release actually took effect.
+   */
+  revision?: string | null;
   serverTime: string;
   uptimeSeconds: number;
   checks: Record<string, 'up' | 'down'>;
@@ -66,6 +75,11 @@ const INTEGRATIONS: { key: string; label: string; consequence: string }[] = [
 const FLAGS: { key: string; label: string }[] = [
   { key: 'aiRecommendations', label: 'AI recommendations (For You tab)' },
 ];
+
+/** The commit as a person reads it: short enough to compare at a glance, full one on hover. */
+function shortRevision(revision: string | null | undefined): string {
+  return revision ? revision.slice(0, 7) : 'Unknown - not deployed from a commit';
+}
 
 function uptime(seconds: number): string {
   if (seconds < 90) return `${seconds} seconds`;
@@ -180,6 +194,13 @@ export default async function StatusPage() {
           <div className="card">
             <h2>Service</h2>
             <dl className="meta">
+              <dt>Release</dt>
+              <dd
+                className="mono"
+                title={typeof report.revision === 'string' ? report.revision : undefined}
+              >
+                {shortRevision(report.revision)}
+              </dd>
               <dt>Readiness</dt>
               <dd>
                 <span className={`pill ${report.status === 'ok' ? 'done' : 'wip'}`}>
