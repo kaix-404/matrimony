@@ -5,6 +5,7 @@ import {
   type OnModuleDestroy,
 } from '@nestjs/common';
 import { PushDispatchService } from './push-dispatch.service';
+import { PUSH_DISPATCH_INTERVAL_MS } from './push-dispatch.constants';
 
 /**
  * Periodically delivers queued push notifications.
@@ -20,7 +21,6 @@ import { PushDispatchService } from './push-dispatch.service';
  */
 @Injectable()
 export class PushDispatchSweeper implements OnApplicationBootstrap, OnModuleDestroy {
-  private static readonly SWEEP_INTERVAL_MS = 60_000;
   private readonly logger = new Logger(PushDispatchSweeper.name);
   private timer: NodeJS.Timeout | null = null;
 
@@ -29,7 +29,7 @@ export class PushDispatchSweeper implements OnApplicationBootstrap, OnModuleDest
   onApplicationBootstrap(): void {
     this.timer = setInterval(() => {
       void this.safeSweep();
-    }, PushDispatchSweeper.SWEEP_INTERVAL_MS);
+    }, PUSH_DISPATCH_INTERVAL_MS);
     this.timer.unref();
     void this.safeSweep();
   }

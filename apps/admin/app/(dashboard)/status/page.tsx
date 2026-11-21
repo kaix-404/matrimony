@@ -37,6 +37,8 @@ interface HealthReport {
   revision?: string | null;
   /** The sweeper's own state; absent on an API older than the field. */
   reconciliation?: ReconciliationStatus;
+  /** The push queue's age, or null when the API could not read it. */
+  pushBacklog?: PushBacklog | null;
   serverTime: string;
   uptimeSeconds: number;
   checks: Record<string, 'up' | 'down'>;
@@ -51,6 +53,15 @@ interface ReconciliationRun {
   recorded: { checked: number; replayed: number; skipped: number; failed: number } | null;
   identity: { checked: number; settled: number; pending: number; failed: number } | null;
   error: string | null;
+}
+
+/** The push queue as the API measures it. Mirrors the API's `PushBacklog`. */
+interface PushBacklog {
+  due: number;
+  abandoned: number;
+  oldestAt: string | null;
+  oldestAgeSeconds: number | null;
+  overdue: boolean;
 }
 
 /** The sweeper as this instance reports it. Mirrors the API's `ReconciliationStatus`. */
@@ -168,11 +179,31 @@ function duration(ms: number): string {
   return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} seconds`;
 }
 
-function uptime(seconds: number): string {
-  if (seconds < 90) return `${seconds} seconds`;
+function humanSeconds(seconds: number): string {
+  if (seconds < 90) return `${seconds} ${seconds === 1 ? 'second' : 'seconds'}`;
   const minutes = Math.round(seconds / 60);
-  if (minutes < 90) return `${minutes} minutes`;
-  return `${Math.round(minutes / 60)} hours`;
+  if (minutes < 90) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+}
+
+/**
+ * The push queue in a word.
+ *
+ * "Not configured" comes first: without FCM credentials the dispatcher is
+ * correctly a no-op, so a growing queue is the expected state and calling it
+ * delayed would send somebody looking for a timer that is doing the right thing.
+ */
+function pushState(
+  backlog: PushBacklog,
+  configured: boolean,
+): { label: string; tone: 'done' | 'wip' } {
+  if (!configured) return { label: 'Not configured', tone: 'wip' };
+  if (backlog.overdue) return { label: 'Delayed', tone: 'wip' };
+  if (backlog.due === 0 && backlog.abandoned === 0) {
+    return { label: 'Nothing queued', tone: 'done' };
+  }
+  return { label: 'Draining', tone: 'done' };
 }
 
 export default async function StatusPage() {
@@ -303,7 +334,7 @@ export default async function StatusPage() {
               <dt>Server time</dt>
               <dd>{formatDateTime(report.serverTime)}</dd>
               <dt>Running for</dt>
-              <dd>{uptime(report.uptimeSeconds)}</dd>
+              <dd>{humanSeconds(report.uptimeSeconds)}</dd>
             </dl>
           </div>
 
@@ -370,6 +401,62 @@ export default async function StatusPage() {
                     </tbody>
                   </table>
                 )}
+              </>
+            )}
+          </div>
+
+          <div className="card">
+            <h2>Push delivery</h2>
+            <p className="notice">
+              A push is written to the queue and delivered by a timer, so a dispatcher that has
+              stopped leaves rows nobody notices: the member still has the in-app entry and no
+              request fails.
+            </p>
+            {report.pushBacklog === undefined ? (
+              <p className="notice">This API build does not report its push queue yet.</p>
+            ) : report.pushBacklog === null ? (
+              <p className="notice">
+                The API could not read the push queue, so there is nothing to report here.
+              </p>
+            ) : (
+              <>
+                <dl className="meta">
+                  <dt>State</dt>
+                  <dd>
+                    <span
+                      className={`pill ${pushState(report.pushBacklog, report.checks.push === 'up').tone}`}
+                    >
+                      {pushState(report.pushBacklog, report.checks.push === 'up').label}
+                    </span>
+                  </dd>
+                  <dt>Waiting</dt>
+                  <dd>{report.pushBacklog.due}</dd>
+                  <dt>Abandoned mid-send</dt>
+                  <dd>{report.pushBacklog.abandoned}</dd>
+                  <dt>Oldest waiting</dt>
+                  <dd>
+                    {report.pushBacklog.oldestAt === null
+                      ? '-'
+                      : `${formatDateTime(report.pushBacklog.oldestAt)} (${humanSeconds(
+                          report.pushBacklog.oldestAgeSeconds ?? 0,
+                        )})`}
+                  </dd>
+                </dl>
+
+                {report.pushBacklog.overdue && report.checks.push === 'up' ? (
+                  <p className="notice">
+                    The oldest queued push has waited longer than a running dispatcher would allow,
+                    so the timer that drains the queue has probably stopped. Restarting the API
+                    re-arms it.
+                  </p>
+                ) : null}
+
+                {report.checks.push !== 'up' ? (
+                  <p className="notice">
+                    Push is not configured on this deployment, so these rows are expected to wait
+                    until FCM credentials are set.
+                  </p>
+                ) : null}
               </>
             )}
           </div>

@@ -11,6 +11,7 @@ import {
   ReconciliationStatusService,
   type ReconciliationStatus,
 } from '../reconciliation/reconciliation-status.service';
+import { PushBacklogService, type PushBacklog } from '../notifications/push-backlog.service';
 
 /**
  * How long after boot a sweep that has never run is still normal.
@@ -69,6 +70,17 @@ export interface HealthReport {
    */
   reconciliation: ReconciliationStatus;
   /**
+   * How long the push queue has been waiting, or null when it could not be read.
+   *
+   * The same silence problem as the sweep, one layer down: a push is written to
+   * the database and delivered by a timer, so a dispatcher that stopped leaves
+   * rows whose only trace is that nobody received anything — the in-app entry
+   * still looks normal and no request fails. Measured from the queue rather than
+   * from the timer, so it survives a restart and says how much is waiting and for
+   * how long, which a "the timer last fired at" field cannot.
+   */
+  pushBacklog: PushBacklog | null;
+  /**
    * Feature flags as configured on this instance, e.g. `{ aiRecommendations: 'off' }`.
    *
    * Named values rather than booleans: a rollout is a percentage, and "off" and
@@ -92,6 +104,7 @@ export class HealthService {
     private readonly push: PushGateway,
     private readonly payments: PaymentGateway,
     private readonly reconciliationState: ReconciliationStatusService,
+    private readonly pushBacklogQueue: PushBacklogService,
     private readonly flags: FeatureFlagsService,
   ) {}
 
@@ -107,6 +120,7 @@ export class HealthService {
     const clock = this.driftGuard.isHealthy();
     const uptimeSeconds = Math.floor((Date.now() - this.bootedAt) / 1000);
     const reconciliation = this.reconciliationState.snapshot(this.clock.now());
+    const pushBacklog = await this.pushBacklogQueue.measure();
     // Down means the recovery path is not doing its job — it never started, it
     // stopped (no sweep for longer than an interval, so the timer died even if
     // the last run was clean), or every recent run threw. Like the provider
@@ -117,6 +131,12 @@ export class HealthService {
       reconciliation.runs === 0 && uptimeSeconds >= RECONCILIATION_BOOT_GRACE_SECONDS;
     const reconciliationUp =
       !neverRan && !reconciliation.stale && reconciliation.consecutiveFailures === 0;
+    // An unconfigured delivery provider is a deployment state, not a fault: the
+    // dispatcher is correctly a no-op without FCM credentials, so a growing queue
+    // is expected there and `push` above already names the cause. Everywhere else
+    // an unreadable queue is down rather than unknown-but-fine, because silence
+    // is the failure being reported.
+    const pushDispatchUp = !this.push.configured || (pushBacklog !== null && !pushBacklog.overdue);
     return {
       status: database && clock ? 'ok' : 'degraded',
       service: 'matrimony-api',
@@ -149,8 +169,13 @@ export class HealthService {
         // Whether the sweeper is working, as opposed to whether it exists.
         // `reconciliation` above carries the counts and the last error.
         reconciliation: reconciliationUp ? 'up' : 'down',
+        // Whether queued pushes are being drained. Derived from the queue's own
+        // age, so a dispatcher whose timer died is visible even though nothing
+        // failed: the next tick simply never comes.
+        pushDispatch: pushDispatchUp ? 'up' : 'down',
       },
       reconciliation,
+      pushBacklog,
       flags: { aiRecommendations: this.flags.describe('aiRecommendations') },
     };
   }

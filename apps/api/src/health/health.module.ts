@@ -12,6 +12,7 @@ import { HealthService } from './health.service';
 import { ProviderReadinessReporter } from './provider-readiness.reporter';
 import { FeatureFlagsModule } from '../common/features/feature-flags.service';
 import { ReconciliationStatusModule } from '../reconciliation/reconciliation-status.module';
+import { PushBacklogService } from '../notifications/push-backlog.service';
 import type { Env } from '../config/env';
 
 /**
@@ -31,6 +32,11 @@ import type { Env } from '../config/env';
  * provider holding the sweeper's last run, so this module can report whether
  * reconciliation is working without importing the payments and verification
  * graphs that the sweep itself needs.
+ *
+ * `PushBacklogService` is registered here rather than by importing
+ * `NotificationsModule`, which would drag auth and the FCM gateway into every
+ * bootstrap. It reads the queue with the shared Prisma client and the clock, and
+ * nothing else.
  */
 @Module({
   imports: [SmsModule, EmailModule, PushModule, FeatureFlagsModule, ReconciliationStatusModule],
@@ -42,6 +48,7 @@ import type { Env } from '../config/env';
   providers: [
     HealthService,
     ProviderReadinessReporter,
+    PushBacklogService,
     {
       provide: VerificationGateway,
       inject: ['ENV'],

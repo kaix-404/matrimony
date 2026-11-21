@@ -14,6 +14,7 @@ import {
   ReconciliationStatusService,
   type ReconciliationStatus,
 } from '../reconciliation/reconciliation-status.service';
+import { PushBacklogService, type PushBacklog } from '../notifications/push-backlog.service';
 import type { Env } from '../config/env';
 
 /**
@@ -36,6 +37,7 @@ async function build(
     payments?: boolean;
     paymentWebhooks?: boolean;
     reconciliation?: Partial<ReconciliationStatus>;
+    pushBacklog?: Partial<PushBacklog> | null;
     recommendations?: number;
   } = {},
 ) {
@@ -76,6 +78,22 @@ async function build(
         },
       },
       {
+        provide: PushBacklogService,
+        useValue: {
+          measure: async (): Promise<PushBacklog | null> =>
+            options.pushBacklog === null
+              ? null
+              : {
+                  due: 0,
+                  abandoned: 0,
+                  oldestAt: null,
+                  oldestAgeSeconds: null,
+                  overdue: false,
+                  ...options.pushBacklog,
+                },
+        },
+      },
+      {
         provide: FeatureFlagsService,
         useValue: new FeatureFlagsService({
           FEATURE_AI_RECOMMENDATIONS: options.recommendations ?? false,
@@ -105,6 +123,7 @@ describe('HealthController (section 46 readiness)', () => {
       payments: 'down',
       paymentWebhooks: 'down',
       reconciliation: 'up',
+      pushDispatch: 'up',
     });
   });
 
@@ -157,6 +176,62 @@ describe('HealthController (section 46 readiness)', () => {
     expect(report.status).toBe('ok');
     expect(report.checks.reconciliation).toBe('down');
     expect(report.reconciliation).toMatchObject({ consecutiveFailures: 0, stale: true });
+  });
+
+  it('reports the push queue, so a dispatcher that stopped is visible', async () => {
+    const controller = await build({
+      push: true,
+      pushBacklog: {
+        due: 4,
+        abandoned: 1,
+        oldestAt: '2026-11-11T11:57:00.000Z',
+        oldestAgeSeconds: 180,
+      },
+    }).then((ref) => ref.get(HealthController));
+
+    const report = await controller.ready();
+
+    expect(report.pushBacklog).toMatchObject({ due: 4, abandoned: 1, oldestAgeSeconds: 180 });
+    expect(report.checks.pushDispatch).toBe('up');
+  });
+
+  it('marks push dispatch down when the oldest queued push is overdue', async () => {
+    const controller = await build({
+      push: true,
+      pushBacklog: { due: 12, oldestAgeSeconds: 900, overdue: true },
+    }).then((ref) => ref.get(HealthController));
+
+    const report = await controller.ready();
+
+    // Nothing threw and nothing is unconfigured: the timer that drains the queue
+    // simply stopped, which no request and no log line would otherwise show.
+    expect(report.status).toBe('ok');
+    expect(report.checks.pushDispatch).toBe('down');
+  });
+
+  it('does not fault an undrained queue when push has no credentials', async () => {
+    const controller = await build({
+      push: false,
+      pushBacklog: { due: 40, oldestAgeSeconds: 86_400, overdue: true },
+    }).then((ref) => ref.get(HealthController));
+
+    const report = await controller.ready();
+
+    // Without FCM keys the dispatcher is correctly a no-op, so the queue growing
+    // is a deployment state rather than a stopped timer. `push` names the cause.
+    expect(report.checks.push).toBe('down');
+    expect(report.checks.pushDispatch).toBe('up');
+  });
+
+  it('reports an unreadable queue as down rather than as an empty one', async () => {
+    const controller = await build({ push: true, pushBacklog: null }).then((ref) =>
+      ref.get(HealthController),
+    );
+
+    const report = await controller.ready();
+
+    expect(report.pushBacklog).toBeNull();
+    expect(report.checks.pushDispatch).toBe('down');
   });
 
   it('reports a charge that cannot be confirmed as its own state', async () => {

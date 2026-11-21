@@ -3,6 +3,7 @@ import { PrismaClient } from '../prisma/prisma-client';
 import { ClockService } from '../common/clock/clock.service';
 import { PushGateway } from '../push/push.gateway';
 import { NotificationsService } from './notifications.service';
+import { PUSH_MAX_ATTEMPTS, PUSH_SENDING_STALE_MS } from './push-dispatch.constants';
 
 /**
  * Delivers `PUSH` notifications (section 42, Firebase).
@@ -20,10 +21,6 @@ import { NotificationsService } from './notifications.service';
  */
 @Injectable()
 export class PushDispatchService {
-  /** A `SENDING` row older than this is assumed abandoned and requeued. */
-  private static readonly STALE_MS = 5 * 60_000;
-  /** After this many failed attempts a row stops being retried. */
-  private static readonly MAX_ATTEMPTS = 5;
   private static readonly DEFAULT_BATCH = 50;
 
   private readonly logger = new Logger(PushDispatchService.name);
@@ -48,7 +45,7 @@ export class PushDispatchService {
       where: {
         channel: 'PUSH',
         status: 'PENDING',
-        attempts: { lt: PushDispatchService.MAX_ATTEMPTS },
+        attempts: { lt: PUSH_MAX_ATTEMPTS },
         // Relation filter: the recipient must actually have a device. Narrows
         // the batch so an install-less waitlist cannot starve real sends.
         user: { deviceTokens: { some: {} } },
@@ -143,7 +140,7 @@ export class PushDispatchService {
   }
 
   private async requeueStale(): Promise<void> {
-    const staleBefore = new Date(this.clock.nowMs() - PushDispatchService.STALE_MS);
+    const staleBefore = new Date(this.clock.nowMs() - PUSH_SENDING_STALE_MS);
     await this.prisma.notification.updateMany({
       where: { channel: 'PUSH', status: 'SENDING', updatedAt: { lt: staleBefore } },
       data: { status: 'PENDING' },

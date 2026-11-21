@@ -373,6 +373,7 @@ const routes = {
         email: 'down',
         push: 'up',
         reconciliation: 'up',
+        pushDispatch: 'up',
       },
       reconciliation: {
         runs: 7,
@@ -389,6 +390,13 @@ const routes = {
         consecutiveFailures: 0,
         lastError: null,
         stale,
+      },
+      pushBacklog: {
+        due: 2,
+        abandoned: 0,
+        oldestAt: new Date(now - 90_000).toISOString(),
+        oldestAgeSeconds: 90,
+        overdue: false,
       },
       flags: { aiRecommendations: 'off' },
     };
