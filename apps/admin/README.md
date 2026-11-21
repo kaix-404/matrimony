@@ -27,7 +27,7 @@ npm run dev:stub                                # http://127.0.0.1:4999/api/v1
 ADMIN_API_BASE_URL=http://127.0.0.1:4999/api/v1 npm run dev
 ```
 
-Set `STUB_SWEEP_AGE_MINUTES` past 11 to make the stubbed reconciliation sweep older than its interval, which is how the System status page's `Stalled` state is checked.
+Set `STUB_SWEEP_AGE_MINUTES` past 11 to make the stubbed reconciliation sweep older than its interval, which is how the System status page's `Stalled` state is checked. Set `STUB_RETENTION_DUE_HOURS` past 12 to make the oldest stubbed account more than two sweeps overdue, which is how the retention card's `Overdue` state is checked.
 
 It has no auth: every request is treated as the moderator it defines. The queues are in memory, so an approval or a rejection moves rows between tabs exactly as the real service would, and restarting it puts them back.
 

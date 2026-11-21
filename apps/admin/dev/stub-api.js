@@ -360,6 +360,11 @@ const routes = {
     // Mirrors the API's RECONCILIATION_STALE_AFTER_MS: one interval plus a minute.
     // Set STUB_SWEEP_AGE_MINUTES past 11 to see the console's Stalled state.
     const stale = sweepAgeMinutes > 11;
+    // How far the oldest retained account is past its purge date. Mirrors the
+    // API's ACCOUNT_RETENTION_OVERDUE_AFTER_MS (two six-hourly sweeps), so set
+    // STUB_RETENTION_DUE_HOURS past 12 to see the console's Overdue state.
+    const retentionDueHours = Number(process.env.STUB_RETENTION_DUE_HOURS ?? 0);
+    const retentionWaiting = retentionDueHours > 0;
     return {
       status: 'ok',
       revision: 'cf17aa3c9f1b3a5e8d2c4b6a0f9e1d3c5b7a9f2e',
@@ -380,7 +385,7 @@ const routes = {
         push: 'up',
         reconciliation: 'up',
         pushDispatch: 'up',
-        accountRetention: 'up',
+        accountRetention: retentionDueHours > 12 ? 'down' : 'up',
       },
       reconciliation: {
         runs: 7,
@@ -406,10 +411,12 @@ const routes = {
         overdue: false,
       },
       accountRetention: {
-        due: 0,
-        oldestDueAt: null,
-        oldestOverdueSeconds: null,
-        overdue: false,
+        due: retentionWaiting ? 3 : 0,
+        oldestDueAt: retentionWaiting
+          ? new Date(now - retentionDueHours * 3_600_000).toISOString()
+          : null,
+        oldestOverdueSeconds: retentionWaiting ? Math.round(retentionDueHours * 3_600) : null,
+        overdue: retentionDueHours > 12,
       },
       flags: { aiRecommendations: 'off' },
     };
