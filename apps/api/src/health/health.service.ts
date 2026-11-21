@@ -1,6 +1,10 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.module';
-import { ClockDriftGuard, ClockService } from '../common/clock/clock.service';
+import {
+  CLOCK_CHECK_STALE_AFTER_MS,
+  ClockDriftGuard,
+  ClockService,
+} from '../common/clock/clock.service';
 import { VerificationGateway } from '../verification/verification.gateway';
 import { SmsGateway } from '../sms/sms.gateway';
 import { EmailGateway } from '../email/email.gateway';
@@ -25,6 +29,23 @@ const RECONCILIATION_BOOT_GRACE_SECONDS = 120;
 function deployedRevision(): string | null {
   const commit = process.env.RENDER_GIT_COMMIT?.trim();
   return commit ? commit : null;
+}
+
+/**
+ * The clock watchdog's liveness, next to its verdict.
+ *
+ * `checks.clock` answers "has the clock jumped", from the last check the guard
+ * ran. If its timer dies that answer simply stays the last one it ever gave, so
+ * the time of that check is reported separately instead of being folded into the
+ * verdict: a stopped watchdog is not evidence the clock moved.
+ */
+export interface ClockGuardReport {
+  /** When the drift check last ran; null before the first check or after shutdown. */
+  lastCheckedAt: string | null;
+  /** Milliseconds of backwards drift observed, if any. */
+  observedDriftMs: number | null;
+  /** True when no check has run for longer than two intervals. */
+  stale: boolean;
 }
 
 /**
@@ -58,6 +79,8 @@ export interface HealthReport {
   serverTime: string;
   uptimeSeconds: number;
   checks: Record<string, 'up' | 'down'>;
+  /** Whether the clock drift check is still being taken, and what it last saw. */
+  clockGuard: ClockGuardReport;
   /**
    * The last reconciliation sweep, in full.
    *
@@ -118,8 +141,22 @@ export class HealthService {
   async report(): Promise<HealthReport> {
     const database = await this.prisma.isHealthy();
     const clock = this.driftGuard.isHealthy();
+    const now = this.clock.now();
     const uptimeSeconds = Math.floor((Date.now() - this.bootedAt) / 1000);
-    const reconciliation = this.reconciliationState.snapshot(this.clock.now());
+    const checkedAtMs = this.driftGuard.lastCheckedAtMs();
+    // A fresh boot gets the same grace the sweeper does: the first check runs at
+    // bootstrap, so "no check yet" only means stopped once the instance is older
+    // than the interval it should have been checked in.
+    const clockGuardStale =
+      checkedAtMs === null
+        ? uptimeSeconds * 1000 >= CLOCK_CHECK_STALE_AFTER_MS
+        : now.getTime() - checkedAtMs > CLOCK_CHECK_STALE_AFTER_MS;
+    const clockGuard: ClockGuardReport = {
+      lastCheckedAt: checkedAtMs === null ? null : new Date(checkedAtMs).toISOString(),
+      observedDriftMs: this.driftGuard.observedDriftMs(),
+      stale: clockGuardStale,
+    };
+    const reconciliation = this.reconciliationState.snapshot(now);
     const pushBacklog = await this.pushBacklogQueue.measure();
     // Down means the recovery path is not doing its job — it never started, it
     // stopped (no sweep for longer than an interval, so the timer died even if
@@ -141,11 +178,17 @@ export class HealthService {
       status: database && clock ? 'ok' : 'degraded',
       service: 'matrimony-api',
       revision: deployedRevision(),
-      serverTime: this.clock.now().toISOString(),
+      serverTime: now.toISOString(),
       uptimeSeconds,
       checks: {
         database: database ? 'up' : 'down',
         clock: clock ? 'up' : 'down',
+        // Whether the watchdog is still sampling, kept apart from `clock` (its
+        // verdict): a timer that stopped leaves the verdict green, not wrong,
+        // so the two questions cannot share one answer. Like the sweeper's
+        // check, this is informational — a stopped watchdog does not fail
+        // readiness, because it is not evidence the clock moved.
+        clockGuard: clockGuardStale ? 'down' : 'up',
         // Informational, and deliberately not part of `status`: the API is
         // ready to serve even when KYC is switched off (every other surface
         // works). It is reported so a deploy can be checked from outside —
@@ -174,6 +217,7 @@ export class HealthService {
         // failed: the next tick simply never comes.
         pushDispatch: pushDispatchUp ? 'up' : 'down',
       },
+      clockGuard,
       reconciliation,
       pushBacklog,
       flags: { aiRecommendations: this.flags.describe('aiRecommendations') },

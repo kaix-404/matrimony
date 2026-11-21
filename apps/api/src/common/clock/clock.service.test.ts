@@ -92,6 +92,24 @@ describe('ClockDriftGuard', () => {
     }
   });
 
+  it('records when it last checked, so a stopped timer is visible', () => {
+    guard.check();
+    expect(guard.lastCheckedAtMs()).toBe(clock.now().getTime());
+
+    clock.advance(60_000);
+    guard.check();
+    expect(guard.lastCheckedAtMs()).toBe(clock.now().getTime());
+  });
+
+  it('records the check even when it finds a backwards jump', () => {
+    guard.check();
+    clock.advance(-600_000);
+    expect(() => guard.check()).toThrow();
+
+    // The watchdog did run; the report must not also call it stopped.
+    expect(guard.lastCheckedAtMs()).toBe(clock.now().getTime());
+  });
+
   it('is healthy until drift is actually observed', () => {
     guard.check();
     expect(guard.isHealthy()).toBe(true);
@@ -160,6 +178,7 @@ describe('ClockDriftGuard periodic monitoring', () => {
     // State is reset on destroy, so a destroyed guard is not still holding a
     // timer or a stale baseline.
     expect(guard.isHealthy()).toBe(true);
+    expect(guard.lastCheckedAtMs()).toBeNull();
     expect(jest.getTimerCount()).toBe(0);
   });
 });

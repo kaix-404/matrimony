@@ -1,4 +1,9 @@
-import { Injectable, Logger, type OnApplicationBootstrap, type OnModuleDestroy } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  type OnApplicationBootstrap,
+  type OnModuleDestroy,
+} from '@nestjs/common';
 
 /**
  * Server time, injected everywhere.
@@ -45,6 +50,18 @@ export class FrozenClock extends ClockService {
   }
 }
 
+/** How often the drift guard samples the clock. */
+export const CLOCK_CHECK_INTERVAL_MS = 60_000;
+
+/**
+ * How long without a sample before the watchdog is reported as stopped.
+ *
+ * Two intervals: one missed tick is a busy event loop, two is a timer that is
+ * not firing. The guard's verdict alone cannot show this — a dead timer leaves
+ * the last verdict, "no jump seen", standing forever.
+ */
+export const CLOCK_CHECK_STALE_AFTER_MS = 2 * CLOCK_CHECK_INTERVAL_MS;
+
 /**
  * Guards against a system clock that jumped backwards (NTP correction, VM
  * restore), which would silently extend live unlocks.
@@ -63,16 +80,19 @@ export class FrozenClock extends ClockService {
 @Injectable()
 export class ClockDriftGuard implements OnApplicationBootstrap, OnModuleDestroy {
   private static readonly MAX_BACKWARD_DRIFT_MS = 5_000;
-  private static readonly CHECK_INTERVAL_MS = 60_000;
   private readonly logger = new Logger(ClockDriftGuard.name);
   private lastSeenMs: number | null = null;
   private driftMs: number | null = null;
+  private lastCheckMs: number | null = null;
   private timer: NodeJS.Timeout | null = null;
 
   constructor(private readonly clock: ClockService) {}
 
   check(): void {
     const now = this.clock.nowMs();
+    // Recorded before the verdict: a check that finds a jump still happened, and
+    // the report must not also call the watchdog stopped.
+    this.lastCheckMs = now;
     if (this.lastSeenMs !== null && now < this.lastSeenMs - ClockDriftGuard.MAX_BACKWARD_DRIFT_MS) {
       this.driftMs = this.lastSeenMs - now;
       throw new Error(
@@ -93,10 +113,19 @@ export class ClockDriftGuard implements OnApplicationBootstrap, OnModuleDestroy 
     return this.driftMs;
   }
 
+  /**
+   * When the last check ran (epoch ms), or null before the first and after
+   * shutdown. The health report judges staleness against this, because
+   * `isHealthy()` keeps returning the last verdict once the timer dies.
+   */
+  lastCheckedAtMs(): number | null {
+    return this.lastCheckMs;
+  }
+
   onApplicationBootstrap(): void {
     // The first call only establishes the baseline and cannot throw.
     this.check();
-    this.timer = setInterval(() => this.safeCheck(), ClockDriftGuard.CHECK_INTERVAL_MS);
+    this.timer = setInterval(() => this.safeCheck(), CLOCK_CHECK_INTERVAL_MS);
     // Do not hold the event loop open on shutdown.
     this.timer.unref();
   }
@@ -120,5 +149,6 @@ export class ClockDriftGuard implements OnApplicationBootstrap, OnModuleDestroy 
     }
     this.lastSeenMs = null;
     this.driftMs = null;
+    this.lastCheckMs = null;
   }
 }

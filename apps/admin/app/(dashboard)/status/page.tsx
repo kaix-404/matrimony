@@ -39,6 +39,8 @@ interface HealthReport {
   reconciliation?: ReconciliationStatus;
   /** The push queue's age, or null when the API could not read it. */
   pushBacklog?: PushBacklog | null;
+  /** The clock watchdog's liveness; absent on an API older than the field. */
+  clockGuard?: ClockGuard;
   serverTime: string;
   uptimeSeconds: number;
   checks: Record<string, 'up' | 'down'>;
@@ -53,6 +55,13 @@ interface ReconciliationRun {
   recorded: { checked: number; replayed: number; skipped: number; failed: number } | null;
   identity: { checked: number; settled: number; pending: number; failed: number } | null;
   error: string | null;
+}
+
+/** The clock drift check as the API reports it. Mirrors the API's `ClockGuardReport`. */
+interface ClockGuard {
+  lastCheckedAt: string | null;
+  observedDriftMs: number | null;
+  stale: boolean;
 }
 
 /** The push queue as the API measures it. Mirrors the API's `PushBacklog`. */
@@ -331,11 +340,26 @@ export default async function StatusPage() {
               <dd>
                 {report.checks.clock === 'up' ? 'Stable' : 'Jumped - expiry cannot be trusted'}
               </dd>
+              <dt>Clock checked</dt>
+              <dd>
+                {report.clockGuard === undefined
+                  ? 'Not reported by this API build'
+                  : report.clockGuard.lastCheckedAt === null
+                    ? 'Not yet'
+                    : formatDateTime(report.clockGuard.lastCheckedAt)}
+              </dd>
               <dt>Server time</dt>
               <dd>{formatDateTime(report.serverTime)}</dd>
               <dt>Running for</dt>
               <dd>{humanSeconds(report.uptimeSeconds)}</dd>
             </dl>
+            {report.clockGuard?.stale ? (
+              <p className="notice">
+                The drift check has not run for longer than two intervals, so &quot;Stable&quot; is
+                its last verdict rather than a current one. Restarting the API re-arms it; unlock
+                expiry is priced against this clock.
+              </p>
+            ) : null}
           </div>
 
           <div className="card">

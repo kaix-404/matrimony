@@ -365,9 +365,15 @@ const routes = {
       revision: 'cf17aa3c9f1b3a5e8d2c4b6a0f9e1d3c5b7a9f2e',
       serverTime: new Date(now).toISOString(),
       uptimeSeconds: Math.floor(process.uptime()),
+      clockGuard: {
+        lastCheckedAt: new Date(now - 25_000).toISOString(),
+        observedDriftMs: null,
+        stale: false,
+      },
       checks: {
         database: 'up',
         clock: 'up',
+        clockGuard: 'up',
         identityVerification: 'up',
         sms: 'up',
         email: 'down',

@@ -38,6 +38,7 @@ async function build(
     paymentWebhooks?: boolean;
     reconciliation?: Partial<ReconciliationStatus>;
     pushBacklog?: Partial<PushBacklog> | null;
+    clockCheckedAtMs?: number | null;
     recommendations?: number;
   } = {},
 ) {
@@ -50,7 +51,19 @@ async function build(
         provide: ClockService,
         useValue: { now: (): Date => new Date('2026-11-11T12:00:00.000Z') },
       },
-      { provide: ClockDriftGuard, useValue: { isHealthy: () => options.clock ?? true } },
+      {
+        provide: ClockDriftGuard,
+        useValue: {
+          isHealthy: () => options.clock ?? true,
+          observedDriftMs: () => null,
+          // Fresh relative to the frozen clock below, so the basic report is a
+          // guard that is still checking.
+          lastCheckedAtMs: () =>
+            options.clockCheckedAtMs === undefined
+              ? new Date('2026-11-11T11:59:30.000Z').getTime()
+              : options.clockCheckedAtMs,
+        },
+      },
       { provide: VerificationGateway, useValue: { configured: options.identity ?? false } },
       { provide: SmsGateway, useValue: { configured: options.sms ?? false } },
       { provide: EmailGateway, useValue: { configured: options.email ?? false } },
@@ -116,6 +129,7 @@ describe('HealthController (section 46 readiness)', () => {
     expect(report.checks).toEqual({
       database: 'up',
       clock: 'up',
+      clockGuard: 'up',
       identityVerification: 'up',
       sms: 'up',
       email: 'down',
@@ -176,6 +190,47 @@ describe('HealthController (section 46 readiness)', () => {
     expect(report.status).toBe('ok');
     expect(report.checks.reconciliation).toBe('down');
     expect(report.reconciliation).toMatchObject({ consecutiveFailures: 0, stale: true });
+  });
+
+  it('reports when the clock was last checked', async () => {
+    const controller = await build().then((ref) => ref.get(HealthController));
+
+    const report = await controller.ready();
+
+    expect(report.clockGuard).toEqual({
+      lastCheckedAt: '2026-11-11T11:59:30.000Z',
+      observedDriftMs: null,
+      stale: false,
+    });
+    expect(report.checks.clockGuard).toBe('up');
+  });
+
+  it('marks the clock guard down when it has not checked recently, without failing readiness', async () => {
+    const controller = await build({
+      clockCheckedAtMs: new Date('2026-11-11T11:55:00.000Z').getTime(),
+    }).then((ref) => ref.get(HealthController));
+
+    const report = await controller.ready();
+
+    // "No jump seen" is the last verdict, five minutes old. That is not the clock
+    // jumping, so readiness stays ok; but it is no longer a current answer.
+    expect(report.status).toBe('ok');
+    expect(report.checks.clock).toBe('up');
+    expect(report.checks.clockGuard).toBe('down');
+    expect(report.clockGuard).toMatchObject({ stale: true, observedDriftMs: null });
+  });
+
+  it('gives a guard that has not checked yet the boot grace', async () => {
+    const controller = await build({ clockCheckedAtMs: null }).then((ref) =>
+      ref.get(HealthController),
+    );
+
+    const report = await controller.ready();
+
+    // Booted milliseconds ago: the first check runs at bootstrap, so this is not
+    // yet a stopped watchdog.
+    expect(report.clockGuard).toMatchObject({ lastCheckedAt: null, stale: false });
+    expect(report.checks.clockGuard).toBe('up');
   });
 
   it('reports the push queue, so a dispatcher that stopped is visible', async () => {
