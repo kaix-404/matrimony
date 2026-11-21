@@ -5,45 +5,47 @@ import { PUSH_MAX_ATTEMPTS, PUSH_SENDING_STALE_MS } from './push-dispatch.consta
 /**
  * The backlog is what makes a stopped push dispatcher visible. These tests pin
  * the two things that decide it: which rows count as due (the dispatcher's own
- * conditions, so the two cannot drift) and how old the oldest may be before the
- * queue is called stuck.
+ * conditions, kept as a semi-join on `DeviceToken` rather than a join of every
+ * user) and how old the oldest may be before the queue is called stuck.
  */
 const NOW = new Date('2026-11-11T12:00:00.000Z');
 
-interface GroupRow {
+interface QueueCountRow {
   status: string;
-  _count: { _all: number };
-  _min: { createdAt: Date | null };
+  count: bigint;
+  oldest: Date | null;
 }
 
-interface AggregateArgs {
-  where: { OR: Record<string, unknown>[] };
+interface QueryCall {
+  sql: string;
+  values: unknown[];
 }
 
 function minutesBefore(minutes: number): Date {
   return new Date(NOW.getTime() - minutes * 60_000);
 }
 
-function make(rows: GroupRow[] | Error): {
+function make(rows: QueueCountRow[] | Error): {
   service: PushBacklogService;
-  calls: AggregateArgs[];
+  calls: QueryCall[];
 } {
-  const calls: AggregateArgs[] = [];
+  const calls: QueryCall[] = [];
   const prisma = {
-    notification: {
-      groupBy: async (args: AggregateArgs): Promise<GroupRow[]> => {
-        calls.push(args);
-        if (rows instanceof Error) throw rows;
-        return rows;
-      },
+    $queryRaw: async (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ): Promise<QueueCountRow[]> => {
+      calls.push({ sql: strings.join('?'), values });
+      if (rows instanceof Error) throw rows;
+      return rows;
     },
   };
   const service = new PushBacklogService(prisma as never, new FrozenClock(NOW));
   return { service, calls };
 }
 
-function row(status: 'PENDING' | 'SENDING', count: number, oldest: Date | null): GroupRow {
-  return { status, _count: { _all: count }, _min: { createdAt: oldest } };
+function row(status: 'PENDING' | 'SENDING', count: number, oldest: Date | null): QueueCountRow {
+  return { status, count: BigInt(count), oldest };
 }
 
 describe('PushBacklogService', () => {
@@ -81,25 +83,20 @@ describe('PushBacklogService', () => {
     });
   });
 
-  it('asks for exactly the rows the dispatcher would take, plus the ones it would requeue', async () => {
+  it('asks for the dispatcher’s rows with a semi-join, not a join of every user', async () => {
     const { service, calls } = make([]);
 
     await service.measure();
 
-    // Mirrors `PushDispatchService.dispatch`: pending, retries left, a device to
-    // send to, and stale `SENDING` rows a live dispatcher would put back.
-    expect(calls[0].where.OR).toEqual([
-      {
-        channel: 'PUSH',
-        status: 'PENDING',
-        attempts: { lt: PUSH_MAX_ATTEMPTS },
-        user: { deviceTokens: { some: {} } },
-      },
-      {
-        channel: 'PUSH',
-        status: 'SENDING',
-        updatedAt: { lt: new Date(NOW.getTime() - PUSH_SENDING_STALE_MS) },
-      },
+    // The device check is an EXISTS against `DeviceToken`: Prisma's relation
+    // filter would add `LEFT JOIN "User"`, which measured a full scan of the user
+    // table per call. Asserting the shape keeps that regression from returning.
+    expect(calls[0].sql).toContain('EXISTS (SELECT 1 FROM "DeviceToken"');
+    expect(calls[0].sql).not.toContain('JOIN "User"');
+    expect(calls[0].sql).toContain('"channel" = \'PUSH\'');
+    expect(calls[0].values).toEqual([
+      PUSH_MAX_ATTEMPTS,
+      new Date(NOW.getTime() - PUSH_SENDING_STALE_MS),
     ]);
   });
 
