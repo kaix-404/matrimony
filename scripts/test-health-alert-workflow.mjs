@@ -60,6 +60,39 @@ function workflowEnv(yaml, key) {
   return found[1].trim();
 }
 
+/** A top-level two-space-indented `key: value` block, such as the permissions map. */
+function blockMap(yamlText, name) {
+  const lines = yamlText.split(/\r?\n/);
+  const start = lines.indexOf(`${name}:`);
+  const map = {};
+  if (start === -1) return map;
+  for (let at = start + 1; at < lines.length; at += 1) {
+    const line = lines[at];
+    if (line.trim() === '') continue;
+    if (!line.startsWith('  ')) break;
+    const found = line.match(/^ {2}([\w-]+):\s*(.*)$/);
+    if (found !== null) map[found[1]] = found[2].trim();
+  }
+  return map;
+}
+
+/** The cron entries under `on: schedule:`, comments skipped. */
+function scheduledCrons(yamlText) {
+  const lines = yamlText.split(/\r?\n/);
+  const start = lines.indexOf('  schedule:');
+  const crons = [];
+  if (start === -1) return crons;
+  for (let at = start + 1; at < lines.length; at += 1) {
+    const line = lines[at];
+    const trimmed = line.trim();
+    if (trimmed === '' || trimmed.startsWith('#')) continue;
+    if (!line.startsWith('    ')) break;
+    const found = trimmed.match(/^- cron:\s*'?([^']+?)'?$/);
+    if (found !== null) crons.push(found[1].trim());
+  }
+  return crons;
+}
+
 const yaml = fs.readFileSync(workflowFile, 'utf8');
 const script = readProbeStep(yaml);
 const alertUrl = workflowEnv(yaml, 'ALERT_URL');
@@ -189,6 +222,32 @@ check('the step under test is the deployed probe script', () => ({
     scriptText.includes('$ALERT_URL'),
   detail: `${script.length} lines read from health-alert.yml`,
 }));
+
+// The branches below can all be right while the workflow never runs: no trigger
+// means no probe, and no `issues: write` means every gh call is refused. Both
+// failures are silent, so the shape of the workflow is asserted too.
+check('still fires on its cron schedule', () => {
+  const crons = scheduledCrons(yaml);
+  const expected = '*/30 * * * *';
+  return {
+    ok: crons.length === 1 && crons[0] === expected,
+    detail:
+      crons.length === 0
+        ? 'no schedule trigger: the probe would only ever run by hand'
+        : `${crons.join(', ')}${crons[0] === expected ? '' : ` (expected ${expected})`}`,
+  };
+});
+
+check('still allowed to open and close issues', () => {
+  const permissions = blockMap(yaml, 'permissions');
+  return {
+    ok: permissions.issues === 'write',
+    detail:
+      permissions.issues === undefined
+        ? 'no issues permission: gh issue create would be refused'
+        : `issues: ${permissions.issues}`,
+  };
+});
 
 check('names the URL and label the workflow configures', () => {
   const run = probe({ status: '200', body: healthy });
