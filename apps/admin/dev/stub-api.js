@@ -365,6 +365,8 @@ const routes = {
     // STUB_RETENTION_DUE_HOURS past 12 to see the console's Overdue state.
     const retentionDueHours = Number(process.env.STUB_RETENTION_DUE_HOURS ?? 0);
     const retentionWaiting = retentionDueHours > 0;
+    // Set STUB_RETENTION_UNDATED to see the card's undated-deletion row and notice.
+    const retentionUndated = Number(process.env.STUB_RETENTION_UNDATED ?? 0);
     return {
       status: 'ok',
       revision: 'cf17aa3c9f1b3a5e8d2c4b6a0f9e1d3c5b7a9f2e',
@@ -412,6 +414,7 @@ const routes = {
       },
       accountRetention: {
         due: retentionWaiting ? 3 : 0,
+        undated: retentionUndated,
         oldestDueAt: retentionWaiting
           ? new Date(now - retentionDueHours * 3_600_000).toISOString()
           : null,

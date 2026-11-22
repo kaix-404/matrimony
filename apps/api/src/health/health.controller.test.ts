@@ -120,6 +120,7 @@ async function build(
               ? null
               : {
                   due: 0,
+                  undated: 0,
                   oldestDueAt: null,
                   oldestOverdueSeconds: null,
                   overdue: false,
@@ -311,6 +312,7 @@ describe('HealthController (section 46 readiness)', () => {
     const controller = await build({
       accountRetention: {
         due: 2,
+        undated: 5,
         oldestDueAt: '2026-11-01T00:00:00.000Z',
         oldestOverdueSeconds: 3600,
       },
@@ -318,7 +320,13 @@ describe('HealthController (section 46 readiness)', () => {
 
     const report = await controller.ready();
 
-    expect(report.accountRetention).toMatchObject({ due: 2, oldestOverdueSeconds: 3600 });
+    expect(report.accountRetention).toMatchObject({
+      due: 2,
+      oldestOverdueSeconds: 3600,
+      // The undated cohort travels with the report so the console can show it
+      // without running the SQL by hand.
+      undated: 5,
+    });
     expect(report.checks.accountRetention).toBe('up');
   });
 

@@ -17,15 +17,21 @@ interface AggregateArgs {
   where: { isAnonymised: boolean; purgeAfter: { lte: Date } };
 }
 
+interface CountArgs {
+  where: { isAnonymised: boolean; purgeAfter: null; deletedAt: { not: null } };
+}
+
 function hoursBefore(hours: number): Date {
   return new Date(NOW.getTime() - hours * 3_600_000);
 }
 
-function make(result: { count: number; oldest: Date | null } | Error): {
+function make(result: { count: number; oldest: Date | null; undated?: number } | Error): {
   service: AccountRetentionStatusService;
   calls: AggregateArgs[];
+  countCalls: CountArgs[];
 } {
   const calls: AggregateArgs[] = [];
+  const countCalls: CountArgs[] = [];
   const prisma = {
     user: {
       aggregate: async (args: AggregateArgs) => {
@@ -33,10 +39,15 @@ function make(result: { count: number; oldest: Date | null } | Error): {
         if (result instanceof Error) throw result;
         return { _count: { _all: result.count }, _min: { purgeAfter: result.oldest } };
       },
+      count: async (args: CountArgs) => {
+        countCalls.push(args);
+        if (result instanceof Error) throw result;
+        return result.undated ?? 0;
+      },
     },
   };
   const service = new AccountRetentionStatusService(prisma as never, new FrozenClock(NOW));
-  return { service, calls };
+  return { service, calls, countCalls };
 }
 
 describe('AccountRetentionStatusService', () => {
@@ -45,6 +56,7 @@ describe('AccountRetentionStatusService', () => {
 
     expect(await service.measure()).toEqual({
       due: 2,
+      undated: 0,
       oldestDueAt: hoursBefore(3).toISOString(),
       oldestOverdueSeconds: 3 * 3600,
       // One interval is a legitimate wait: the next six-hourly pass will take it.
@@ -72,9 +84,24 @@ describe('AccountRetentionStatusService', () => {
 
     expect(await service.measure()).toEqual({
       due: 0,
+      undated: 0,
       oldestDueAt: null,
       oldestOverdueSeconds: null,
       overdue: false,
+    });
+  });
+
+  it('counts soft-deleted accounts with no deadline, so finding one needs no SQL by hand', async () => {
+    const { service, countCalls } = make({ count: 0, oldest: null, undated: 4 });
+
+    expect(await service.measure()).toMatchObject({ due: 0, undated: 4 });
+
+    // The cohort `due` cannot express: these rows have no deadline to be late
+    // for, and the sweep reaches them through its `deletedAt` fallback.
+    expect(countCalls[0].where).toEqual({
+      isAnonymised: false,
+      purgeAfter: null,
+      deletedAt: { not: null },
     });
   });
 
@@ -85,7 +112,7 @@ describe('AccountRetentionStatusService', () => {
 
     // The dated cohort, which is what this count is about. `purgeDue` also erases
     // an undated deletion by its deletion date; that row is not overdue in the
-    // deadline sense and is not counted here.
+    // deadline sense, so it is reported separately as `undated`.
     expect(calls[0].where).toEqual({ isAnonymised: false, purgeAfter: { lte: NOW } });
     expect(ACCOUNT_RETENTION_INTERVAL_MS).toBe(6 * 60 * 60_000);
   });

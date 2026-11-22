@@ -15,6 +15,7 @@ queue itself, which is the evidence a stopped timer cannot fake:
 "checks": { "…": "…", "accountRetention": "up" },
 "accountRetention": {
   "due": 3,
+  "undated": 0,
   "oldestDueAt": "2026-11-21T04:26:55.028Z",
   "oldestOverdueSeconds": 50400,
   "overdue": true
@@ -23,6 +24,10 @@ queue itself, which is the evidence a stopped timer cannot fake:
 
 - `due` — accounts past `purgeAfter` that are still `isAnonymised = false`: the
   whole overdue set, and the number an audit asks for.
+- `undated` — soft-deleted accounts with no `purgeAfter` at all. The sweep
+  erases them by their deletion date, so this is not a backlog and does not
+  affect `overdue`; it should be 0, and a count that climbs means a writer is
+  creating deletions without a deadline.
 - `oldestDueAt` — when the oldest of those became due, i.e. when the purge was
   owed, not when the account was deleted.
 - `oldestOverdueSeconds` — how far past that deadline the oldest one is.
@@ -59,10 +64,12 @@ limit 20;
 ```
 
 The other shape of the same hole is a row soft-deleted with no deadline at all.
-Both the sweep and this count read `purgeAfter`, so such a row is invisible to
-them; the sweep now falls back to its deletion date, and migration
+The sweep falls back to its deletion date, and migration
 `20261121170000_backfill_missing_purge_after` gives the existing ones a deadline.
-Until it is backfilled it is not counted in `due`, so check for it directly:
+Such a row is not part of `due` — that cohort is defined by a deadline — and it
+never fails the check, because the sweep erases it on its next pass. It is
+reported as `undated` on the card and in the payload; inspect the rows when that
+count is not zero:
 
 ```sql
 select u.id, u."deletedAt"

@@ -62,6 +62,14 @@ interface ReconciliationRun {
 /** The retention queue as the API measures it. Mirrors the API's `AccountRetentionReport`. */
 interface AccountRetention {
   due: number;
+  /**
+   * Deleted accounts with no purge date at all.
+   *
+   * Optional because it arrived with this field's release: an admin newer than
+   * the API it reads must still render, and the row shows `-` rather than
+   * claiming there are none.
+   */
+  undated?: number;
   oldestDueAt: string | null;
   oldestOverdueSeconds: number | null;
   overdue: boolean;
@@ -532,6 +540,8 @@ export default async function StatusPage() {
                   </dd>
                   <dt>Past purge date</dt>
                   <dd>{report.accountRetention.due}</dd>
+                  <dt>Deleted with no purge date</dt>
+                  <dd>{report.accountRetention.undated ?? '-'}</dd>
                   <dt>Oldest due</dt>
                   <dd>
                     {report.accountRetention.oldestDueAt === null
@@ -547,6 +557,15 @@ export default async function StatusPage() {
                     The oldest account is more than two sweep intervals past its purge date, so the
                     timer that anonymises accounts has probably stopped. Restarting the API re-arms
                     it; the rows stay overdue until a sweep runs.
+                  </p>
+                ) : null}
+
+                {(report.accountRetention.undated ?? 0) > 0 ? (
+                  <p className="notice">
+                    These accounts were deleted without a purge date, so the sweep erases them by
+                    their deletion date instead of a deadline. The backfill migration gives existing
+                    rows a deadline; a count that keeps climbing means something is creating
+                    deletions without one.
                   </p>
                 ) : null}
               </>
