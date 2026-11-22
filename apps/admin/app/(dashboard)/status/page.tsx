@@ -231,6 +231,19 @@ function humanSeconds(seconds: number): string {
 function retentionState(retention: AccountRetention): { label: string; tone: 'done' | 'wip' } {
   if (retention.overdue) return { label: 'Overdue', tone: 'wip' };
   if (retention.due > 0) return { label: 'Due on the next sweep', tone: 'done' };
+  // The real alert states are above and stay the only ones. Undated rows do not
+  // join them: the sweep erases them by their deletion date, so nothing is owed
+  // and the check stays up. Reporting them as "Up to date" here was the lie —
+  // the row below said otherwise and the pill contradicted it. "done" because
+  // this describes the queue, not a fault; the notice under the table is where
+  // the backfill and the climbing-count signal live.
+  const undated = retention.undated ?? 0;
+  if (undated > 0) {
+    return {
+      label: `${undated} deleted with no purge date`,
+      tone: 'done',
+    };
+  }
   return { label: 'Up to date', tone: 'done' };
 }
 
