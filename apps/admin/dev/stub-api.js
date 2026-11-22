@@ -388,7 +388,9 @@ const routes = {
         push: 'up',
         reconciliation: 'up',
         pushDispatch: 'up',
-        accountRetention: retentionDueHours > 12 ? 'down' : 'up',
+        // Mirrors the API: retention is down for an overdue purge, or for a
+        // deletion that has no purge date at all.
+        accountRetention: retentionDueHours > 12 || retentionUndated > 0 ? 'down' : 'up',
       },
       reconciliation: {
         runs: 7,

@@ -26,8 +26,8 @@ queue itself, which is the evidence a stopped timer cannot fake:
   whole overdue set, and the number an audit asks for.
 - `undated` — soft-deleted accounts with no `purgeAfter` at all. The sweep
   erases them by their deletion date, so this is not a backlog and does not
-  affect `overdue`; it should be 0, and a count that climbs means a writer is
-  creating deletions without a deadline.
+  affect `overdue`; it should be 0, and any non-zero count fails the check and
+  opens the alert, because a writer is creating deletions without a deadline.
 - `oldestDueAt` — when the oldest of those became due, i.e. when the purge was
   owed, not when the account was deleted.
 - `oldestOverdueSeconds` — how far past that deadline the oldest one is.
@@ -41,6 +41,14 @@ The sweep has not anonymised what it owes: its timer has stopped, the process is
 wedged, or every pass is throwing. It does **not** fail readiness — the API still
 serves members — and nobody can see the affected accounts, because they are
 already deleted. What is slipping is the erasure deadline, not a feature.
+
+`down` also covers the other shape: an account deleted with no `purgeAfter` at
+all. Nothing is owed on those — the sweep falls back to the deletion date — so
+they are neither `due` nor `overdue`, and before this check existed only the
+console could show one. The two are told apart from the payload: `undated > 0`
+with `due: 0` is a writer that forgot the deadline (and the backfill above has
+not run, or a new path is writing deletions), while `overdue: true` is a timer
+that stopped.
 
 `accountRetention: null`, with the check `down`, means the table could not be
 read at all. "Could not ask" is not "nothing overdue".
@@ -64,12 +72,14 @@ limit 20;
 ```
 
 The other shape of the same hole is a row soft-deleted with no deadline at all.
-The sweep falls back to its deletion date, and migration
-`20261121170000_backfill_missing_purge_after` gives the existing ones a deadline.
-Such a row is not part of `due` — that cohort is defined by a deadline — and it
-never fails the check, because the sweep erases it on its next pass. It is
-reported as `undated` on the card and in the payload; inspect the rows when that
-count is not zero:
+The sweep falls back to the deletion date, so the row is erased once its own
+retention window closes, and migration
+`20261121170000_backfill_missing_purge_after` gives the existing ones an explicit
+deadline. Such a row is not part of `due` — that cohort is defined by a deadline —
+but it does fail the check: zero is the expected state once the backfill has run,
+because no code path writes a deletion without a deadline, and `due` cannot see a
+row that has none. It is reported as `undated` on the card and in the payload;
+inspect the rows when that count is not zero:
 
 ```sql
 select u.id, u."deletedAt"

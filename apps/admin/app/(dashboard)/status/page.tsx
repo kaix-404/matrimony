@@ -422,7 +422,9 @@ export default async function StatusPage() {
                     These accounts were deleted without a purge date, so the sweep erases them by
                     their deletion date instead of a deadline. The backfill migration gives existing
                     rows a deadline; a count that keeps climbing means something is creating
-                    deletions without one.
+                    deletions without one. The same count reports{' '}
+                    <code>accountRetention: down</code>, so it reaches the alert probe without
+                    anyone opening this page.
                   </p>
                 ) : null}
               </>

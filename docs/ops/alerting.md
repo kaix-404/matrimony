@@ -22,14 +22,14 @@ the console. That is the silence the checks were built to end.
 It answers **200** when every alerted check is up and **503** when any of them is
 down. The alerted set is fixed in `apps/api/src/health/health-alerts.ts`:
 
-| check              | down means                                                     |
-| ------------------ | -------------------------------------------------------------- |
-| `database`         | the pool cannot execute a query                                |
-| `clock`            | the clock jumped backwards; payments and unlock windows unsafe |
-| `clockGuard`       | the drift watchdog stopped sampling                            |
-| `reconciliation`   | the recovery sweep never ran, stopped, or every run threw      |
-| `pushDispatch`     | queued pushes have waited longer than five dispatch intervals  |
-| `accountRetention` | the oldest account is more than two sweeps past `purgeAfter`   |
+| check              | down means                                                         |
+| ------------------ | ------------------------------------------------------------------ |
+| `database`         | the pool cannot execute a query                                    |
+| `clock`            | the clock jumped backwards; payments and unlock windows unsafe     |
+| `clockGuard`       | the drift watchdog stopped sampling                                |
+| `reconciliation`   | the recovery sweep never ran, stopped, or every run threw          |
+| `pushDispatch`     | queued pushes have waited longer than five dispatch intervals      |
+| `accountRetention` | a purge is past its deadline, or a deletion has no deadline at all |
 
 The provider checks are deliberately **not** alerted. `email: down` today means
 the MSG91 credentials have not been entered; paging every half hour until someone

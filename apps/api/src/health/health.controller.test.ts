@@ -297,6 +297,21 @@ describe('HealthController (section 46 readiness)', () => {
     expect(status).toHaveBeenCalledWith(503);
   });
 
+  it('alerts on a deletion that has no purge date', async () => {
+    const controller = await build({ accountRetention: { undated: 2 } }).then((ref) =>
+      ref.get(HealthController),
+    );
+    const status = jest.fn();
+
+    const alert = await controller.alerts({ status } as never);
+
+    // The probe names the same check an overdue purge does: both mean the
+    // retention mechanism is not doing what it was built to do, and the counts
+    // on `/health/ready` say which one it is.
+    expect(alert.down).toEqual(['accountRetention']);
+    expect(status).toHaveBeenCalledWith(503);
+  });
+
   it('does not carry backlog counts or provider state into the public alert', async () => {
     const controller = await build({
       accountRetention: { due: 3, oldestOverdueSeconds: 90_000, overdue: true },
@@ -308,7 +323,7 @@ describe('HealthController (section 46 readiness)', () => {
     expect(Object.keys(alert).sort()).toEqual(['checkedAt', 'down', 'status']);
   });
 
-  it('reports the retention queue, so a missed purge is visible', async () => {
+  it('reports undated deletions and fails the check for them', async () => {
     const controller = await build({
       accountRetention: {
         due: 2,
@@ -327,7 +342,10 @@ describe('HealthController (section 46 readiness)', () => {
       // without running the SQL by hand.
       undated: 5,
     });
-    expect(report.checks.accountRetention).toBe('up');
+    // Not a backlog — nothing is owed on a row with no deadline — but it should
+    // not exist: zero is the expected state once the backfill has run, and only
+    // this check makes a writer that forgot the deadline reach a person.
+    expect(report.checks.accountRetention).toBe('down');
   });
 
   it('marks retention down when an account is more than two sweeps past its purge date', async () => {

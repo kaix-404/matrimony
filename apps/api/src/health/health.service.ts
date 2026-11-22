@@ -194,7 +194,19 @@ export class HealthService {
     // always expected. An unreadable table is down for the same reason an
     // unreadable push queue is — the answer is unknown, and the failure being
     // reported is silence.
-    const retentionUp = accountRetention !== null && !accountRetention.overdue;
+    //
+    // Undated rows are the second way this fails. A deletion written without
+    // `purgeAfter` is not late — the sweep falls back to the deletion date — so it
+    // must not read as `overdue`; but it should not exist either, and `due` cannot
+    // see it. Once the backfill has run, zero is the invariant, so any count at
+    // all means a writer is creating deletions without a deadline. That is the one
+    // state where an audit reading `purgeAfter` finds nothing overdue while rows
+    // sit past their window, so it is reported against this same check rather than
+    // a new one: `down` still means "the retention mechanism is not doing what it
+    // was built to do", and the counts on `/health/ready` and the console say
+    // which of the two it is.
+    const retentionUp =
+      accountRetention !== null && !accountRetention.overdue && accountRetention.undated === 0;
     return {
       status: database && clock ? 'ok' : 'degraded',
       service: 'matrimony-api',

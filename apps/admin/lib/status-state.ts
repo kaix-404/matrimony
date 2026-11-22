@@ -113,19 +113,19 @@ export function pushState(backlog: PushBacklog, configured: boolean): QueueState
  * two intervals: the sweep runs every six hours, so a deadline that passed this
  * morning is not yet a fault.
  *
- * The two alert states are checked first and stay the only ones. Undated rows do
- * not join them: the sweep erases them by their deletion date, so nothing is owed
- * and the check stays up. Calling that queue "Up to date" was the lie — the row
- * below the pill said otherwise. It is `done` because this describes the queue,
- * not a fault; the notice under the table is where the backfill and the
- * climbing-count signal live.
+ * Undated rows are `wip`: nothing is owed on them, but they should not exist at
+ * all. Expected state is zero, and a non-zero count fails the same health check
+ * that reports overdue rows, so the pill and `/health/alerts` agree. Calling the
+ * queue "Up to date" here was the lie — the row below the pill said otherwise.
+ * The notice under the table is where the backfill and the climbing-count signal
+ * live.
  */
 export function retentionState(retention: AccountRetention): QueueState {
   if (retention.overdue) return { label: 'Overdue', tone: 'wip' };
   if (retention.due > 0) return { label: 'Due on the next sweep', tone: 'done' };
   const undated = retention.undated ?? 0;
   if (undated > 0) {
-    return { label: `${undated} deleted with no purge date`, tone: 'done' };
+    return { label: `${undated} deleted with no purge date`, tone: 'wip' };
   }
   return { label: 'Up to date', tone: 'done' };
 }

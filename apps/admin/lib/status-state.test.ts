@@ -64,21 +64,22 @@ describe('retentionState', () => {
   it('names undated deletions instead of calling the queue up to date', () => {
     expect(retentionState(retention({ undated: 2 }))).toEqual({
       label: '2 deleted with no purge date',
-      tone: 'done',
+      tone: 'wip',
     });
   });
 
   it('reads the same way for a single undated row', () => {
     expect(retentionState(retention({ undated: 1 }))).toEqual({
       label: '1 deleted with no purge date',
-      tone: 'done',
+      tone: 'wip',
     });
   });
 
-  it('does not turn undated rows into a warning', () => {
-    // The sweep erases them by their deletion date, so nothing is owed. `wip`
-    // here would put a stopped-timer reading on a queue that is fine.
-    expect(retentionState(retention({ undated: 9 })).tone).toBe('done');
+  it('warns, because the same count fails the retention check', () => {
+    // Expected state is zero once the backfill has run: a non-zero count means a
+    // writer is creating deletions without a deadline, which `/health/alerts`
+    // now reports. A green pill here would disagree with the probe.
+    expect(retentionState(retention({ undated: 9 })).tone).toBe('wip');
   });
 
   it('reports overdue ahead of everything else', () => {
