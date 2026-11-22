@@ -227,6 +227,34 @@ tbody tr:hover {
   color: var(--danger-fg);
 }
 
+/*
+ * The System status card's state pills. The tone is the part read at a glance:
+ * `done` for a fact the deployment is fine with, `wip` for something that is not
+ * where it should be. These had no rules at all, so every state rendered as the
+ * same plain text and the label was the only signal.
+ */
+.pill {
+  display: inline-block;
+  max-width: 100%;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.5;
+  background: var(--neutral-bg);
+  color: var(--neutral-fg);
+}
+
+.pill.done {
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+
+.pill.wip {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
 .filters {
   display: flex;
   gap: 8px;
