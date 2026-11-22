@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import type { AccountDeletionResult } from '@matrimony/shared';
 import { Prisma, PrismaClient, UserStatus } from '../prisma/prisma-client';
 import { ClockService } from '../common/clock/clock.service';
@@ -148,8 +154,19 @@ export class AccountDeletionService {
    * for a row already erased.
    */
   async purgeDue(now: Date = this.clock.now()): Promise<number> {
+    // A soft-deleted row with no deadline is invisible to both this pass and the
+    // readiness count, because both read `purgeAfter`: it would be retained
+    // forever with nothing to report it. No current path writes that state —
+    // `deleteAccount` sets the deadline in the same transaction as `deletedAt`,
+    // and a restore clears both — but a hand-edited row or an older writer still
+    // would. An undated deletion therefore falls back to its own deletion date,
+    // so it is erased on the same schedule instead of never.
+    const windowStart = addMonths(now, -this.env.DELETED_ACCOUNT_RETENTION_MONTHS);
     const due = await this.prisma.user.findMany({
-      where: { purgeAfter: { lte: now }, isAnonymised: false },
+      where: {
+        isAnonymised: false,
+        OR: [{ purgeAfter: { lte: now } }, { purgeAfter: null, deletedAt: { lte: windowStart } }],
+      },
       select: { id: true, profile: { select: { id: true } } },
     });
 

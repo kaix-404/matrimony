@@ -58,6 +58,20 @@ order by u."purgeAfter"
 limit 20;
 ```
 
+The other shape of the same hole is a row soft-deleted with no deadline at all.
+Both the sweep and this count read `purgeAfter`, so such a row is invisible to
+them; the sweep now falls back to its deletion date, and migration
+`20261121170000_backfill_missing_purge_after` gives the existing ones a deadline.
+Until it is backfilled it is not counted in `due`, so check for it directly:
+
+```sql
+select u.id, u."deletedAt"
+from "User" u
+where u."deletedAt" is not null
+  and u."purgeAfter" is null
+  and u."isAnonymised" = false;
+```
+
 - Rows whose `overdue` grows between two checks are the stopped-timer case. Rows
   that stay the same count and then vanish were anonymised by a sweep.
 - The log says `Account retention sweep failed; will retry on the next interval.`

@@ -83,8 +83,9 @@ describe('AccountRetentionStatusService', () => {
 
     await service.measure();
 
-    // Same predicate as `AccountDeletionService.purgeDue`, so the check cannot
-    // report a queue the sweep does not see.
+    // The dated cohort, which is what this count is about. `purgeDue` also erases
+    // an undated deletion by its deletion date; that row is not overdue in the
+    // deadline sense and is not counted here.
     expect(calls[0].where).toEqual({ isAnonymised: false, purgeAfter: { lte: NOW } });
     expect(ACCOUNT_RETENTION_INTERVAL_MS).toBe(6 * 60 * 60_000);
   });

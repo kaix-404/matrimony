@@ -19,6 +19,8 @@ interface UserRow {
   mobile: string;
   email: string | null;
   purgeAfter: Date | null;
+  /** Set by the soft delete; an undated deletion is due by this date instead. */
+  deletedAt: Date | null;
   isAnonymised: boolean;
   status: string;
   lockedUntil: Date | null;
@@ -46,6 +48,7 @@ function user(overrides: Partial<UserRow> = {}): UserRow {
     mobile: '9876543210',
     email: 'a@example.com',
     purgeAfter: new Date('2026-10-01T00:00:00.000Z'),
+    deletedAt: new Date('2026-04-01T00:00:00.000Z'),
     isAnonymised: false,
     status: 'DELETED',
     lockedUntil: null,
@@ -117,7 +120,11 @@ function makeService(
       findMany: async ({
         where,
       }: {
-        where: { purgeAfter?: { lte: Date }; isAnonymised?: boolean };
+        where: {
+          isAnonymised?: boolean;
+          /** The two ways a row can be due: deadline passed, or undated deletion. */
+          OR?: ({ purgeAfter: { lte: Date } } | { purgeAfter: null; deletedAt: { lte: Date } })[];
+        };
       }) => {
         calls.push({ model: 'user', op: 'findMany' });
         return users
@@ -126,10 +133,19 @@ function makeService(
             // due or already anonymised, and the idempotency claim would be
             // untested.
             if (where.isAnonymised === false && u.isAnonymised) return false;
-            if (where.purgeAfter?.lte) {
-              if (!u.purgeAfter || u.purgeAfter > where.purgeAfter.lte) return false;
-            }
-            return true;
+            if (!where.OR) return true;
+            return where.OR.some((clause) => {
+              if (clause.purgeAfter === null) {
+                // Undated deletion: due by when it was deleted, not by a deadline
+                // it never had.
+                return (
+                  u.purgeAfter === null &&
+                  u.deletedAt !== null &&
+                  u.deletedAt <= clause.deletedAt.lte
+                );
+              }
+              return u.purgeAfter !== null && u.purgeAfter <= clause.purgeAfter.lte;
+            });
           })
           .map((u) => ({
             id: u.id,
@@ -291,6 +307,30 @@ describe('AccountDeletionService.purgeDue', () => {
     expect(calls.some((c) => c.model === 'payment' || c.model === 'contactUnlock')).toBe(false);
   });
 
+  it('erases a soft-deleted account that never had a deadline, by its deletion date', async () => {
+    const { service, users } = makeService({
+      users: [user({ purgeAfter: null, deletedAt: new Date('2026-01-01T00:00:00.000Z') })],
+    });
+
+    const purged = await service.purgeDue();
+
+    // `purgeAfter` alone would skip this row forever: it is the state the
+    // backfill fixes for existing data and this branch prevents recurring.
+    expect(purged).toBe(1);
+    expect(users[0].isAnonymised).toBe(true);
+  });
+
+  it('leaves an undated deletion inside the retention window alone', async () => {
+    const { service, users } = makeService({
+      users: [user({ purgeAfter: null, deletedAt: new Date('2026-09-01T00:00:00.000Z') })],
+    });
+
+    const purged = await service.purgeDue();
+
+    expect(purged).toBe(0);
+    expect(users[0].isAnonymised).toBe(false);
+  });
+
   it('leaves an account that is not yet due alone', async () => {
     const { service, users, calls } = makeService({
       users: [user({ purgeAfter: new Date('2027-01-01T00:00:00.000Z') })],
@@ -319,7 +359,14 @@ describe('AccountDeletionService.purgeDue', () => {
       users: [user(), second],
       profiles: [
         profile(),
-        { id: 'profile_two', userId: 'user_two', firstName: 'B', lastName: null, aboutMe: null, city: null },
+        {
+          id: 'profile_two',
+          userId: 'user_two',
+          firstName: 'B',
+          lastName: null,
+          aboutMe: null,
+          city: null,
+        },
       ],
     });
 
