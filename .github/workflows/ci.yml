@@ -97,6 +97,12 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # The lint above proves the probe parses; this proves it still alerts. It
+      # drives the step's real `run:` block against fake curl/gh, so a branch
+      # that stops raising an issue fails here instead of going quiet on cron.
+      - name: Test the alert probe
+        run: npm run test:health-alert
+
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
