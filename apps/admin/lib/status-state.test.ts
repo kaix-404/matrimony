@@ -1,9 +1,14 @@
 import {
+  duration,
+  humanSeconds,
   pushState,
   retentionState,
+  shortRevision,
+  sweepPasses,
   sweepState,
   type AccountRetention,
   type PushBacklog,
+  type ReconciliationRun,
   type ReconciliationStatus,
 } from './status-state';
 
@@ -41,6 +46,17 @@ const backlog = (overrides: Partial<PushBacklog> = {}): PushBacklog => ({
   oldestAt: null,
   oldestAgeSeconds: null,
   overdue: false,
+  ...overrides,
+});
+
+/** A sweep run that worked all three passes. */
+const run = (overrides: Partial<ReconciliationRun> = {}): ReconciliationRun => ({
+  finishedAt: '2026-11-11T12:00:00.000Z',
+  durationMs: 842,
+  payments: { checked: 3, settled: 1, unpaid: 2, failed: 0 },
+  recorded: { checked: 5, replayed: 1, skipped: 4, failed: 0 },
+  identity: { checked: 2, settled: 2, pending: 0, failed: 0 },
+  error: null,
   ...overrides,
 });
 
@@ -162,5 +178,75 @@ describe('pushState', () => {
       label: 'Draining',
       tone: 'done',
     });
+  });
+});
+
+describe('sweepPasses', () => {
+  it('words each pass with the counts that pass collects', () => {
+    expect(sweepPasses(run())).toEqual([
+      { label: 'Payments (gateway)', checked: 3, outcome: '1 settled, 2 unpaid, 0 failed' },
+      { label: 'Recorded webhooks', checked: 5, outcome: '1 replayed, 4 skipped, 0 failed' },
+      { label: 'Identity checks', checked: 2, outcome: '2 settled, 0 pending, 0 failed' },
+    ]);
+  });
+
+  it('omits a pass that did not run', () => {
+    // A run from a release without the identity pass reports two rows, not a row
+    // of zeros claiming it checked nothing successfully.
+    expect(sweepPasses(run({ identity: null }))).toEqual([
+      { label: 'Payments (gateway)', checked: 3, outcome: '1 settled, 2 unpaid, 0 failed' },
+      { label: 'Recorded webhooks', checked: 5, outcome: '1 replayed, 4 skipped, 0 failed' },
+    ]);
+  });
+
+  it('returns no rows when the run recorded no pass at all', () => {
+    expect(sweepPasses(run({ payments: null, recorded: null, identity: null }))).toEqual([]);
+  });
+});
+
+describe('duration', () => {
+  it('keeps milliseconds below a second', () => {
+    expect(duration(0)).toBe('0 ms');
+    expect(duration(842)).toBe('842 ms');
+    expect(duration(999)).toBe('999 ms');
+  });
+
+  it('switches to seconds at one thousand milliseconds', () => {
+    expect(duration(1000)).toBe('1.0 seconds');
+    expect(duration(1500)).toBe('1.5 seconds');
+  });
+});
+
+describe('humanSeconds', () => {
+  it('keeps spans under ninety seconds in seconds, singular for one', () => {
+    expect(humanSeconds(0)).toBe('0 seconds');
+    expect(humanSeconds(1)).toBe('1 second');
+    expect(humanSeconds(60)).toBe('60 seconds');
+    expect(humanSeconds(89)).toBe('89 seconds');
+  });
+
+  it('rounds to minutes from ninety seconds', () => {
+    expect(humanSeconds(90)).toBe('2 minutes');
+    expect(humanSeconds(5340)).toBe('89 minutes');
+  });
+
+  it('rounds to hours at ninety minutes', () => {
+    expect(humanSeconds(5400)).toBe('2 hours');
+    expect(humanSeconds(7200)).toBe('2 hours');
+  });
+});
+
+describe('shortRevision', () => {
+  it('shortens a commit to seven characters', () => {
+    expect(shortRevision('cf17aa3c9f1b3a5e8d2c4b6a0f9e1d3c5b7a9f2e')).toBe('cf17aa3');
+  });
+
+  it('keeps a revision shorter than that as it is', () => {
+    expect(shortRevision('abc123')).toBe('abc123');
+  });
+
+  it('says so when the instance was not deployed from a commit', () => {
+    expect(shortRevision(null)).toBe('Unknown - not deployed from a commit');
+    expect(shortRevision(undefined)).toBe('Unknown - not deployed from a commit');
   });
 });

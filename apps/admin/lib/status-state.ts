@@ -1,11 +1,13 @@
 /**
- * How the System status page words a queue's state, and the shapes it reads.
+ * How the System status page words a queue's state and the values it prints,
+ * plus the shapes it reads.
  *
  * These live here rather than in the page for one reason: they are pure
  * decisions, and a pure decision that only a server component can reach is a
  * decision nothing checks. The retention pill shipped saying "Up to date" above
  * a row counting deletions with no purge date, and no test could have caught it
- * because no test could call it.
+ * because no test could call it. `next build` type-checks the page and proves
+ * nothing about what it says.
  *
  * A label and a tone, not a colour: `done` is a fact the deployment is fine
  * with, `wip` is something that is not where it should be. Neither is an alert —
@@ -126,4 +128,64 @@ export function retentionState(retention: AccountRetention): QueueState {
     return { label: `${undated} deleted with no purge date`, tone: 'done' };
   }
   return { label: 'Up to date', tone: 'done' };
+}
+
+/**
+ * One row per pass that ran.
+ *
+ * The counts are worded rather than put in shared columns because the passes
+ * count different things: an order nobody paid is "unpaid", a check the supplier
+ * has not finished is "pending", and a delivery the live handler rejected is
+ * "skipped". One column per meaning would be a table of half-empty cells.
+ */
+export function sweepPasses(
+  run: ReconciliationRun,
+): { label: string; checked: number; outcome: string }[] {
+  const passes: { label: string; checked: number; outcome: string }[] = [];
+  if (run.payments) {
+    passes.push({
+      label: 'Payments (gateway)',
+      checked: run.payments.checked,
+      outcome: `${run.payments.settled} settled, ${run.payments.unpaid} unpaid, ${run.payments.failed} failed`,
+    });
+  }
+  if (run.recorded) {
+    passes.push({
+      label: 'Recorded webhooks',
+      checked: run.recorded.checked,
+      outcome: `${run.recorded.replayed} replayed, ${run.recorded.skipped} skipped, ${run.recorded.failed} failed`,
+    });
+  }
+  if (run.identity) {
+    passes.push({
+      label: 'Identity checks',
+      checked: run.identity.checked,
+      outcome: `${run.identity.settled} settled, ${run.identity.pending} pending, ${run.identity.failed} failed`,
+    });
+  }
+  return passes;
+}
+
+/** A duration as the card prints it: milliseconds below a second, seconds above. */
+export function duration(ms: number): string {
+  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} seconds`;
+}
+
+/**
+ * A span of seconds in the largest unit that stays a small number.
+ *
+ * Rounded rather than truncated: these are ages read at a glance, and "2 hours"
+ * for 5400 seconds is the answer a person wants, not "1 hour".
+ */
+export function humanSeconds(seconds: number): string {
+  if (seconds < 90) return `${seconds} ${seconds === 1 ? 'second' : 'seconds'}`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 90) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+}
+
+/** The commit as a person reads it: short enough to compare at a glance, full one on hover. */
+export function shortRevision(revision: string | null | undefined): string {
+  return revision ? revision.slice(0, 7) : 'Unknown - not deployed from a commit';
 }

@@ -3,12 +3,15 @@ import { describeError } from '@/lib/errors';
 import { formatDateTime } from '@/lib/format';
 import { currentAdmin, holdsPermission } from '@/lib/me';
 import {
+  duration,
+  humanSeconds,
   pushState,
   retentionState,
+  shortRevision,
+  sweepPasses,
   sweepState,
   type AccountRetention,
   type PushBacklog,
-  type ReconciliationRun,
   type ReconciliationStatus,
 } from '@/lib/status-state';
 
@@ -99,59 +102,6 @@ const INTEGRATIONS: { key: string; label: string; consequence: string }[] = [
 const FLAGS: { key: string; label: string }[] = [
   { key: 'aiRecommendations', label: 'AI recommendations (For You tab)' },
 ];
-
-/** The commit as a person reads it: short enough to compare at a glance, full one on hover. */
-function shortRevision(revision: string | null | undefined): string {
-  return revision ? revision.slice(0, 7) : 'Unknown - not deployed from a commit';
-}
-
-/**
- * One row per pass that ran.
- *
- * The counts are worded rather than put in shared columns because the passes
- * count different things: an order nobody paid is "unpaid", a check the supplier
- * has not finished is "pending", and a delivery the live handler rejected is
- * "skipped". One column per meaning would be a table of half-empty cells.
- */
-function sweepPasses(
-  run: ReconciliationRun,
-): { label: string; checked: number; outcome: string }[] {
-  const passes: { label: string; checked: number; outcome: string }[] = [];
-  if (run.payments) {
-    passes.push({
-      label: 'Payments (gateway)',
-      checked: run.payments.checked,
-      outcome: `${run.payments.settled} settled, ${run.payments.unpaid} unpaid, ${run.payments.failed} failed`,
-    });
-  }
-  if (run.recorded) {
-    passes.push({
-      label: 'Recorded webhooks',
-      checked: run.recorded.checked,
-      outcome: `${run.recorded.replayed} replayed, ${run.recorded.skipped} skipped, ${run.recorded.failed} failed`,
-    });
-  }
-  if (run.identity) {
-    passes.push({
-      label: 'Identity checks',
-      checked: run.identity.checked,
-      outcome: `${run.identity.settled} settled, ${run.identity.pending} pending, ${run.identity.failed} failed`,
-    });
-  }
-  return passes;
-}
-
-function duration(ms: number): string {
-  return ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} seconds`;
-}
-
-function humanSeconds(seconds: number): string {
-  if (seconds < 90) return `${seconds} ${seconds === 1 ? 'second' : 'seconds'}`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 90) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
-  const hours = Math.round(minutes / 60);
-  return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
-}
 
 export default async function StatusPage() {
   const session = await currentAdmin();
