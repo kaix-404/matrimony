@@ -61,6 +61,37 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Lints the workflows, which nothing else here does. health-alert.yml runs
+      # only on cron and manual dispatch, so a defect in it cannot redden a pull
+      # request: the probe just stops alerting, the one failure it exists to catch.
+      #
+      # Pinned and checksum-verified, not a floating `latest` or a third-party
+      # action: this gates every push, so what runs in it must not change on its
+      # own. It sits before `npm ci`; nothing it checks reads the workspace.
+      #
+      # shellcheck stays on, ignoring SC2016: its only hit is health-alert.yml's
+      # `printf '`%s` ...'`, where the backticks are Markdown, not expansions.
+      # `-ignore` matches the message rather than the file, so it is a repo-wide
+      # suppression — narrower than dropping shellcheck, and it left that note
+      # alone. The real findings are fixed instead (unquoted redirects in
+      # android-build.yml, the unused loop variable below).
+      - name: Lint workflows
+        run: |
+          set -euo pipefail
+          version=1.7.7
+          asset="actionlint_${version}_linux_amd64.tar.gz"
+          base="https://github.com/rhysd/actionlint/releases/download/v${version}"
+          curl --fail --silent --show-error --location \
+            --output "$RUNNER_TEMP/$asset" "$base/$asset"
+          # The checksum published in the release's checksums file.
+          echo "023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757  $RUNNER_TEMP/$asset" \
+            | sha256sum --strict --check
+          tar --extract --gzip --file "$RUNNER_TEMP/$asset" --directory "$RUNNER_TEMP"
+          # actionlint silently skips shellcheck when it is absent; fail instead.
+          command -v shellcheck >/dev/null ||
+            { echo 'shellcheck is missing from the runner image' >&2; exit 1; }
+          "$RUNNER_TEMP/actionlint" -no-color -ignore 'SC2016'
+
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
@@ -129,7 +160,7 @@ jobs:
           API_PID=$!
           # API_GLOBAL_PREFIX defaults to api/v1 (see apps/api/src/config/env.ts).
           ready=0
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl --fail --silent http://localhost:4000/api/v1/health/ready; then
               echo "readiness OK"
               ready=1
