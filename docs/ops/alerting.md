@@ -43,10 +43,12 @@ the counts.
 
 ## How it is delivered
 
-`.github/workflows/health-alert.yml` runs every 30 minutes, calls the endpoint, and
-**opens one GitHub issue** labelled `ops-alert` when it is not 200; it **closes that
-issue** with a comment on the first healthy probe. One issue, not one per run — the
-open issue is the alert, and GitHub notifies the repository's watchers by email.
+`.github/workflows/health-alert.yml` is scheduled every 30 minutes, calls the
+endpoint, and **opens one GitHub issue** labelled `ops-alert` when it is not 200; it
+**closes that issue** with a comment on the first healthy probe. One issue, not one
+per run — the open issue is the alert, and GitHub notifies the repository's watchers
+by email. The schedule is a request rather than a promise; see the cadence bullet
+under "Behaviour to expect".
 
 The step sets `GH_REPO: ${{ github.repository }}` because `gh` takes its repository
 from `GH_REPO` or a git remote and never from `GITHUB_REPOSITORY`, and the job does
@@ -73,7 +75,15 @@ posts to a webhook secret — the trigger and the state machine do not change.
 
 - **Cold starts.** A sleeping free instance takes about a minute to answer. The
   workflow waits up to 120 seconds and treats a timeout as down, so a slow wake is
-  not an outage but a real failure is still caught within about half an hour.
+  not an outage; a real failure is caught on the next run the scheduler delivers.
+- **The cadence is GitHub's, and it is loose.** `*/30 * * * *` asks for 48 runs a
+  day; this repository has received four to five, with gaps of four to eight hours.
+  `schedule` runs are delayed during load and dropped slots are not replayed, so a
+  stopped repair path is reported hours after it stops, not within half an hour.
+  If that is too slow, move the trigger off GitHub: an external cron calling the
+  `workflow_dispatch` API with a token holding `Actions: write`, or a probe hosted
+  by a scheduler you control. A step that dispatches the workflow itself does not
+  work, because runs started by `GITHUB_TOKEN` do not trigger further workflows.
 - **Before the route is deployed.** A 404 is treated as "not deployed yet" and
   raises nothing: the release that carries the route can wait on a build quota,
   and a rollout state is not a stopped repair path. The route is pinned where it
