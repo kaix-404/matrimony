@@ -37,6 +37,11 @@ function readProbeStep(yaml) {
   if (runAt === -1) {
     throw new Error('the probe step no longer starts with "run: |"');
   }
+  const keys = lines
+    .slice(stepAt + 1, runAt)
+    .map((line) => line.match(/^ {8}([\w-]+):\s*(.*)$/))
+    .filter((found) => found !== null)
+    .map((found) => ({ name: found[1], value: found[2] }));
   const script = [];
   for (let at = runAt + 1; at < lines.length; at += 1) {
     const line = lines[at];
@@ -50,7 +55,7 @@ function readProbeStep(yaml) {
     script.push(line.slice(10));
   }
   while (script.at(-1) === '') script.pop();
-  return script;
+  return { script, keys };
 }
 
 /** The workflow's own env block, so the URL and label are not restated here. */
@@ -94,7 +99,7 @@ function scheduledCrons(yamlText) {
 }
 
 const yaml = fs.readFileSync(workflowFile, 'utf8');
-const script = readProbeStep(yaml);
+const { script, keys } = readProbeStep(yaml);
 const alertUrl = workflowEnv(yaml, 'ALERT_URL');
 const alertLabel = workflowEnv(yaml, 'ALERT_LABEL');
 
@@ -206,13 +211,25 @@ function check(name, assert) {
     const { ok, detail } = assert();
     results.push({ name, ok, detail });
   } catch (error) {
-    results.push({ name, ok: false, detail: error instanceof Error ? error.message : String(error) });
+    results.push({
+      name,
+      ok: false,
+      detail: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
 const json = (value) => JSON.stringify(value);
-const retentionDown = json({ status: 'down', down: ['accountRetention'], checkedAt: '2026-11-21T15:02:11.000Z' });
-const multiDown = json({ status: 'down', down: ['pushDispatch', 'accountRetention'], checkedAt: '2026-11-21T15:02:11.000Z' });
+const retentionDown = json({
+  status: 'down',
+  down: ['accountRetention'],
+  checkedAt: '2026-11-21T15:02:11.000Z',
+});
+const multiDown = json({
+  status: 'down',
+  down: ['pushDispatch', 'accountRetention'],
+  checkedAt: '2026-11-21T15:02:11.000Z',
+});
 const healthy = json({ status: 'ok', down: [], checkedAt: '2026-11-21T15:02:11.000Z' });
 
 check('the step under test is the deployed probe script', () => ({
@@ -249,6 +266,39 @@ check('still allowed to open and close issues', () => {
   };
 });
 
+/** The probe job's own keys, up to its `steps:`; null when the job is gone. */
+function probeJobKeys(yamlText) {
+  const lines = yamlText.split(/\r?\n/);
+  const start = lines.indexOf('  probe:');
+  if (start === -1) return null;
+  const keys = [];
+  for (let at = start + 1; at < lines.length; at += 1) {
+    const line = lines[at];
+    if (line.trim() === '' || line.trimStart().startsWith('#')) continue;
+    if (!line.startsWith('    ')) break;
+    if (line === '    steps:') break;
+    keys.push(line);
+  }
+  return keys;
+}
+
+// An `if:` on the step or on its job stops the probe before the first line of
+// the script, leaving every branch assertion above green and nobody alerted.
+check('the probe step cannot be skipped by a condition', () => {
+  const onStep = keys.find((key) => key.name === 'if');
+  const jobKeys = probeJobKeys(yaml);
+  const onJob = jobKeys?.find((line) => /^ {4}if:/.test(line));
+  return {
+    ok: onStep === undefined && onJob === undefined,
+    detail:
+      onStep !== undefined
+        ? `the step carries if: ${onStep.value}, so the probe can be skipped`
+        : onJob !== undefined
+          ? `the job carries ${onJob.trim()}, so the probe can be skipped`
+          : 'no if: on the step or its job',
+  };
+});
+
 check('names the URL and label the workflow configures', () => {
   const run = probe({ status: '200', body: healthy });
   return {
@@ -276,8 +326,13 @@ check('names every stopped check in the title', () => {
   const run = probe({ status: '503', body: multiDown });
   const created = mutations(run.gh).filter((line) => line.startsWith('issue create'));
   return {
-    ok: created.length === 1 && created[0].includes('Repair path down: pushDispatch, accountRetention'),
-    detail: created.length === 1 ? 'both names in the title' : `exit ${run.code}, ${created.length} created`,
+    ok:
+      created.length === 1 &&
+      created[0].includes('Repair path down: pushDispatch, accountRetention'),
+    detail:
+      created.length === 1
+        ? 'both names in the title'
+        : `exit ${run.code}, ${created.length} created`,
   };
 });
 
@@ -322,7 +377,8 @@ check('alerts when the API never answers', () => {
   const created = mutations(run.gh).filter((line) => line.startsWith('issue create'));
   return {
     ok: created.length === 1 && created[0].includes('(HTTP 000)'),
-    detail: created.length === 1 ? 'issue names HTTP 000' : `exit ${run.code}, created ${created.length}`,
+    detail:
+      created.length === 1 ? 'issue names HTTP 000' : `exit ${run.code}, created ${created.length}`,
   };
 });
 
@@ -331,7 +387,10 @@ check('alerts when a 503 is not the alert payload', () => {
   const created = mutations(run.gh).filter((line) => line.startsWith('issue create'));
   return {
     ok: created.length === 1 && created[0].includes('did not answer its alert probe (HTTP 503)'),
-    detail: created.length === 1 ? 'generic detail, still raised' : `exit ${run.code}, created ${created.length}`,
+    detail:
+      created.length === 1
+        ? 'generic detail, still raised'
+        : `exit ${run.code}, created ${created.length}`,
   };
 });
 
@@ -340,7 +399,10 @@ check('alerts when a 503 names no stopped check', () => {
   const created = mutations(run.gh).filter((line) => line.startsWith('issue create'));
   return {
     ok: created.length === 1 && created[0].includes('did not answer its alert probe (HTTP 503)'),
-    detail: created.length === 1 ? 'empty down list still raised' : `exit ${run.code}, created ${created.length}`,
+    detail:
+      created.length === 1
+        ? 'empty down list still raised'
+        : `exit ${run.code}, created ${created.length}`,
   };
 });
 
