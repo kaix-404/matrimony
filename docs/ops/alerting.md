@@ -48,6 +48,10 @@ the counts.
 issue** with a comment on the first healthy probe. One issue, not one per run — the
 open issue is the alert, and GitHub notifies the repository's watchers by email.
 
+The step sets `GH_REPO: ${{ github.repository }}` because `gh` takes its repository
+from `GH_REPO` or a git remote and never from `GITHUB_REPOSITORY`, and the job does
+not check out: without it every `gh` call fails before it reaches the API.
+
 This is the option that fits the current Render deployment:
 
 - **Render cron jobs are not on the free plan** — they start at $1/month per job,
