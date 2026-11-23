@@ -24,11 +24,18 @@ concurrency:
 env:
   ALERT_URL: https://matrimony-api-2bmy.onrender.com/api/v1/health/alerts
   ALERT_LABEL: ops-alert
+  # The 404 allowance below expires here. The Render build quota resets on
+  # 1 December and the release carrying /health/alerts can ship after that, so
+  # from then on a 404 is a fault rather than a rollout state.
+  ALERT_ROLLOUT_UNTIL: '2026-12-01'
 
 jobs:
   probe:
     name: Probe
     runs-on: ubuntu-24.04
+    # The concurrency group cannot cancel a running probe, so one wedged run
+    # would hold the group and silently stop every later alert.
+    timeout-minutes: 5
     steps:
       - name: Raise or clear the alert
         env:
@@ -99,7 +106,16 @@ jobs:
             --jq '.[0].number // empty'
           open=$(cat "$RUNNER_TEMP/open.txt")
 
-          if [ "$status" = 200 ]; then
+          # The route's contract is "200 means every alerted check is up", but the
+          # status alone cannot be trusted: a 200 carrying a down list is exactly
+          # the regression that would otherwise go unmentioned, so read the body
+          # on every run rather than only on 503.
+          down_list=''
+          if jq --exit-status '(.down | length) > 0' "$RUNNER_TEMP/alert.json" >/dev/null 2>&1; then
+            down_list=$(jq --raw-output '.down | join(", ")' "$RUNNER_TEMP/alert.json")
+          fi
+
+          if [ "$status" = 200 ] && [ -z "$down_list" ]; then
             if [ -n "${open:-}" ]; then
               gh_write "close issue #$open" issue close "$open" --comment \
                 "Recovered: \`$url\` answered 200 at $(date -u '+%Y-%m-%dT%H:%M:%SZ')."
@@ -109,20 +125,28 @@ jobs:
           fi
 
           if [ "$status" = 404 ]; then
-            # The route is not deployed on this instance. That is a rollout
+            # The route is not deployed on this instance yet. That is a rollout
             # state, not a stopped repair path, and the release that carries it
-            # cannot go out until the build quota resets. The route's existence
-            # is pinned instead where it can be checked before a deploy: the
-            # controller test asserts the path, and CI calls it on the built API.
-            echo "alert route not deployed (HTTP 404); not alerting"
-            exit 0
+            # cannot go out until the build quota resets. The allowance expires:
+            # past ALERT_ROLLOUT_UNTIL a 404 means the route was renamed, dropped
+            # or its service is gone, and silence is how an alert quietly dies.
+            today=$(date -u '+%Y-%m-%d')
+            if [[ "$today" < "$ALERT_ROLLOUT_UNTIL" ]]; then
+              echo "alert route not deployed (HTTP 404); allowed until $ALERT_ROLLOUT_UNTIL"
+              exit 0
+            fi
+            detail="the alert route answered 404 after $ALERT_ROLLOUT_UNTIL: deployed, renamed or removed?"
           fi
 
-          if [ "$status" = 503 ] &&
-            jq --exit-status '.down | length > 0' "$RUNNER_TEMP/alert.json" >/dev/null 2>&1; then
-            detail=$(jq --raw-output '.down | join(", ")' "$RUNNER_TEMP/alert.json")
-          else
-            detail="the API did not answer its alert probe (HTTP $status)"
+          if [ -z "${detail:-}" ]; then
+            if [ -n "$down_list" ]; then
+              detail="$down_list"
+              if [ "$status" = 200 ]; then
+                detail="$down_list (reported down while answering HTTP $status)"
+              fi
+            else
+              detail="the API did not answer its alert probe (HTTP $status)"
+            fi
           fi
 
           if [ -n "${open:-}" ]; then

@@ -84,17 +84,45 @@ posts to a webhook secret — the trigger and the state machine do not change.
   `workflow_dispatch` API with a token holding `Actions: write`, or a probe hosted
   by a scheduler you control. A step that dispatches the workflow itself does not
   work, because runs started by `GITHUB_TOKEN` do not trigger further workflows.
-- **Before the route is deployed.** A 404 is treated as "not deployed yet" and
-  raises nothing: the release that carries the route can wait on a build quota,
-  and a rollout state is not a stopped repair path. The route is pinned where it
-  can be checked before deploying instead — the controller test asserts the path
-  and HTTP method, and CI calls `/health/alerts` on the built API and requires
-  `200` with `status: ok`. A genuinely missing route therefore fails CI rather than
-  opening an issue here.
+- **Before the route is deployed.** Until `ALERT_ROLLOUT_UNTIL` (2026-12-01,
+  when the Render build quota resets) a 404 is treated as "not deployed yet" and
+  raises nothing: a rollout state is not a stopped repair path. The allowance
+  expires on purpose — afterwards a 404 raises an issue, because a route that was
+  renamed, dropped, or whose service is gone would otherwise look like a rollout
+  forever. The route is also pinned where it can be checked before deploying: the
+  controller test asserts the path and HTTP method, and CI calls
+  `/health/alerts` on the built API and requires `200` with `status: ok`.
+- **A 200 is not taken on trust.** The body is read on every run, so a 200 that
+  names a stopped check raises an issue instead of being reported as healthy;
+  trusting the status alone would hide a body that rotted.
 - **Recovery is automatic.** The issue closes itself, so an open `ops-alert` issue
   always means the probe is still failing.
 - **Scheduled workflows go quiet after 60 days of repository inactivity**; any push
   to the default branch restarts the clock, and `workflow_dispatch` runs it by hand.
+
+## Watching the watcher
+
+Nothing in this repository can report the probe's own silence: the only thing that
+speaks is a run that happens, so a broken scheduler and a healthy API look the
+same. The runs are public, so a monitor outside GitHub can watch them:
+
+```bash
+last=$(curl -s \
+  'https://api.github.com/repos/kaix-404/matrimony/actions/workflows/health-alert.yml/runs?per_page=1' \
+  | jq -r '.workflow_runs[0].created_at')
+```
+
+Page someone when `last` is more than about twelve hours old — the observed
+cadence is four to eight hours, so a tighter threshold would fire on the
+scheduler's ordinary lateness. Point any scheduler you trust at it: a cron on a
+machine you control, an uptime monitor with a JSON check, or a Cloudflare Cron
+Trigger. Two things it must not be:
+
+- **Not GitHub.** A scheduled workflow cannot notice its own absence, and a step
+  that dispatches this workflow does not work either, because runs started by
+  `GITHUB_TOKEN` do not trigger further workflows.
+- **Not faster than hourly.** The unauthenticated API allows 60 requests an hour
+  per address; hourly polling leaves plenty of room.
 
 ## Checking by hand
 

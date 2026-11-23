@@ -62,7 +62,9 @@ function readProbeStep(yaml) {
 function workflowEnv(yaml, key) {
   const found = yaml.match(new RegExp(`^ {2}${key}:\\s*(\\S.*)$`, 'm'));
   if (found === null) throw new Error(`health-alert.yml has no ${key} in its env block`);
-  return found[1].trim();
+  // YAML quoting is syntax, not part of the value; a quoted date would compare
+  // as a string starting with a quote and never sort correctly.
+  return found[1].trim().replace(/^(['"])(.*)\1$/, '$2');
 }
 
 /** A top-level two-space-indented `key: value` block, such as the permissions map. */
@@ -102,6 +104,7 @@ const yaml = fs.readFileSync(workflowFile, 'utf8');
 const { script, keys } = readProbeStep(yaml);
 const alertUrl = workflowEnv(yaml, 'ALERT_URL');
 const alertLabel = workflowEnv(yaml, 'ALERT_LABEL');
+const rolloutUntil = workflowEnv(yaml, 'ALERT_ROLLOUT_UNTIL');
 
 for (const tool of ['bash', 'jq']) {
   const found = spawnSync(tool, ['--version'], { encoding: 'utf8' });
@@ -171,8 +174,29 @@ exit 0
 `,
 );
 
+// The probe asks for a timestamp and for a date; both come from the case, so the
+// date-gated 404 branch is testable without waiting for the calendar.
+stub(
+  'date',
+  `#!/usr/bin/env bash
+case "$*" in
+  *'+%Y-%m-%dT%H:%M:%SZ'*) printf '%s' "\${FAKE_NOW:-2026-11-23T00:00:00Z}" ;;
+  *'+%Y-%m-%d'*) printf '%s' "\${FAKE_TODAY:-2026-11-23}" ;;
+  *) exit 1 ;;
+esac
+`,
+);
+
 /** Runs the probe once, with one case's answers, and reports what it did. */
-function probe({ status, body = '', exitCode = 0, open = '', ghFail = '', ghError = '' }) {
+function probe({
+  status,
+  body = '',
+  exitCode = 0,
+  open = '',
+  ghFail = '',
+  ghError = '',
+  today = '2026-11-23',
+}) {
   fs.writeFileSync(ghLog, '');
   fs.writeFileSync(curlLog, '');
   fs.writeFileSync(stepSummary, '');
@@ -190,6 +214,8 @@ function probe({ status, body = '', exitCode = 0, open = '', ghFail = '', ghErro
       FAKE_GH_OPEN_ISSUE: open,
       FAKE_GH_FAIL: ghFail,
       FAKE_GH_ERROR: ghError,
+      ALERT_ROLLOUT_UNTIL: rolloutUntil,
+      FAKE_TODAY: today,
       FAKE_CURL_LOG: toPosix(curlLog),
       FAKE_CURL_STATUS: status,
       FAKE_CURL_BODY: body,
@@ -310,6 +336,19 @@ check('the probe step cannot be skipped by a condition', () => {
   };
 });
 
+// The concurrency group cannot cancel a running probe, so a job with no timeout
+// can hold the group and stop every later alert without a single red run.
+check('the probe job cannot hold the alert queue', () => {
+  const timeout = (probeJobKeys(yaml) ?? []).find((line) => /^ {4}timeout-minutes:/.test(line));
+  return {
+    ok: timeout !== undefined,
+    detail:
+      timeout !== undefined
+        ? timeout.trim()
+        : 'no timeout-minutes: a wedged run would block every later alert',
+  };
+});
+
 /** The step's `env:` map, at ten spaces of indent. */
 function stepEnv(yamlText) {
   const lines = yamlText.split(/\r?\n/);
@@ -408,12 +447,40 @@ check('stays quiet when healthy with nothing open', () => {
   };
 });
 
-check('treats a 404 as not deployed yet', () => {
-  const run = probe({ status: '404', body: json({ message: 'Not Found' }) });
+check('silences a 404 only before the rollout date', () => {
+  const run = probe({ status: '404', body: json({ message: 'Not Found' }), today: '2026-11-30' });
   const calls = mutations(run.gh);
   return {
-    ok: run.code === 0 && calls.length === 0 && run.output.includes('not deployed'),
-    detail: calls.length === 0 ? 'silent' : `issue writes: ${calls.join(' | ')}`,
+    ok: run.code === 0 && calls.length === 0 && run.output.includes('allowed until'),
+    detail: calls.length === 0 ? 'silent before the date' : `issue writes: ${calls.join(' | ')}`,
+  };
+});
+
+// The allowance has to end, or a renamed or removed route looks like a rollout
+// forever and the alert never fires again.
+check('alerts once a 404 outlives the rollout date', () => {
+  const run = probe({ status: '404', body: json({ message: 'Not Found' }), today: '2026-12-01' });
+  const created = mutations(run.gh).filter((line) => line.startsWith('issue create'));
+  return {
+    ok: run.code === 0 && created.length === 1 && created[0].includes('answered 404 after'),
+    detail:
+      created.length === 1
+        ? 'raised after the date'
+        : `exit ${run.code}, created ${created.length}`,
+  };
+});
+
+// The status is not the whole contract: a 200 that names a stopped check must
+// still be reported, because otherwise the body could rot silently.
+check('alerts when a 200 contradicts its own body', () => {
+  const run = probe({ status: '200', body: retentionDown });
+  const created = mutations(run.gh).filter((line) => line.startsWith('issue create'));
+  return {
+    ok: created.length === 1 && created[0].includes('reported down while answering HTTP 200'),
+    detail:
+      created.length === 1
+        ? 'status/body disagreement raised'
+        : `exit ${run.code}, created ${created.length}`,
   };
 });
 
