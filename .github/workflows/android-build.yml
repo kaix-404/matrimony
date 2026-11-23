@@ -37,11 +37,19 @@ jobs:
 
       - name: Setup Android SDK
         run: |
+          # Without pipefail a failed install is masked by `tee` and the step
+          # reports success, so the failure reappears later as "Build Android
+          # app" going red with nothing pointing at the SDK.
+          set -o pipefail
+
           export ANDROID_HOME=${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}
           export PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH
 
-          # Accept all licenses non-interactively
-          yes | sdkmanager --licenses > /dev/null 2>&1
+          # Accept all licenses non-interactively. `yes` is killed by SIGPIPE
+          # when sdkmanager exits, which pipefail would report as a failure of
+          # this line, so that outcome alone is allowed; a real licence failure
+          # still stops the install below.
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
 
           # Install required components (platforms, build-tools, NDK)
           sdkmanager "platforms;android-35" "build-tools;35.0.1" "ndk;26.1.10909125" 2>&1 | tee /tmp/sdkmanager.log
