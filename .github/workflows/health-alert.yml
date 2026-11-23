@@ -50,9 +50,22 @@ jobs:
           echo "GET $url -> HTTP $status"
           cat "$RUNNER_TEMP/alert.json" 2>/dev/null || true
 
-          # The gh writes are the alert channel itself. When one is refused, say
-          # what was refused and what gh answered: a bare red run reads exactly
-          # like a quiet probe, and this reason was otherwise only in the log.
+          # Every gh call is part of the alert channel: one refused write loses
+          # the alert, and a refused read cannot tell whether one is already open.
+          # Say which call failed and what gh answered, instead of a bare red run.
+          gh_refused() {
+            local kind="$1" what="$2" code="$3" out="$4"
+            echo "::error title=The alert channel refused a $kind::gh $what failed (exit $code): $out"
+            echo "This probe cannot raise, clear or check an issue, so no alert reaches anyone."
+            echo "Check that gh resolves the repository (GH_REPO or a checkout) and that"
+            echo "the token may use issues (Settings > Actions > General > Workflow permissions)."
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              printf '### The alert channel refused a %s\n\n`gh %s` failed with exit %s:\n\n```\n%s\n```\n\nNo issue can be raised, closed or checked until this is fixed.\n' \
+                "$kind" "$what" "$code" "$out" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 1
+          }
+
           gh_write() {
             local what="$1" out code
             shift
@@ -61,21 +74,30 @@ jobs:
             else
               code=$?
             fi
-            echo "::error title=The alert channel refused a write::gh $what failed (exit $code): $out"
-            echo "This probe cannot raise or clear an issue, so no alert reaches anyone."
-            echo "Check that gh resolves the repository (GH_REPO or a checkout) and that"
-            echo "the token may write issues (Settings > Actions > General > Workflow permissions)."
-            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-              printf '### The alert channel refused a write\n\n`gh %s` failed with exit %s:\n\n```\n%s\n```\n\nNo issue can be raised or closed until this is fixed.\n' \
-                "$what" "$code" "$out" >> "$GITHUB_STEP_SUMMARY"
+            gh_refused write "$what" "$code" "$out"
+          }
+
+          # The value goes to a file rather than stdout, so that a refusal can
+          # still print its diagnostic to this step's stdout: inside $(...) it
+          # would be captured into the variable and never seen. stderr is kept
+          # apart so a warning cannot be mistaken for the issue number.
+          gh_read() {
+            local what="$1" into="$2" code
+            shift 2
+            if gh "$@" >"$into" 2>"$RUNNER_TEMP/gh-read.err"; then
+              return 0
+            else
+              code=$?
+              gh_refused read "$what" "$code" "$(cat "$RUNNER_TEMP/gh-read.err")"
             fi
-            exit 1
           }
 
           gh_write "create the $ALERT_LABEL label" label create "$ALERT_LABEL" --force --color B60205 \
             --description "A health check that repairs something has stopped"
-          open=$(gh issue list --label "$ALERT_LABEL" --state open --json number \
-            --jq '.[0].number // empty')
+          gh_read "list the open $ALERT_LABEL issue" "$RUNNER_TEMP/open.txt" \
+            issue list --label "$ALERT_LABEL" --state open --json number \
+            --jq '.[0].number // empty'
+          open=$(cat "$RUNNER_TEMP/open.txt")
 
           if [ "$status" = 200 ]; then
             if [ -n "${open:-}" ]; then

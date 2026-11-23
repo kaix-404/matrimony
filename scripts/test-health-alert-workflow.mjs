@@ -492,6 +492,20 @@ check('reports a refused issue write the same way', () => {
   };
 });
 
+// A refused read is just as fatal and just as quiet: the probe cannot tell
+// whether an alert is already open, so it used to die on the assignment.
+check('reports a refused issue list the same way', () => {
+  const run = probe({ status: '200', body: healthy, ghFail: 'issue list', ghError: refused });
+  const annotated = run.output.includes('::error title=The alert channel refused a read');
+  return {
+    ok: run.code === 1 && annotated && run.output.includes(refused),
+    detail:
+      run.code === 1
+        ? `${annotated ? 'annotated' : 'no annotation'}, refusal ${run.output.includes(refused) ? 'relayed' : 'missing'}`
+        : `exit ${run.code}, output: ${run.output.trim().slice(0, 80)}`,
+  };
+});
+
 fs.rmSync(workDir, { recursive: true, force: true });
 
 const failed = results.filter((result) => !result.ok);
