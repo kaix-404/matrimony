@@ -114,6 +114,7 @@ for (const tool of ['bash', 'jq']) {
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'health-alert-'));
 const binDir = path.join(workDir, 'bin');
 const ghLog = path.join(workDir, 'gh.log');
+const stepSummary = path.join(workDir, 'summary.md');
 const curlLog = path.join(workDir, 'curl.log');
 const scriptFile = path.join(workDir, 'probe.sh');
 
@@ -161,14 +162,20 @@ echo >> "$FAKE_GH_LOG"
 case "$1 $2" in
   'issue list') printf '%s' "\${FAKE_GH_OPEN_ISSUE:-}" ;;
 esac
+# One case can refuse a call the way a token or a missing repo would.
+if [ -n "\${FAKE_GH_FAIL:-}" ] && [ "$1 $2" = "$FAKE_GH_FAIL" ]; then
+  printf '%s\\n' "\${FAKE_GH_ERROR:-gh: refused}" >&2
+  exit 1
+fi
 exit 0
 `,
 );
 
 /** Runs the probe once, with one case's answers, and reports what it did. */
-function probe({ status, body = '', exitCode = 0, open = '' }) {
+function probe({ status, body = '', exitCode = 0, open = '', ghFail = '', ghError = '' }) {
   fs.writeFileSync(ghLog, '');
   fs.writeFileSync(curlLog, '');
+  fs.writeFileSync(stepSummary, '');
   const result = spawnSync('bash', [toPosix(scriptFile)], {
     encoding: 'utf8',
     env: {
@@ -178,8 +185,11 @@ function probe({ status, body = '', exitCode = 0, open = '' }) {
       ALERT_URL: alertUrl,
       ALERT_LABEL: alertLabel,
       GH_TOKEN: 'token-the-fakes-never-check',
+      GITHUB_STEP_SUMMARY: toPosix(stepSummary),
       FAKE_GH_LOG: toPosix(ghLog),
       FAKE_GH_OPEN_ISSUE: open,
+      FAKE_GH_FAIL: ghFail,
+      FAKE_GH_ERROR: ghError,
       FAKE_CURL_LOG: toPosix(curlLog),
       FAKE_CURL_STATUS: status,
       FAKE_CURL_BODY: body,
@@ -191,6 +201,7 @@ function probe({ status, body = '', exitCode = 0, open = '' }) {
     output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
     gh: fs.readFileSync(ghLog, 'utf8'),
     curl: fs.readFileSync(curlLog, 'utf8'),
+    summary: fs.readFileSync(stepSummary, 'utf8'),
   };
 }
 
@@ -235,7 +246,7 @@ const healthy = json({ status: 'ok', down: [], checkedAt: '2026-11-21T15:02:11.0
 check('the step under test is the deployed probe script', () => ({
   ok:
     scriptText.includes('set -euo pipefail') &&
-    scriptText.includes('gh issue create') &&
+    scriptText.includes('issue create') &&
     scriptText.includes('$ALERT_URL'),
   detail: `${script.length} lines read from health-alert.yml`,
 }));
@@ -296,6 +307,40 @@ check('the probe step cannot be skipped by a condition', () => {
         : onJob !== undefined
           ? `the job carries ${onJob.trim()}, so the probe can be skipped`
           : 'no if: on the step or its job',
+  };
+});
+
+/** The step's `env:` map, at ten spaces of indent. */
+function stepEnv(yamlText) {
+  const lines = yamlText.split(/\r?\n/);
+  const start = lines.indexOf('        env:');
+  const map = {};
+  if (start === -1) return map;
+  for (let at = start + 1; at < lines.length; at += 1) {
+    const line = lines[at];
+    if (line.trim() === '' || line.trimStart().startsWith('#')) continue;
+    if (!line.startsWith('          ')) break;
+    const found = line.match(/^ {10}([\w-]+):\s*(.*)$/);
+    if (found !== null) map[found[1]] = found[2].trim();
+  }
+  return map;
+}
+
+// gh resolves the repository from a git remote or GH_REPO, never from
+// GITHUB_REPOSITORY, and this job never checks out. Without one of the two, all
+// three writes fail before they reach the API: that is exactly how six
+// scheduled runs raised nothing and never created the label.
+check('tells gh which repository to write to', () => {
+  const repo = stepEnv(yaml).GH_REPO;
+  const checkedOut = /uses: actions\/checkout/.test(yaml);
+  return {
+    ok: repo === '${{ github.repository }}' || checkedOut,
+    detail:
+      repo !== undefined
+        ? `GH_REPO=${repo}`
+        : checkedOut
+          ? 'gh takes its repository from actions/checkout'
+          : 'no GH_REPO and no checkout: gh cannot resolve the repository',
   };
 });
 
@@ -403,6 +448,47 @@ check('alerts when a 503 names no stopped check', () => {
       created.length === 1
         ? 'empty down list still raised'
         : `exit ${run.code}, created ${created.length}`,
+  };
+});
+
+// The gh message this repo actually got, once no repository could be resolved.
+const refused =
+  'unable to determine current repository, no git remotes configured for this repository';
+
+check('reports a refused label write and what gh said', () => {
+  const run = probe({
+    status: '200',
+    body: healthy,
+    open: '42',
+    ghFail: 'label create',
+    ghError: refused,
+  });
+  const annotated = run.output.includes('::error title=The alert channel refused a write');
+  const inSummary = run.summary.includes(refused);
+  return {
+    ok: run.code === 1 && annotated && run.output.includes(refused) && inSummary,
+    detail:
+      run.code === 1
+        ? `${annotated ? 'annotated' : 'no annotation'}, summary ${inSummary ? 'carries the refusal' : 'silent'}`
+        : `exit ${run.code}, output: ${run.output.trim().slice(0, 80)}`,
+  };
+});
+
+check('reports a refused issue write the same way', () => {
+  const run = probe({
+    status: '503',
+    body: retentionDown,
+    ghFail: 'issue create',
+    ghError: refused,
+  });
+  const annotated = run.output.includes('::error title=The alert channel refused a write');
+  const hints = run.output.includes('GH_REPO') && run.output.includes('Workflow permissions');
+  return {
+    ok: run.code === 1 && annotated && run.output.includes(refused) && hints,
+    detail:
+      run.code === 1
+        ? `${annotated ? 'annotated' : 'no annotation'}, hints ${hints ? 'name both causes' : 'incomplete'}`
+        : `exit ${run.code}, output: ${run.output.trim().slice(0, 80)}`,
   };
 });
 

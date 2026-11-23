@@ -33,6 +33,11 @@ jobs:
       - name: Raise or clear the alert
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # gh takes the repository from a git remote or GH_REPO, and this job
+          # never checks out. Without one, every gh call fails before it reaches
+          # the API: six scheduled runs raised nothing and the label was never
+          # created. GH_REPO is the documented substitute for a checkout.
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           url="$ALERT_URL"
@@ -45,14 +50,36 @@ jobs:
           echo "GET $url -> HTTP $status"
           cat "$RUNNER_TEMP/alert.json" 2>/dev/null || true
 
-          gh label create "$ALERT_LABEL" --force --color B60205 \
-            --description "A health check that repairs something has stopped" >/dev/null
+          # The gh writes are the alert channel itself. When one is refused, say
+          # what was refused and what gh answered: a bare red run reads exactly
+          # like a quiet probe, and this reason was otherwise only in the log.
+          gh_write() {
+            local what="$1" out code
+            shift
+            if out=$(gh "$@" 2>&1); then
+              return 0
+            else
+              code=$?
+            fi
+            echo "::error title=The alert channel refused a write::gh $what failed (exit $code): $out"
+            echo "This probe cannot raise or clear an issue, so no alert reaches anyone."
+            echo "Check that gh resolves the repository (GH_REPO or a checkout) and that"
+            echo "the token may write issues (Settings > Actions > General > Workflow permissions)."
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              printf '### The alert channel refused a write\n\n`gh %s` failed with exit %s:\n\n```\n%s\n```\n\nNo issue can be raised or closed until this is fixed.\n' \
+                "$what" "$code" "$out" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            exit 1
+          }
+
+          gh_write "create the $ALERT_LABEL label" label create "$ALERT_LABEL" --force --color B60205 \
+            --description "A health check that repairs something has stopped"
           open=$(gh issue list --label "$ALERT_LABEL" --state open --json number \
             --jq '.[0].number // empty')
 
           if [ "$status" = 200 ]; then
             if [ -n "${open:-}" ]; then
-              gh issue close "$open" --comment \
+              gh_write "close issue #$open" issue close "$open" --comment \
                 "Recovered: \`$url\` answered 200 at $(date -u '+%Y-%m-%dT%H:%M:%SZ')."
             fi
             echo "probe healthy"
@@ -83,7 +110,7 @@ jobs:
             exit 0
           fi
 
-          gh issue create --label "$ALERT_LABEL" \
+          gh_write "open an alert issue" issue create --label "$ALERT_LABEL" \
             --title "Repair path down: $detail" \
             --body "$(printf '`%s` reported **%s** at %s.\n\nRunbook: `docs/ops/alerting.md`.\n' \
               "$url" "$detail" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')")"
