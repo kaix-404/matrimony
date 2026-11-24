@@ -52,8 +52,13 @@ export function installNotificationHandler(): void {
     if (!Notifications) return;
     try {
       Notifications.setNotificationHandler({
+        // expo-notifications 57 replaced the single `shouldShowAlert` flag with
+        // two: banners (the heads-up pop-up) and list entries (the tray). Both
+        // are what the old flag promised, and the old field is typed away, so
+        // leaving it would fail the typecheck as well as showing nothing.
         handleNotification: async () => ({
-          shouldShowAlert: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
           shouldPlaySound: false,
           shouldSetBadge: false,
         }),
@@ -77,7 +82,10 @@ async function ensurePermissionAsync(): Promise<boolean> {
     }
 
     const current = await Notifications.getPermissionsAsync();
-    if (current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) {
+    if (
+      current.granted ||
+      current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
+    ) {
       return true;
     }
 

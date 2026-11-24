@@ -32,7 +32,8 @@ jobs:
         uses: actions/setup-java@v6
         with:
           distribution: temurin
-          # Expo SDK 52 / RN 0.76 are built and tested against JDK 17.
+          # Expo SDK 57 / RN 0.86 and the Gradle 9.3.1 wrapper it generates are
+          # built and tested against JDK 17 (Gradle 9 raises the floor to 17).
           java-version: '17'
 
       - name: Setup Android SDK
@@ -51,8 +52,14 @@ jobs:
           # still stops the install below.
           yes | sdkmanager --licenses > /dev/null 2>&1 || true
 
-          # Install required components (platforms, build-tools, NDK)
-          sdkmanager "platforms;android-35" "build-tools;35.0.1" "ndk;26.1.10909125" 2>&1 | tee /tmp/sdkmanager.log
+          # Install required components (platforms, build-tools, NDK).
+          #
+          # These are the versions React Native 0.86.3 compiles against, read
+          # from its own `gradle/libs.versions.toml`: compileSdk/targetSdk 36,
+          # buildTools 36.0.0, ndk 27.1.12297006. Installing 35 and NDK 26 here
+          # is what made the gradle step fail after the SDK 57 upgrade, since
+          # RN now targets Android 16.
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006" 2>&1 | tee /tmp/sdkmanager.log
 
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
@@ -72,12 +79,26 @@ jobs:
           # Prebuild native Android project
           npx expo prebuild --platform android --clean 2>&1 | tee /tmp/prebuild.log
 
-          # Copy secure-store XML resource files (expo-secure-store plugin
-          # adds references to these in AndroidManifest.xml but does not
-          # generate the files themselves)
+          # Copy secure-store XML resource files. Still required under SDK 57:
+          # a clean `expo prebuild --platform android` writes
+          # android:fullBackupContent="@xml/secure_store_backup_rules" and
+          # android:dataExtractionRules="@xml/secure_store_data_extraction_rules"
+          # into AndroidManifest.xml but creates no res/xml directory at all, so
+          # without these two files AAPT fails the release build on a missing
+          # resource.
           mkdir -p android/app/src/main/res/xml
           cp resources/xml/secure_store_backup_rules.xml android/app/src/main/res/xml/
           cp resources/xml/secure_store_data_extraction_rules.xml android/app/src/main/res/xml/
+
+          # Fail here, naming the file, rather than inside gradle's resource
+          # merger if a future prebuild stops producing the manifest attributes
+          # these correspond to.
+          for f in secure_store_backup_rules secure_store_data_extraction_rules; do
+            test -f "android/app/src/main/res/xml/$f.xml" || {
+              echo "missing android/app/src/main/res/xml/$f.xml" >&2
+              exit 1
+            }
+          done
 
           # Build a release APK. A debug build does not embed the JS bundle
           # (it loads from the Metro dev server), so it is unusable on a test
