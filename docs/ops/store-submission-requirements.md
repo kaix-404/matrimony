@@ -122,7 +122,7 @@ TestFlight is the equivalent of Play's closed track. Internal testers need no re
 | Listing             | Privacy policy, terms, screenshots, feature graphic | Work    | Client |
 | Play testing        | Closed test, 12 testers over 14 days                | Gate    | Client |
 | Apple testing       | TestFlight build and external review                | Gate    | Client |
-| Documentation       | Status report currently claims SDK 57 / RN 0.86     | Work    | Us     |
+| Documentation       | Status report's SDK claim corrected to 52 / 0.76.9  | Done    | Us     |
 
 ## Suggested Sequence
 

@@ -29,7 +29,7 @@ The platform is feature-complete end to end, and the client's first feedback rou
 | 6     | KYC/Verification      | Complete | Contracts, service, controller, module                                                                                |
 | 7     | Notifications         | Complete | Shared contracts, API module, list endpoint, unlock pre-expiry reminder, Firebase push delivery                       |
 | 8     | Admin API             | Complete | RBAC, audit, MFA, enrichment, moderation queue, Next.js dashboard, master-list console                                |
-| 9     | Mobile App            | Complete | Expo SDK 57 app: auth, discovery, checkout, setup fee, profile, partner preferences, settings, notifications, For You |
+| 9     | Mobile App            | Complete | Expo SDK 52 app: auth, discovery, checkout, setup fee, profile, partner preferences, settings, notifications, For You |
 
 ## Recent Accomplishments
 
@@ -85,7 +85,7 @@ The platform is feature-complete end to end, and the client's first feedback rou
 
 ### Phase 9 - Member App (Expo + React Native)
 
-- `apps/mobile` (`@matrimony/mobile`): Expo SDK 57, React Native 0.86, Expo Router, strict TypeScript, consuming `@matrimony/shared` contracts; typed API client validates every request body and response with Zod
+- `apps/mobile` (`@matrimony/mobile`): Expo SDK 52.0.49, React Native 0.76.9, Expo Router, strict TypeScript, consuming `@matrimony/shared` contracts; typed API client validates every request body and response with Zod. These are the versions `apps/mobile/package.json` pins; the SDK 57 / RN 0.86 figure this report carried earlier was wrong, and the SDK upgrade is the store blocker tracked in `docs/ops/store-submission-requirements.md`
 - Auth and onboarding: phone OTP request/verify, registration, rotating access/refresh tokens in `expo-secure-store` with transparent refresh on 401, `useRequireAuth` gate, and profile creation with completeness prompts
 - Discovery: cursor-paginated infinite feed of locked cards, temporary filters (age, height, city, state, education, profession, verified photos) and sort applied per request, plus a filter/sort bottom sheet; the API now parses nested filter query objects
 - Member previews and payments: locked/unlocked/expired states, Razorpay checkout in a WebView with the order `key_id`, status polling against `GET /payments/:id`, and unlock expiry shown in the matches tab

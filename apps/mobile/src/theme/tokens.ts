@@ -79,6 +79,8 @@ export const layout = {
 } as const;
 
 export const typography = {
+  /** Screen-opening statement, one per screen at most. */
+  display: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5 },
   brand: { fontSize: 20, fontWeight: '700' },
   h1: { fontSize: 22, fontWeight: '700' },
   h2: { fontSize: 18, fontWeight: '700' },
