@@ -15,9 +15,9 @@ The platform requirements below were checked on 13 November 2026 and change on G
 
 ## Common Requirements
 
-### The SDK is the first problem on both stores
+### The SDK upgrade is done; device testing is what remains
 
-The app is on **Expo SDK 52 / React Native 0.76.9**, which is roughly two years old. Google Play has required new apps and updates to target **Android 16 (API level 36)** since 31 August 2026, and SDK 52 targets API 34, so Play would refuse the bundle outright. On iOS the same upgrade buys current privacy-manifest support and a maintained Expo module set. One upgrade fixes both, and it is the largest single piece of work in this document.
+The app moved from **Expo SDK 52 / React Native 0.76.9** to **Expo SDK 57.0.34 / React Native 0.86.3**, which targets **Android 16 (API level 36)** — the level Google Play has required of new apps and updates since 31 August 2026 — where SDK 52 targeted API 34 and would have been refused outright. The CI workflow now installs platform 36, build-tools 36.0.0 and NDK 27.1.12297006, the toolchain React Native 0.86.3 compiles against, in place of the SDK 52-era platform 35, build-tools 35.0.1 and NDK 26. On iOS the same upgrade brings current privacy-manifest support and a maintained Expo module set. What it leaves is regression testing on physical devices, not the upgrade itself.
 
 ### Selling access inside the app is the second problem
 
@@ -39,15 +39,15 @@ Both stores require a privacy policy URL, and both require disclosures that matc
 
 ### Technical requirements
 
-| Requirement        | Current state                                             | What is needed                                                   |
-| ------------------ | --------------------------------------------------------- | ---------------------------------------------------------------- |
-| Artifact format    | CI builds a release APK, signed with the debug keystore   | An AAB; APKs are not accepted for new apps since August 2021     |
-| Target API level   | SDK 52 targets API 34                                     | API 36 or higher; SDK upgrade, then regression testing           |
-| Signing            | Debug keystore, suitable only for sideloading             | Upload key via EAS credentials, plus Play App Signing enrolment  |
-| Version code       | Not set; no auto-increment                                | `versionCode` starting at 1, incremented per upload              |
-| Package name       | `com.networth.matrimony`                                  | Nothing; already correct                                         |
-| Permissions        | `RECORD_AUDIO` declared, nothing records audio            | Remove the declaration; unused sensitive permissions draw review |
-| Reproducible build | APK build depends on two files copied in after `prebuild` | A config plugin, so an EAS build produces the same output        |
+| Requirement        | Current state                                                                                                                                                                                    | What is needed                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
+| Artifact format    | CI builds a release APK, signed with the debug keystore                                                                                                                                          | An AAB; APKs are not accepted for new apps since August 2021    |
+| Target API level   | SDK 57 targets API 36                                                                                                                                                                            | Nothing for the level itself; regression-test on devices        |
+| Signing            | Debug keystore, suitable only for sideloading                                                                                                                                                    | Upload key via EAS credentials, plus Play App Signing enrolment |
+| Version code       | Not set; no auto-increment                                                                                                                                                                       | `versionCode` starting at 1, incremented per upload             |
+| Package name       | `com.networth.matrimony`                                                                                                                                                                         | Nothing; already correct                                        |
+| Permissions        | None beyond the SDK defaults                                                                                                                                                                     | Nothing; the unused `RECORD_AUDIO` declaration is removed       |
+| Reproducible build | A clean `prebuild` still writes `android:fullBackupContent` and `android:dataExtractionRules` into the manifest pointing at `@xml/secure_store_*`, without creating the files; CI copies them in | A config plugin, so an EAS build produces the same output       |
 
 ### Policy requirements
 
@@ -104,31 +104,31 @@ TestFlight is the equivalent of Play's closed track. Internal testers need no re
 
 ## Implementation Status
 
-| Area                | Requirement                                         | Status  | Owner  |
-| ------------------- | --------------------------------------------------- | ------- | ------ |
-| Framework           | Expo SDK 52 to current                              | Blocker | Us     |
-| Android artifact    | AAB instead of debug-signed APK                     | Blocker | Us     |
-| Android target API  | API 36                                              | Blocker | Us     |
-| Android build       | Config plugin for secure-store resources            | Work    | Us     |
-| Both stores         | Version code and build number auto-increment        | Work    | Us     |
-| Android permissions | Remove unused `RECORD_AUDIO`                        | Work    | Us     |
-| iOS build           | EAS iOS build and Apple account                     | Blocker | Client |
-| iOS push            | APNs key in Firebase                                | Blocker | Client |
-| Payments            | Play Billing or Apple IAP, or a new model           | Blocker | Client |
-| Review access       | Demo account, verification and fee waiver           | Blocker | Both   |
-| Backend             | Paid instance or keep-alive during review           | Work    | Client |
-| Backend             | Email credentials                                   | Work    | Client |
-| Backend             | Community list values                               | Work    | Client |
-| Listing             | Privacy policy, terms, screenshots, feature graphic | Work    | Client |
-| Play testing        | Closed test, 12 testers over 14 days                | Gate    | Client |
-| Apple testing       | TestFlight build and external review                | Gate    | Client |
-| Documentation       | Status report's SDK claim corrected to 52 / 0.76.9  | Done    | Us     |
+| Area                | Requirement                                              | Status  | Owner  |
+| ------------------- | -------------------------------------------------------- | ------- | ------ |
+| Framework           | Expo SDK 57 / RN 0.86.3                                  | Done    | Us     |
+| Android artifact    | AAB instead of debug-signed APK                          | Blocker | Us     |
+| Android target API  | API 36                                                   | Done    | Us     |
+| Android build       | Config plugin for secure-store resources                 | Work    | Us     |
+| Both stores         | Version code and build number auto-increment             | Work    | Us     |
+| Android permissions | Remove unused `RECORD_AUDIO`                             | Done    | Us     |
+| iOS build           | EAS iOS build and Apple account                          | Blocker | Client |
+| iOS push            | APNs key in Firebase                                     | Blocker | Client |
+| Payments            | Play Billing or Apple IAP, or a new model                | Blocker | Client |
+| Review access       | Demo account, verification and fee waiver                | Blocker | Both   |
+| Backend             | Paid instance or keep-alive during review                | Work    | Client |
+| Backend             | Email credentials                                        | Work    | Client |
+| Backend             | Community list values                                    | Work    | Client |
+| Listing             | Privacy policy, terms, screenshots, feature graphic      | Work    | Client |
+| Play testing        | Closed test, 12 testers over 14 days                     | Gate    | Client |
+| Apple testing       | TestFlight build and external review                     | Gate    | Client |
+| Documentation       | Status report and this document state SDK 57 / RN 0.86.3 | Done    | Us     |
 
 ## Suggested Sequence
 
-1. Correct the status report's SDK claim, remove the unused permission, and make the build reproducible, so both stores build the same artifact the CI does.
+1. Make the build reproducible — a config plugin for the secure-store resources — so both stores build the same artifact the CI does.
 2. Decide the payments model. Nothing else in the store plan can be finalised until this is settled, because it changes screens, the API and the review notes.
-3. Upgrade Expo and React Native to a version that targets API 36, then test on a physical Android device and an iPhone.
+3. Test the SDK 57 upgrade on a physical Android device and an iPhone: checkout, push, secure-store restore and edge-to-edge are all behaviour a typecheck cannot see.
 4. Build the review path: a demo account that skips verification and the fee, seeded with enough profiles to exercise discovery, previews and unlocking.
 5. Produce the AAB for Play and the iOS build for TestFlight; set up signing, Play App Signing and the APNs key.
 6. Prepare the listing and privacy material for both stores, then run the closed test and TestFlight before requesting production review.
