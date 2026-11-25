@@ -79,26 +79,10 @@ jobs:
           # Prebuild native Android project
           npx expo prebuild --platform android --clean 2>&1 | tee /tmp/prebuild.log
 
-          # Copy secure-store XML resource files. Still required under SDK 57:
-          # a clean `expo prebuild --platform android` writes
-          # android:fullBackupContent="@xml/secure_store_backup_rules" and
-          # android:dataExtractionRules="@xml/secure_store_data_extraction_rules"
-          # into AndroidManifest.xml but creates no res/xml directory at all, so
-          # without these two files AAPT fails the release build on a missing
-          # resource.
-          mkdir -p android/app/src/main/res/xml
-          cp resources/xml/secure_store_backup_rules.xml android/app/src/main/res/xml/
-          cp resources/xml/secure_store_data_extraction_rules.xml android/app/src/main/res/xml/
-
-          # Fail here, naming the file, rather than inside gradle's resource
-          # merger if a future prebuild stops producing the manifest attributes
-          # these correspond to.
-          for f in secure_store_backup_rules secure_store_data_extraction_rules; do
-            test -f "android/app/src/main/res/xml/$f.xml" || {
-              echo "missing android/app/src/main/res/xml/$f.xml" >&2
-              exit 1
-            }
-          done
+          # The two secure-store backup rule files that expo-secure-store's
+          # plugin references from AndroidManifest.xml are written by
+          # ./plugins/with-secure-store-backup-rules during the prebuild above,
+          # so there is no copy step and nothing to patch in afterwards.
 
           # Build a release APK. A debug build does not embed the JS bundle
           # (it loads from the Metro dev server), so it is unusable on a test

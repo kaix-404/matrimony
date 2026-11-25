@@ -39,15 +39,15 @@ Both stores require a privacy policy URL, and both require disclosures that matc
 
 ### Technical requirements
 
-| Requirement        | Current state                                                                                                                                                                                    | What is needed                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------- |
-| Artifact format    | CI builds a release APK, signed with the debug keystore                                                                                                                                          | An AAB; APKs are not accepted for new apps since August 2021    |
-| Target API level   | SDK 57 targets API 36                                                                                                                                                                            | Nothing for the level itself; regression-test on devices        |
-| Signing            | Debug keystore, suitable only for sideloading                                                                                                                                                    | Upload key via EAS credentials, plus Play App Signing enrolment |
-| Version code       | Not set; no auto-increment                                                                                                                                                                       | `versionCode` starting at 1, incremented per upload             |
-| Package name       | `com.networth.matrimony`                                                                                                                                                                         | Nothing; already correct                                        |
-| Permissions        | None beyond the SDK defaults                                                                                                                                                                     | Nothing; the unused `RECORD_AUDIO` declaration is removed       |
-| Reproducible build | A clean `prebuild` still writes `android:fullBackupContent` and `android:dataExtractionRules` into the manifest pointing at `@xml/secure_store_*`, without creating the files; CI copies them in | A config plugin, so an EAS build produces the same output       |
+| Requirement        | Current state                                                                          | What is needed                                                  |
+| ------------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Artifact format    | CI builds a release APK, signed with the debug keystore                                | An AAB; APKs are not accepted for new apps since August 2021    |
+| Target API level   | SDK 57 targets API 36                                                                  | Nothing for the level itself; regression-test on devices        |
+| Signing            | Debug keystore, suitable only for sideloading                                          | Upload key via EAS credentials, plus Play App Signing enrolment |
+| Version code       | Not set; no auto-increment                                                             | `versionCode` starting at 1, incremented per upload             |
+| Package name       | `com.networth.matrimony`                                                               | Nothing; already correct                                        |
+| Permissions        | None beyond the SDK defaults                                                           | Nothing; the unused `RECORD_AUDIO` declaration is removed       |
+| Reproducible build | Written during `prebuild` by the local plugin `plugins/with-secure-store-backup-rules` | Nothing; an EAS build runs the same plugin                      |
 
 ### Policy requirements
 
@@ -109,7 +109,7 @@ TestFlight is the equivalent of Play's closed track. Internal testers need no re
 | Framework           | Expo SDK 57 / RN 0.86.3                                  | Done    | Us     |
 | Android artifact    | AAB instead of debug-signed APK                          | Blocker | Us     |
 | Android target API  | API 36                                                   | Done    | Us     |
-| Android build       | Config plugin for secure-store resources                 | Work    | Us     |
+| Android build       | Config plugin for secure-store resources                 | Done    | Us     |
 | Both stores         | Version code and build number auto-increment             | Work    | Us     |
 | Android permissions | Remove unused `RECORD_AUDIO`                             | Done    | Us     |
 | iOS build           | EAS iOS build and Apple account                          | Blocker | Client |
@@ -126,12 +126,11 @@ TestFlight is the equivalent of Play's closed track. Internal testers need no re
 
 ## Suggested Sequence
 
-1. Make the build reproducible — a config plugin for the secure-store resources — so both stores build the same artifact the CI does.
-2. Decide the payments model. Nothing else in the store plan can be finalised until this is settled, because it changes screens, the API and the review notes.
-3. Test the SDK 57 upgrade on a physical Android device and an iPhone: checkout, push, secure-store restore and edge-to-edge are all behaviour a typecheck cannot see.
-4. Build the review path: a demo account that skips verification and the fee, seeded with enough profiles to exercise discovery, previews and unlocking.
-5. Produce the AAB for Play and the iOS build for TestFlight; set up signing, Play App Signing and the APNs key.
-6. Prepare the listing and privacy material for both stores, then run the closed test and TestFlight before requesting production review.
+1. Decide the payments model. Nothing else in the store plan can be finalised until this is settled, because it changes screens, the API and the review notes.
+2. Test the SDK 57 upgrade on a physical Android device and an iPhone: checkout, push, secure-store restore and edge-to-edge are all behaviour a typecheck cannot see.
+3. Build the review path: a demo account that skips verification and the fee, seeded with enough profiles to exercise discovery, previews and unlocking.
+4. Produce the AAB for Play and the iOS build for TestFlight; set up signing, Play App Signing and the APNs key.
+5. Prepare the listing and privacy material for both stores, then run the closed test and TestFlight before requesting production review.
 
 ## Decisions Needed
 
