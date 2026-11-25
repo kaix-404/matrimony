@@ -39,15 +39,15 @@ Both stores require a privacy policy URL, and both require disclosures that matc
 
 ### Technical requirements
 
-| Requirement        | Current state                                                                          | What is needed                                                  |
-| ------------------ | -------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Artifact format    | CI builds a release APK, signed with the debug keystore                                | An AAB; APKs are not accepted for new apps since August 2021    |
-| Target API level   | SDK 57 targets API 36                                                                  | Nothing for the level itself; regression-test on devices        |
-| Signing            | Debug keystore, suitable only for sideloading                                          | Upload key via EAS credentials, plus Play App Signing enrolment |
-| Version code       | Not set; no auto-increment                                                             | `versionCode` starting at 1, incremented per upload             |
-| Package name       | `com.networth.matrimony`                                                               | Nothing; already correct                                        |
-| Permissions        | None beyond the SDK defaults                                                           | Nothing; the unused `RECORD_AUDIO` declaration is removed       |
-| Reproducible build | Written during `prebuild` by the local plugin `plugins/with-secure-store-backup-rules` | Nothing; an EAS build runs the same plugin                      |
+| Requirement        | Current state                                                                           | What is needed                                                                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Artifact format    | CI runs `bundleRelease` and publishes `app-release.aab`, signed with the debug keystore | Nothing for the format; APKs have not been accepted for new apps since August 2021, but the bundle still needs the upload key in the Signing row |
+| Target API level   | SDK 57 targets API 36                                                                   | Nothing for the level itself; regression-test on devices                                                                                         |
+| Signing            | Debug keystore, suitable only for sideloading                                           | Upload key via EAS credentials, plus Play App Signing enrolment                                                                                  |
+| Version code       | Not set; no auto-increment                                                              | `versionCode` starting at 1, incremented per upload                                                                                              |
+| Package name       | `com.networth.matrimony`                                                                | Nothing; already correct                                                                                                                         |
+| Permissions        | None beyond the SDK defaults                                                            | Nothing; the unused `RECORD_AUDIO` declaration is removed                                                                                        |
+| Reproducible build | Written during `prebuild` by the local plugin `plugins/with-secure-store-backup-rules`  | Nothing; an EAS build runs the same plugin                                                                                                       |
 
 ### Policy requirements
 
@@ -107,7 +107,7 @@ TestFlight is the equivalent of Play's closed track. Internal testers need no re
 | Area                | Requirement                                              | Status  | Owner  |
 | ------------------- | -------------------------------------------------------- | ------- | ------ |
 | Framework           | Expo SDK 57 / RN 0.86.3                                  | Done    | Us     |
-| Android artifact    | AAB instead of debug-signed APK                          | Blocker | Us     |
+| Android artifact    | AAB instead of APK                                       | Done    | Us     |
 | Android target API  | API 36                                                   | Done    | Us     |
 | Android build       | Config plugin for secure-store resources                 | Done    | Us     |
 | Both stores         | Version code and build number auto-increment             | Work    | Us     |

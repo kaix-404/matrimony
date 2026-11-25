@@ -1,4 +1,4 @@
-name: Android APK Build
+name: Android App Bundle Build
 
 on:
   push:
@@ -11,7 +11,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build Android APK
+    name: Build Android app bundle
     # Pinned rather than ubuntu-latest: the Android SDK/NDK paths below and
     # the toolchain versions come from the runner image, and ubuntu-latest is
     # rolling over to Ubuntu 26. Pin the image the APK is known to build on.
@@ -84,14 +84,19 @@ jobs:
           # ./plugins/with-secure-store-backup-rules during the prebuild above,
           # so there is no copy step and nothing to patch in afterwards.
 
-          # Build a release APK. A debug build does not embed the JS bundle
-          # (it loads from the Metro dev server), so it is unusable on a test
-          # device. The generated release build signs with the debug keystore,
-          # which is what we want for an APK distributed outside a store.
+          # Build a release app bundle. Play has refused APKs for new apps
+          # since August 2021, so the artifact this job produces has to be the
+          # format that can actually be uploaded. A debug build embeds no JS
+          # bundle (it loads from the Metro dev server); `bundleRelease` embeds
+          # it exactly as `assembleRelease` did.
+          #
+          # The bundle is signed with the generated debug keystore, so this
+          # proves the format, not submittability: Play wants an upload key and
+          # Play App Signing, tracked in docs/ops/store-submission-requirements.md.
           cd android
-          ./gradlew assembleRelease --no-daemon 2>&1 | tee /tmp/gradle.log
+          ./gradlew bundleRelease --no-daemon 2>&1 | tee /tmp/gradle.log
 
-          ls -la app/build/outputs/apk/release/
+          ls -la app/build/outputs/bundle/release/
 
       - name: Publish failure detail to the run summary
         if: failure()
@@ -102,11 +107,13 @@ jobs:
             echo '### gradle'; tail -n 120 /tmp/gradle.log 2>/dev/null || echo 'no gradle log'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload APK artifact
+      - name: Upload AAB artifact
         uses: actions/upload-artifact@v7
         with:
-          name: matrimony-app-release
-          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          name: matrimony-app-release-aab
+          path: apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
-          # Fail loudly instead of reporting success with nothing uploaded.
+          # Fail loudly instead of reporting success with nothing uploaded: an
+          # AAB lands outside the apk/ tree, so a wrong task or output path is
+          # easy to get wrong.
           if-no-files-found: error
