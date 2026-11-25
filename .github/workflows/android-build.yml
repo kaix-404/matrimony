@@ -65,6 +65,54 @@ jobs:
           echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
 
+      - name: Decode the upload keystore
+        env:
+          ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          ANDROID_UPLOAD_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_PASSWORD }}
+          ANDROID_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+          ANDROID_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+        run: |
+          set -o pipefail
+
+          # Release bundles are signed with the Play upload key. It is not in the
+          # repository, so it arrives as a base64 repository secret, is written
+          # outside the checkout under $RUNNER_TEMP, and is handed to gradle
+          # through the environment by
+          # apps/mobile/plugins/with-release-signing.js.
+          missing=0
+          for name in ANDROID_UPLOAD_KEYSTORE_BASE64 ANDROID_UPLOAD_KEYSTORE_PASSWORD ANDROID_UPLOAD_KEY_PASSWORD ANDROID_UPLOAD_KEY_ALIAS; do
+            if [ -z "${!name}" ]; then
+              echo "::error::The repository secret $name is not set, so the release bundle cannot be signed with the upload key."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "::error::Add the four ANDROID_UPLOAD_* secrets under Settings -> Secrets and variables -> Actions. The keystore and its passwords must not be committed; docs/ops/store-submission-requirements.md has the commands that produce the values."
+            exit 1
+          fi
+
+          KEYSTORE="$RUNNER_TEMP/upload-key/upload-keystore.p12"
+          mkdir -p "$(dirname "$KEYSTORE")"
+          printf '%s' "$ANDROID_UPLOAD_KEYSTORE_BASE64" | base64 -d > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+
+          # Fail here rather than inside gradle: a truncated secret or a wrong
+          # alias otherwise surfaces as an opaque signing error ten minutes into
+          # the build.
+          if ! keytool -list -keystore "$KEYSTORE" \
+              -alias "$ANDROID_UPLOAD_KEY_ALIAS" \
+              -storepass:env ANDROID_UPLOAD_KEYSTORE_PASSWORD > /dev/null; then
+            echo "::error::The decoded keystore does not open with ANDROID_UPLOAD_KEYSTORE_PASSWORD, or it has no entry named '$ANDROID_UPLOAD_KEY_ALIAS'."
+            exit 1
+          fi
+
+          {
+            echo "MATRIMONY_UPLOAD_KEYSTORE_PATH=$KEYSTORE"
+            echo "MATRIMONY_UPLOAD_KEYSTORE_PASSWORD=$ANDROID_UPLOAD_KEYSTORE_PASSWORD"
+            echo "MATRIMONY_UPLOAD_KEY_ALIAS=$ANDROID_UPLOAD_KEY_ALIAS"
+            echo "MATRIMONY_UPLOAD_KEY_PASSWORD=$ANDROID_UPLOAD_KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
       - name: Build Android app
         env:
           EXPO_PUBLIC_API_BASE_URL: https://matrimony-api-2bmy.onrender.com/api/v1
@@ -90,9 +138,10 @@ jobs:
           # bundle (it loads from the Metro dev server); `bundleRelease` embeds
           # it exactly as `assembleRelease` did.
           #
-          # The bundle is signed with the generated debug keystore, so this
-          # proves the format, not submittability: Play wants an upload key and
-          # Play App Signing, tracked in docs/ops/store-submission-requirements.md.
+          # Gradle signs the bundle with the Play upload key decoded above, not
+          # the debug keystore, and refuses to package a release at all when that
+          # key is missing. What is still outside this repository is the Play
+          # Console side, tracked in docs/ops/store-submission-requirements.md.
           cd android
           ./gradlew bundleRelease --no-daemon 2>&1 | tee /tmp/gradle.log
 
@@ -138,6 +187,59 @@ jobs:
             status=1
           elif [ "$version_code" != "$expected_code" ]; then
             echo "::error::The AAB has versionCode ${version_code}, but apps/mobile/app.json asks for ${expected_code}."
+            status=1
+          fi
+
+          exit $status
+
+      - name: Check the AAB is signed with the upload key
+        run: |
+          set -o pipefail
+
+          AAB=apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
+
+          # A bundle is JAR-signed (apksigner cannot read one at all), so keytool
+          # reads the very certificate Play checks when the bundle is uploaded.
+          # -J-Duser.language=en keeps the SHA256 label parseable whatever the
+          # runner's locale is.
+          fingerprint() {
+            keytool -J-Duser.language=en "$@" | grep -m1 -E 'SHA-?256:' | awk '{print $2}'
+          }
+
+          expected=$(fingerprint -list -v \
+            -keystore "$MATRIMONY_UPLOAD_KEYSTORE_PATH" \
+            -alias "$MATRIMONY_UPLOAD_KEY_ALIAS" \
+            -storepass:env MATRIMONY_UPLOAD_KEYSTORE_PASSWORD)
+          actual=$(fingerprint -printcert -jarfile "$AAB")
+          owner=$(keytool -J-Duser.language=en -printcert -jarfile "$AAB" 2>/dev/null | grep -m1 '^Owner:' || true)
+
+          echo "AAB certificate: ${actual:-<missing>} (${owner:-<no owner line>})"
+          echo "Upload key:      ${expected:-<missing>}"
+
+          {
+            echo '### AAB signing'
+            echo ''
+            echo "- certificate: \`${actual:-<missing>}\`"
+            echo "- upload key:  \`${expected:-<missing>}\`"
+            echo "- owner: ${owner:-<none>}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          status=0
+
+          # An upload signed by any key but the registered upload key is rejected
+          # by Play, so a mismatch is a failure, not a warning.
+          if [ -z "$actual" ]; then
+            echo "::error::No signing certificate could be read from the AAB, so it is not signed with the upload key."
+            status=1
+          elif [ "$actual" != "$expected" ]; then
+            echo "::error::The AAB is signed with ${actual}, not with the upload key ${expected}."
+            status=1
+          fi
+
+          # The debug certificate is the one this job used to emit, and the one
+          # Play refuses outright.
+          if echo "$owner" | grep -q 'CN=Android Debug'; then
+            echo "::error::The AAB is signed with the Android debug certificate."
             status=1
           fi
 

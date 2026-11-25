@@ -39,15 +39,41 @@ Both stores require a privacy policy URL, and both require disclosures that matc
 
 ### Technical requirements
 
-| Requirement        | Current state                                                                           | What is needed                                                                                                                                   |
-| ------------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Artifact format    | CI runs `bundleRelease` and publishes `app-release.aab`, signed with the debug keystore | Nothing for the format; APKs have not been accepted for new apps since August 2021, but the bundle still needs the upload key in the Signing row |
-| Target API level   | SDK 57 targets API 36                                                                   | Nothing for the level itself; regression-test on devices                                                                                         |
-| Signing            | Debug keystore, suitable only for sideloading                                           | Upload key via EAS credentials, plus Play App Signing enrolment                                                                                  |
-| Version code       | Not set; no auto-increment                                                              | `versionCode` starting at 1, incremented per upload                                                                                              |
-| Package name       | `com.networth.matrimony`                                                                | Nothing; already correct                                                                                                                         |
-| Permissions        | None beyond the SDK defaults                                                            | Nothing; the unused `RECORD_AUDIO` declaration is removed                                                                                        |
-| Reproducible build | Written during `prebuild` by the local plugin `plugins/with-secure-store-backup-rules`  | Nothing; an EAS build runs the same plugin                                                                                                       |
+| Requirement        | Current state                                                                                                                                   | What is needed                                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Artifact format    | CI runs `bundleRelease` and publishes `app-release.aab`, signed with the Play upload key                                                        | Nothing for the format; APKs have not been accepted for new apps since August 2021                                                                                |
+| Target API level   | SDK 57 targets API 36                                                                                                                           | Nothing for the level itself; regression-test on devices                                                                                                          |
+| Signing            | Upload key held outside the repository; CI signs with it from four `ANDROID_UPLOAD_*` secrets and asserts the bundle's certificate              | Enrol Play App Signing on the first upload, confirm the upload certificate in Play Console, back up the keystore and its passwords                                |
+| Version code       | 1 in `app.json`, asserted against the built AAB                                                                                                 | Raise `android.versionCode` in `app.json` before every upload; nothing increments it automatically                                                                |
+| Package name       | `com.networth.matrimony`                                                                                                                        | Nothing; already correct                                                                                                                                          |
+| Permissions        | None beyond the SDK defaults                                                                                                                    | Nothing; the unused `RECORD_AUDIO` declaration is removed                                                                                                         |
+| Reproducible build | Backup rules and release signing both written during `prebuild`, by `plugins/with-secure-store-backup-rules` and `plugins/with-release-signing` | Backup rules: nothing. Signing: a cloud EAS build would need the same four `MATRIMONY_*` variables in its build profile, because the key is not in the repository |
+
+### Release signing
+
+The upload key is an RSA 2048-bit key in a PKCS#12 keystore with a 10,000-day validity, alias `upload`. It is generated and kept **outside the repository** — `apps/mobile/.gitignore` also excludes `*.jks`, but the file is never meant to be in the checkout at all — and gradle never sees it on disk in CI, only decoded into `$RUNNER_TEMP` for the length of the job.
+
+`plugins/with-release-signing.js` is what makes `prebuild` sign correctly: Expo's template signs the release build type with the debug keystore, so the plugin adds a `release` signing config (PKCS#12 stated explicitly, not inferred from the file name) that reads four values from the environment (or from gradle properties of the same names) and makes gradle **refuse to package a release bundle** when any of them is missing. A debug build, an IDE sync or a configuration-only run is unaffected.
+
+| Variable                             | Repository secret                  | Value                                           |
+| ------------------------------------ | ---------------------------------- | ----------------------------------------------- |
+| `MATRIMONY_UPLOAD_KEYSTORE_PATH`     | `ANDROID_UPLOAD_KEYSTORE_BASE64`   | CI writes the decoded keystore here             |
+| `MATRIMONY_UPLOAD_KEYSTORE_PASSWORD` | `ANDROID_UPLOAD_KEYSTORE_PASSWORD` | Keystore password                               |
+| `MATRIMONY_UPLOAD_KEY_ALIAS`         | `ANDROID_UPLOAD_KEY_ALIAS`         | `upload`                                        |
+| `MATRIMONY_UPLOAD_KEY_PASSWORD`      | `ANDROID_UPLOAD_KEY_PASSWORD`      | Key password (same as the keystore for PKCS#12) |
+
+The generated keystore, its passwords and the base64 form of the keystore are all in one directory on the operator's machine, next to a `credentials.txt` that holds the passwords. That directory is the backup: losing it before Play App Signing is enrolled means a new upload key, a key-reset request, and no way to update the app in the meantime.
+
+To create the two secret values from an existing keystore:
+
+```bash
+base64 -w0 upload-keystore.p12                 # ANDROID_UPLOAD_KEYSTORE_BASE64
+keytool -list -v -keystore upload-keystore.p12 -alias upload   # shows the SHA-256 to check against Play
+```
+
+After the build, CI reads the certificate back out of the AAB itself (`keytool -printcert -jarfile`, the only tool that reads a bundle's JAR signature) and fails unless its SHA-256 equals the upload key's and the owner is not `CN=Android Debug`. Both values are printed to the run summary, so a wrong key is visible without the job log.
+
+**Until the four secrets exist the Android workflow fails at its second step, by design** — there is no debug-signed fallback, because a bundle that cannot be uploaded is not a successful build.
 
 ### Policy requirements
 
@@ -110,6 +136,7 @@ TestFlight is the equivalent of Play's closed track. Internal testers need no re
 | Android artifact    | AAB instead of APK                                       | Done    | Us     |
 | Android target API  | API 36                                                   | Done    | Us     |
 | Android build       | Config plugin for secure-store resources                 | Done    | Us     |
+| Android signing     | Upload key from repository secrets, certificate asserted | Work    | Client |
 | Both stores         | Version code and build number auto-increment             | Work    | Us     |
 | Android permissions | Remove unused `RECORD_AUDIO`                             | Done    | Us     |
 | iOS build           | EAS iOS build and Apple account                          | Blocker | Client |
@@ -144,5 +171,8 @@ TestFlight is the equivalent of Play's closed track. Internal testers need no re
 - Google Play target API level requirement: https://developer.android.com/google/play/requirements/target-sdk
 - Google Play target API levels, Play Console Help: https://support.google.com/googleplay/android-developer/answer/11926878
 - Google Play Billing: https://developer.android.com/google/play/billing
+- Play App Signing and upload keys: https://support.google.com/googleplay/android-developer/answer/9842756
+- Sign your app (upload key, Play App Signing): https://developer.android.com/studio/publish/app-signing
+- Reading a signing certificate with keytool: https://developers.google.com/android/guides/client-auth
 - App Store Review Guidelines: https://developer.apple.com/app-store/review/guidelines/
 - Apple privacy manifests: https://developer.apple.com/documentation/bundleresources/privacy_manifest_files

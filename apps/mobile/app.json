@@ -12,6 +12,7 @@
       "expo-router",
       "expo-secure-store",
       "./plugins/with-secure-store-backup-rules",
+      "./plugins/with-release-signing",
       [
         "expo-image-picker",
         {
