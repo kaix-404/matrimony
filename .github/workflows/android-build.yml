@@ -98,6 +98,51 @@ jobs:
 
           ls -la app/build/outputs/bundle/release/
 
+      - name: Check the AAB's targetSdk and versionCode
+        run: |
+          set -o pipefail
+
+          AAB=apps/mobile/android/app/build/outputs/bundle/release/app-release.aab
+          BUNDLETOOL_VERSION=1.18.3
+
+          # bundletool decodes the protobuf manifest stored inside the bundle, so
+          # both values below come from the artifact Play would receive rather
+          # than from app.json or the gradle files that produced it. The whole
+          # manifest is dumped instead of using --xpath, which keeps this
+          # independent of whatever namespace prefix bundletool prints.
+          curl -fsSL -o /tmp/bundletool.jar \
+            "https://github.com/google/bundletool/releases/download/${BUNDLETOOL_VERSION}/bundletool-all-${BUNDLETOOL_VERSION}.jar"
+          java -jar /tmp/bundletool.jar dump manifest --bundle="$AAB" --module=base > /tmp/aab-manifest.xml
+
+          target_sdk=$(grep -oE 'android:targetSdkVersion="[0-9]+"' /tmp/aab-manifest.xml | grep -oE '[0-9]+' | head -n1)
+          version_code=$(grep -oE 'android:versionCode="[0-9]+"' /tmp/aab-manifest.xml | grep -oE '[0-9]+' | head -n1)
+          expected_code=$(node -p "require('./apps/mobile/app.json').expo.android?.versionCode ?? 1")
+
+          echo "AAB targetSdkVersion=${target_sdk:-<missing>}, versionCode=${version_code:-<missing>} (app.json asks for versionCode ${expected_code})"
+
+          status=0
+
+          # Play has refused new apps and updates below API 36 since 31 August
+          # 2026, so the target is asserted exactly: raising it is a deliberate
+          # edit here, in the gradle config and in this document.
+          if [ "$target_sdk" != "36" ]; then
+            echo "::error::The AAB targets API ${target_sdk:-<missing>}, not 36, which Play requires."
+            status=1
+          fi
+
+          # A release with no ordered versionCode cannot be rolled forward, and
+          # Play orders uploads by it, so a missing or unparseable value is a
+          # failure rather than something to fix on the next release.
+          if [ -z "$version_code" ] || [ "$version_code" -le 0 ]; then
+            echo "::error::The AAB has versionCode '${version_code:-<missing>}', which is not a positive integer."
+            status=1
+          elif [ "$version_code" != "$expected_code" ]; then
+            echo "::error::The AAB has versionCode ${version_code}, but apps/mobile/app.json asks for ${expected_code}."
+            status=1
+          fi
+
+          exit $status
+
       - name: Publish failure detail to the run summary
         if: failure()
         run: |
