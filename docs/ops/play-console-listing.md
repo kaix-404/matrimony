@@ -43,7 +43,7 @@ crash-reporting SDKs.
 | Play data type                              | Collected | Shared | Optional | Purpose                                         | Notes                                                                                                                                                                                                                                                     |
 | ------------------------------------------- | --------- | ------ | -------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Personal info → Name                        | Yes       | No     | No       | App functionality, Account management           | No name is shown to another member before a paid unlock: `HIDDEN_BEFORE_PAYMENT` lists `first_name`, `last_name` and `name`                                                                                                                               |
-| Personal info → Phone number                | Yes       | No     | No       | App functionality, Account management, Security | Login identity, and the contact detail disclosed after an unlock. No SMS vendor is configured yet — the API returns the code rather than sending it, so no number leaves for delivery                                                                     |
+| Personal info → Phone number                | Yes       | No     | No       | App functionality, Account management, Security | Login identity, and the contact detail disclosed after an unlock. Codes are texted through MSG91 as a processor; when a message cannot be sent the endpoint fails closed with `503 SMS_UNAVAILABLE` rather than returning a code                          |
 | Personal info → Email                       | Yes       | No     | Yes      | Account management                              | Added and changed from Settings after an emailed code; delivery goes through MSG91 as a processor                                                                                                                                                         |
 | Personal info → Address                     | Yes       | No     | Yes      | App functionality                               | State, district and city as typed by the member; there is no device location collection                                                                                                                                                                   |
 | Personal info → Race and ethnicity          | Yes       | No     | Yes      | App functionality                               | Religion, community and sub-caste, because matching is by community in this market                                                                                                                                                                        |
@@ -72,9 +72,10 @@ rows were wrong and are corrected above:
 - **Device identifiers.** `packages/shared/src/contracts/devices.ts` allows an optional `device_id`,
   but `apps/mobile/src/lib/push.ts` registers only `{ token, platform }`. The app sends no device
   identifier, so the row no longer claims one.
-- **Phone number.** The draft said an SMS provider processes the number. It does not:
-  `apps/api/src/auth/otp.service.ts` states the provider is undecided and returns the code instead of
-  sending it. Nothing leaves the API for SMS delivery today.
+- **Phone number.** An earlier draft said no SMS provider was involved. It is: `AuthController.requestOtp`
+  texts the code through `SmsGateway` (MSG91 Flow) and, when it cannot, fails closed with
+  `503 SMS_UNAVAILABLE` in production instead of echoing a code. The number does leave the API for
+  delivery, with MSG91 as the processor.
 - **Name.** The draft said the surname is withheld. In fact no name at all is shown before a paid
   unlock — `packages/shared/src/contracts/profile.ts` hides `first_name` and `last_name` in
   `HIDDEN_BEFORE_PAYMENT`.
