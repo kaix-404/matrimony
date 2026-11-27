@@ -100,9 +100,18 @@ export class AuthController {
     const isProduction = process.env.NODE_ENV === 'production';
 
     // Checked before any send so production still fails closed on a gateway
-    // that was never configured.
+    // that was never configured. It answers exactly like the rejected-send
+    // branch below rather than with 401: "we could not text you" is an outage a
+    // member can retry, while a 401 is read by the app as a session problem and
+    // sends someone whose number is perfectly good to a sign-in screen they do
+    // not need. The vendor detail stays in the log.
     if (isProduction && !this.sms.configured) {
-      throw new UnauthorizedException('SMS provider is not configured');
+      this.logger.error('OTP not sent: the SMS provider is not configured');
+      throw new ServiceUnavailableException({
+        statusCode: 503,
+        code: SMS_UNAVAILABLE_CODE,
+        message: 'SMS verification is temporarily unavailable; please try again shortly.',
+      });
     }
 
     if (!this.sms.configured) {

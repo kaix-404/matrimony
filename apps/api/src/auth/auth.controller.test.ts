@@ -22,9 +22,7 @@ interface Fixture {
   verifyOtp: jest.Mock;
 }
 
-function makeController(
-  opts: { verified?: boolean; signInResult?: unknown } = {},
-): Fixture {
+function makeController(opts: { verified?: boolean; signInResult?: unknown } = {}): Fixture {
   const consume = jest.fn().mockResolvedValue(true);
   const signIn = jest.fn().mockResolvedValue(opts.signInResult ?? null);
   const recordFailure = jest.fn().mockResolvedValue(undefined);
@@ -33,7 +31,10 @@ function makeController(
   const otp = { verify: verifyOtp, consumeVerified: consume };
   const auth = { signIn, recordFailedSignInForMobile: recordFailure };
 
-  const sms = { configured: true, sendOtp: jest.fn().mockResolvedValue({ providerMessageId: null }) };
+  const sms = {
+    configured: true,
+    sendOtp: jest.fn().mockResolvedValue({ providerMessageId: null }),
+  };
   return {
     controller: new AuthController(
       otp as never,
@@ -224,13 +225,21 @@ describe('AuthController.requestOtp', () => {
     expect(result.dev_code).toBe('434578');
   });
 
-  it('fails closed in production when no gateway is configured', async () => {
+  it('answers an unconfigured gateway in production with the same coded 503, not a 401', async () => {
     process.env.NODE_ENV = 'production';
     const { controller, sendOtp } = makeRequestOtpController({ configured: false });
 
-    await expect(controller.requestOtp(body as never)).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    // A 401 is what the app renders as "sign in again", which is the wrong
+    // advice for a member whose number is fine and whose provider is not
+    // configured. This branch must be indistinguishable from a rejected send.
+    const error = (await controller.requestOtp(body as never).catch((e: unknown) => e)) as
+      ServiceUnavailableException | undefined;
+    expect(error).toBeInstanceOf(ServiceUnavailableException);
+    expect(error?.getResponse()).toMatchObject({
+      code: SMS_UNAVAILABLE_CODE,
+      statusCode: 503,
+    });
+    expect(error).not.toHaveProperty('dev_code');
     expect(sendOtp).not.toHaveBeenCalled();
   });
 
@@ -255,8 +264,7 @@ describe('AuthController.requestOtp', () => {
     // The app can only show copy a person can act on if it can tell "no code
     // was sent" from an outage, so the code is the contract here.
     const error = (await controller.requestOtp(body as never).catch((e: unknown) => e)) as
-      | ServiceUnavailableException
-      | undefined;
+      ServiceUnavailableException | undefined;
     expect(error).toBeInstanceOf(ServiceUnavailableException);
     expect(error?.getResponse()).toMatchObject({
       code: SMS_UNAVAILABLE_CODE,
@@ -270,8 +278,7 @@ describe('AuthController.requestOtp', () => {
     sendOtp.mockRejectedValue(new Error('MSG91 rejected the send: invalid template 6acb8fd6'));
 
     const error = (await controller.requestOtp(body as never).catch((e: unknown) => e)) as
-      | ServiceUnavailableException
-      | undefined;
+      ServiceUnavailableException | undefined;
     const response = JSON.stringify(error?.getResponse() ?? {});
 
     // "Recharge the MSG91 wallet" is for an operator reading logs, not for a
