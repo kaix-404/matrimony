@@ -113,6 +113,30 @@ jobs:
             echo "MATRIMONY_UPLOAD_KEY_PASSWORD=$ANDROID_UPLOAD_KEY_PASSWORD"
           } >> "$GITHUB_ENV"
 
+      - name: Compute the Android version code
+        run: |
+          # Play orders uploads by versionCode and refuses one it has already
+          # accepted, so the value must rise on its own rather than depend on
+          # somebody editing app.json before a release. The run number is
+          # monotonic for the life of this workflow file, and the base keeps
+          # releases clear of the 1 a local build produces. Deleting and
+          # recreating the workflow resets the counter, so raise the base here
+          # if that ever happens.
+          VERSION_CODE_BASE=1000
+          VERSION_CODE=$(( VERSION_CODE_BASE + GITHUB_RUN_NUMBER ))
+
+          # Read by apps/mobile/app.config.js during prebuild, which writes it
+          # into the generated gradle files and from there into the manifest.
+          echo "MATRIMONY_ANDROID_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
+
+          {
+            echo '### Android version code'
+            echo ''
+            echo "- versionCode: \`$VERSION_CODE\` (base $VERSION_CODE_BASE + run $GITHUB_RUN_NUMBER)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "Building with versionCode $VERSION_CODE"
+
       - name: Build Android app
         env:
           EXPO_PUBLIC_API_BASE_URL: https://matrimony-api-2bmy.onrender.com/api/v1
@@ -165,9 +189,13 @@ jobs:
 
           target_sdk=$(grep -oE 'android:targetSdkVersion="[0-9]+"' /tmp/aab-manifest.xml | grep -oE '[0-9]+' | head -n1)
           version_code=$(grep -oE 'android:versionCode="[0-9]+"' /tmp/aab-manifest.xml | grep -oE '[0-9]+' | head -n1)
-          expected_code=$(node -p "require('./apps/mobile/app.json').expo.android?.versionCode ?? 1")
+          # The number this run reserved, not one read back from app.json:
+          # apps/mobile/app.config.js resolves the version code from
+          # MATRIMONY_ANDROID_VERSION_CODE, so comparing the artifact to that
+          # value is what proves the bundle carries the code the run claimed.
+          expected_code="${MATRIMONY_ANDROID_VERSION_CODE:-}"
 
-          echo "AAB targetSdkVersion=${target_sdk:-<missing>}, versionCode=${version_code:-<missing>} (app.json asks for versionCode ${expected_code})"
+          echo "AAB targetSdkVersion=${target_sdk:-<missing>}, versionCode=${version_code:-<missing>} (this run reserved versionCode ${expected_code:-<unset>})"
 
           status=0
 
@@ -185,8 +213,11 @@ jobs:
           if [ -z "$version_code" ] || [ "$version_code" -le 0 ]; then
             echo "::error::The AAB has versionCode '${version_code:-<missing>}', which is not a positive integer."
             status=1
+          elif [ -z "$expected_code" ]; then
+            echo "::error::MATRIMONY_ANDROID_VERSION_CODE is not set, so there is nothing to check the AAB's versionCode against."
+            status=1
           elif [ "$version_code" != "$expected_code" ]; then
-            echo "::error::The AAB has versionCode ${version_code}, but apps/mobile/app.json asks for ${expected_code}."
+            echo "::error::The AAB has versionCode ${version_code}, but this run reserved ${expected_code}."
             status=1
           fi
 
