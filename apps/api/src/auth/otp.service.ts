@@ -43,12 +43,14 @@ export class OtpService {
   }
 
   /**
-   * Creates an OTP request and returns the code to deliver.
+   * Creates an OTP request and returns the code for the caller to deliver.
    *
-   * The code is returned rather than sent: the SMS provider is undecided
-   * (GAP-12) and the interface must not decide that for us. Returning it keeps
-   * the delivery boundary honest, and a `dev`-only code in the response is what
-   * makes the flow testable end to end without a provider account.
+   * Delivery is deliberately not this service's job. `AuthController.requestOtp`
+   * hands the code to `SmsGateway` (MSG91 Flow) and fails closed in production
+   * when no message could be sent; `AdminAuthService` does the same for its
+   * sign-in factor. Keeping the store independent of the provider is what lets
+   * both callers decide delivery policy, and what lets a caller with no gateway
+   * (tests, a local run without credentials) still obtain a usable code.
    */
   async issue(input: {
     mobile: string;
