@@ -73,7 +73,7 @@ keytool -list -v -keystore upload-keystore.p12 -alias upload   # shows the SHA-2
 
 After the build, CI reads the certificate back out of the AAB itself (`keytool -printcert -jarfile`, the only tool that reads a bundle's JAR signature) and fails unless its SHA-256 equals the upload key's and the owner is not `CN=Android Debug`. Both values are printed to the run summary, so a wrong key is visible without the job log.
 
-**Until the four secrets exist the Android workflow fails at its second step, by design** — there is no debug-signed fallback, because a bundle that cannot be uploaded is not a successful build.
+The workflow now produces that bundle. Run 220 (commit `62fad01`) completed green with versionCode 1220 and `targetSdkVersion` 36, and the AAB's certificate matched the upload key's `7D:D3:…:B7:8C`, owner `CN=Networth Matrimony, OU=Mobile, O=Networth Matrimony, C=IN`. There is deliberately no debug-signed fallback: if the four secrets are removed or a password is rotated wrongly, the job fails at the decode step instead of publishing a bundle Play would reject.
 
 ### Policy requirements
 
@@ -136,7 +136,7 @@ TestFlight is the equivalent of Play's closed track. Internal testers need no re
 | Android artifact    | AAB instead of APK                                       | Done    | Us     |
 | Android target API  | API 36                                                   | Done    | Us     |
 | Android build       | Config plugin for secure-store resources                 | Done    | Us     |
-| Android signing     | Upload key from repository secrets, certificate asserted | Work    | Client |
+| Android signing     | Upload key from repository secrets, certificate asserted | Done    | Us     |
 | Android             | Version code derived per run and asserted from the AAB   | Done    | Us     |
 | iOS                 | Build number auto-increment configured, no iOS build yet | Work    | Us     |
 | Android permissions | Remove unused `RECORD_AUDIO`                             | Done    | Us     |
