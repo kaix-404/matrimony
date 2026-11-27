@@ -115,27 +115,13 @@ jobs:
 
       - name: Compute the Android version code
         run: |
-          # Play orders uploads by versionCode and refuses one it has already
-          # accepted, so the value must rise on its own rather than depend on
-          # somebody editing app.json before a release. The run number is
-          # monotonic for the life of this workflow file, and the base keeps
-          # releases clear of the 1 a local build produces. Deleting and
-          # recreating the workflow resets the counter, so raise the base here
-          # if that ever happens.
+          # Play refuses a version code it has already accepted, so it has to
+          # rise on its own. The run number is monotonic for this workflow's
+          # life; raise the base if the counter is ever reset by recreating the
+          # workflow. apps/mobile/app.config.js reads the variable during
+          # prebuild and writes it into the generated gradle files.
           VERSION_CODE_BASE=1000
-          VERSION_CODE=$(( VERSION_CODE_BASE + GITHUB_RUN_NUMBER ))
-
-          # Read by apps/mobile/app.config.js during prebuild, which writes it
-          # into the generated gradle files and from there into the manifest.
-          echo "MATRIMONY_ANDROID_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
-
-          {
-            echo '### Android version code'
-            echo ''
-            echo "- versionCode: \`$VERSION_CODE\` (base $VERSION_CODE_BASE + run $GITHUB_RUN_NUMBER)"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-          echo "Building with versionCode $VERSION_CODE"
+          echo "MATRIMONY_ANDROID_VERSION_CODE=$(( VERSION_CODE_BASE + GITHUB_RUN_NUMBER ))" >> "$GITHUB_ENV"
 
       - name: Build Android app
         env:
@@ -189,10 +175,9 @@ jobs:
 
           target_sdk=$(grep -oE 'android:targetSdkVersion="[0-9]+"' /tmp/aab-manifest.xml | grep -oE '[0-9]+' | head -n1)
           version_code=$(grep -oE 'android:versionCode="[0-9]+"' /tmp/aab-manifest.xml | grep -oE '[0-9]+' | head -n1)
-          # The number this run reserved, not one read back from app.json:
-          # apps/mobile/app.config.js resolves the version code from
-          # MATRIMONY_ANDROID_VERSION_CODE, so comparing the artifact to that
-          # value is what proves the bundle carries the code the run claimed.
+          # The number this run reserved: app.config.js resolved the version
+          # code from it, so the artifact matching it is what proves the value
+          # reached the bundle.
           expected_code="${MATRIMONY_ANDROID_VERSION_CODE:-}"
 
           echo "AAB targetSdkVersion=${target_sdk:-<missing>}, versionCode=${version_code:-<missing>} (this run reserved versionCode ${expected_code:-<unset>})"
