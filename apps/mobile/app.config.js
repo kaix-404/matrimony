@@ -6,16 +6,30 @@
  * The Android version code is the one value that cannot live in a committed
  * file. Play orders uploads by it and refuses a code it has already seen, so it
  * has to rise on its own instead of depending on somebody remembering to edit
- * `app.json` before a release. CI derives it from the workflow run number and
- * passes it in `MATRIMONY_ANDROID_VERSION_CODE`; a local `expo prebuild` or
- * `expo run:android` has no such value and falls back to the static
- * `android.versionCode` in `app.json`, so local builds are unchanged.
+ * `app.json` before a release. The two build paths own it differently:
+ *
+ * - GitHub Actions (.github/workflows/android-build.yml) computes
+ *   `1000 + GITHUB_RUN_NUMBER` and passes it in MATRIMONY_ANDROID_VERSION_CODE.
+ * - EAS builds set `cli.appVersionSource: "remote"` and `autoIncrement` in
+ *   eas.json, so Expo's servers own the counter and write it onto the native
+ *   project. The value here is ignored on those builds, which is why nothing is
+ *   injected when the variable is absent: a defined `android.versionCode` in
+ *   app config only earns an "ignored, remove it" warning from EAS.
+ *
+ * With neither source present, `app.json` keeps whatever it declares and Expo
+ * applies its own default of 1, so local prebuild and run:android are unchanged.
  *
  * Docs: https://docs.expo.dev/workflow/configuration/
+ *       https://docs.expo.dev/build-reference/app-versions/
  */
 module.exports = ({ config }) => {
   const fromEnv = process.env.MATRIMONY_ANDROID_VERSION_CODE;
-  const versionCode = Number(fromEnv ?? config.android?.versionCode ?? 1);
+
+  if (fromEnv === undefined) {
+    return { ...config };
+  }
+
+  const versionCode = Number(fromEnv);
 
   // A release signed with an unparseable or non-positive code is rejected by
   // Play long after the build, so fail the build that produced it instead.
