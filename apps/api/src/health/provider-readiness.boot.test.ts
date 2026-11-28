@@ -5,6 +5,7 @@ import { AppModule } from '../app.module';
 import { configureApp } from '../configure-app';
 import { PrismaService } from '../prisma/prisma.module';
 import type { Env } from '../config/env';
+import { TEST_ENV } from '../testing/test-env';
 
 /**
  * That the provider boot line is printed, and says the same thing readiness says.
@@ -23,29 +24,6 @@ import type { Env } from '../config/env';
  * With the production logger restored, this boots the real graph and reads what an
  * operator would see.
  */
-
-// The same minimal environment `app.boot.test.ts` boots with, minus the logger
-// override. Kept in step with it deliberately: an env that boots there must boot
-// here, or the difference is the bug.
-const TEST_ENV = {
-  NODE_ENV: 'test',
-  JWT_ACCESS_SECRET: 'test-access-secret-not-used-for-signing',
-  JWT_REFRESH_SECRET: 'test-refresh-secret-not-used-for-signing',
-  MFA_ENCRYPTION_KEY: 'test-mfa-key-not-used-to-encrypt-anything',
-  OTP_HASH_SECRET: 'test-otp-pepper-not-used-for-hashing',
-  JWT_ACCESS_TTL: '15m',
-  JWT_REFRESH_TTL: '30d',
-  DATABASE_URL: 'postgresql://user:pass@localhost:5432/test',
-  S3_ENDPOINT: 'http://localhost:9000',
-  S3_BUCKET: 'test-bucket',
-  S3_ACCESS_KEY: 'test-access-key',
-  S3_SECRET_KEY: 'test-secret-key',
-  S3_CORS_ORIGINS: '',
-  API_GLOBAL_PREFIX: 'api',
-  API_CORS_ORIGINS: [],
-  RATE_LIMIT_TTL: 60,
-  RATE_LIMIT_MAX: 100,
-} as const;
 
 describe('provider readiness at boot', () => {
   let app: INestApplication;

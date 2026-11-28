@@ -6,6 +6,7 @@ import { AppModule } from './app.module';
 import { configureApp } from './configure-app';
 import { PrismaService } from './prisma/prisma.module';
 import { loadEnv, type Env } from './config/env';
+import { TEST_ENV } from './testing/test-env';
 
 /**
  * Boots the real application graph.
@@ -16,30 +17,6 @@ import { loadEnv, type Env } from './config/env';
  * assemble the full module graph. A smoke test that mirrors production
  * bootstrap is the only thing that catches a failure in wiring.
  */
-const TEST_ENV = {
-  NODE_ENV: 'test',
-  JWT_ACCESS_SECRET: 'test-access-secret-not-used-for-signing',
-  JWT_REFRESH_SECRET: 'test-refresh-secret-not-used-for-signing',
-  MFA_ENCRYPTION_KEY: 'test-mfa-key-not-used-to-encrypt-anything',
-  OTP_HASH_SECRET: 'test-otp-pepper-not-used-for-hashing',
-  // AuthModule parses the access TTL at wiring time to configure the JWT signer,
-  // so the bootstrap test needs it: without it the module fails to construct,
-  // which is exactly the kind of wiring mistake this suite exists to catch.
-  JWT_ACCESS_TTL: '15m',
-  JWT_REFRESH_TTL: '30d',
-  DATABASE_URL: 'postgresql://user:pass@localhost:5432/test',
-  S3_ENDPOINT: 'http://localhost:9000',
-  S3_BUCKET: 'test-bucket',
-  S3_ACCESS_KEY: 'test-access-key',
-  S3_SECRET_KEY: 'test-secret-key',
-  // Empty leaves the bucket's rules alone; the service must still construct.
-  S3_CORS_ORIGINS: '',
-  API_GLOBAL_PREFIX: 'api',
-  API_CORS_ORIGINS: [],
-  RATE_LIMIT_TTL: 60,
-  RATE_LIMIT_MAX: 100,
-} as const;
-
 describe('application bootstrap (section 41)', () => {
   let app: INestApplication;
   let env: Env;
@@ -52,7 +29,10 @@ describe('application bootstrap (section 41)', () => {
       .overrideProvider('ENV')
       .useValue({ ...TEST_ENV })
       .overrideProvider(PrismaService)
-      .useValue({ isHealthy: async (): Promise<boolean> => true, $connect: async (): Promise<void> => undefined })
+      .useValue({
+        isHealthy: async (): Promise<boolean> => true,
+        $connect: async (): Promise<void> => undefined,
+      })
       .compile();
 
     app = moduleRef.createNestApplication();
@@ -128,8 +108,8 @@ describe('application bootstrap (section 41)', () => {
 
   it('refuses to boot on an invalid environment', () => {
     // Fails closed: a deployment missing secrets must not start half-working.
-    expect(() => loadEnv({ ...TEST_ENV, JWT_ACCESS_SECRET: undefined } as Record<string, unknown>)).toThrow(
-      /JWT_ACCESS_SECRET/,
-    );
+    expect(() =>
+      loadEnv({ ...TEST_ENV, JWT_ACCESS_SECRET: undefined } as Record<string, unknown>),
+    ).toThrow(/JWT_ACCESS_SECRET/);
   });
 });
