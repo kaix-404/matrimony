@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { MSG91_BALANCE_URL, MSG91_FLOW_URL, Msg91SmsGateway } from './sms.gateway';
 
 /**
@@ -90,6 +91,25 @@ describe('Msg91SmsGateway', () => {
     expect(makeGateway().configured).toBe(true);
   });
 
+  it('names the unset variables at boot, and never their values', () => {
+    const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+
+    try {
+      makeGateway({ authKey: '', templateId: '   ' });
+
+      // The whole point of the line is that a deploy which is missing one of
+      // three says which one, so the operator does not read a boot log and then
+      // go hunting through the vendor dashboard.
+      const [line] = (warn.mock.calls[0] ?? []) as [string];
+      expect(line).toContain('SMS_PROVIDER_API_KEY');
+      expect(line).toContain('SMS_TEMPLATE_ID');
+      expect(line).not.toContain('SMS_SENDER_ID');
+      expect(line).not.toContain('MTRIMY');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('refuses to send when unconfigured', async () => {
     const fetchMock = jest.fn();
     setFetch(fetchMock);
@@ -177,9 +197,10 @@ describe('Msg91SmsGateway', () => {
     const fetchMock = mockVendor({ balance: null });
     setFetch(fetchMock);
 
-    await expect(
-      makeGateway().sendOtp({ mobile: '9876543210', code: '123456' }),
-    ).resolves.toEqual({ providerMessageId: 'req-1', reportedZeroBalance: false });
+    await expect(makeGateway().sendOtp({ mobile: '9876543210', code: '123456' })).resolves.toEqual({
+      providerMessageId: 'req-1',
+      reportedZeroBalance: false,
+    });
     expect(callsTo(fetchMock, FLOW_URL)).toHaveLength(1);
   });
 
@@ -187,9 +208,10 @@ describe('Msg91SmsGateway', () => {
     const fetchMock = mockVendor({ balance: '{"msg":"201","msgType":"error"}' });
     setFetch(fetchMock);
 
-    await expect(
-      makeGateway().sendOtp({ mobile: '9876543210', code: '123456' }),
-    ).resolves.toEqual({ providerMessageId: 'req-1', reportedZeroBalance: false });
+    await expect(makeGateway().sendOtp({ mobile: '9876543210', code: '123456' })).resolves.toEqual({
+      providerMessageId: 'req-1',
+      reportedZeroBalance: false,
+    });
   });
 
   it('reuses one balance reading for sends inside the cache window', async () => {
@@ -209,17 +231,17 @@ describe('Msg91SmsGateway', () => {
   it('throws when MSG91 answers 200 with an error type', async () => {
     setFetch(mockVendor({ flow: { body: { type: 'error', message: 'invalid template' } } }));
 
-    await expect(
-      makeGateway().sendOtp({ mobile: '9876543210', code: '123456' }),
-    ).rejects.toThrow(/invalid template/);
+    await expect(makeGateway().sendOtp({ mobile: '9876543210', code: '123456' })).rejects.toThrow(
+      /invalid template/,
+    );
   });
 
   it('throws on a non-2xx response', async () => {
     setFetch(mockVendor({ flow: { body: {}, status: 500 } }));
 
-    await expect(
-      makeGateway().sendOtp({ mobile: '9876543210', code: '123456' }),
-    ).rejects.toThrow(/HTTP 500/);
+    await expect(makeGateway().sendOtp({ mobile: '9876543210', code: '123456' })).rejects.toThrow(
+      /HTTP 500/,
+    );
   });
 
   it('throws a readable error when the body is not JSON', async () => {
@@ -231,9 +253,9 @@ describe('Msg91SmsGateway', () => {
       ),
     );
 
-    await expect(
-      makeGateway().sendOtp({ mobile: '9876543210', code: '123456' }),
-    ).rejects.toThrow(/HTML|502|gateway/i);
+    await expect(makeGateway().sendOtp({ mobile: '9876543210', code: '123456' })).rejects.toThrow(
+      /HTML|502|gateway/i,
+    );
   });
 });
 

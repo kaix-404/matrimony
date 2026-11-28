@@ -113,9 +113,19 @@ export class Msg91SmsGateway extends SmsGateway {
 
   constructor(private readonly config: Msg91Config) {
     super();
-    this.configured = [config.authKey, config.senderId, config.templateId].every(
-      (value) => typeof value === 'string' && value.trim() !== '',
+    // Collected as names as well as values, because "sms is awaiting
+    // credentials" in a deploy log cannot be acted on: an operator who set two
+    // of the three needs to know which one is still blank. The names are env
+    // variable names; a credential's value is never logged.
+    const credentials = [
+      { name: 'SMS_PROVIDER_API_KEY', value: config.authKey },
+      { name: 'SMS_SENDER_ID', value: config.senderId },
+      { name: 'SMS_TEMPLATE_ID', value: config.templateId },
+    ];
+    const missing = credentials.filter(
+      ({ value }) => typeof value !== 'string' || value.trim() === '',
     );
+    this.configured = missing.length === 0;
     this.flowUrl = config.flowUrl ?? MSG91_FLOW_URL;
     this.balanceUrl = config.balanceUrl ?? MSG91_BALANCE_URL;
     this.balanceCacheMs = config.balanceCacheMs ?? 60_000;
@@ -123,9 +133,14 @@ export class Msg91SmsGateway extends SmsGateway {
 
     if (!this.configured) {
       // Not fatal at boot: in development the controller echoes the code
-      // instead. In production the controller fails closed, so a missing
-      // credential shows up as a 503 rather than a silently undelivered code.
-      this.logger.warn('MSG91 SMS is not configured; one-time codes will not be sent');
+      // instead. In production the controller fails closed with a 503 rather
+      // than a silently undelivered code, and `/health/ready` reports
+      // `sms: down` for as long as this line keeps appearing.
+      this.logger.warn(
+        `MSG91 SMS is not configured; one-time codes will not be sent. Unset: ${missing
+          .map(({ name }) => name)
+          .join(', ')}`,
+      );
     } else {
       // The one thing a blank SMS cannot tell you. MSG91 answers `success` and
       // bills the send even when the recipient's variable keys do not match the
