@@ -183,6 +183,7 @@ function setup(nodeEnv: string = 'test', realOtpStore = false) {
     verify: jest.fn(
       async (_input: { mobile: string; purpose: string; code: string }) => 'otp_1' as string | null,
     ),
+    discardUndelivered: jest.fn(async (_id: string) => undefined),
   };
   const sms = {
     configured: true,
@@ -612,6 +613,32 @@ describe('AdminAuthService.login with an SMS sign-in number', () => {
     await expect(
       service.login({ email: 'boss@example.com', password: PASSWORD }),
     ).rejects.toBeInstanceOf(BadGatewayException);
+  });
+
+  it('retires an unsent sign-in code, so the next attempt is not held by its cooldown', async () => {
+    // Minted before the send could fail: left standing, the code would stay
+    // answerable for its whole TTL and its timestamp would delay the retry the
+    // failure message just invited. The store is real here, because the cooldown
+    // is a property of the row rather than of this service.
+    const { service, addAdmin, sms, otpTable, otpService } = setup('test', true);
+    addAdmin({ phone: PHONE });
+    sms.sendOtp.mockRejectedValueOnce(new Error('provider unreachable'));
+
+    await expect(
+      service.login({ email: 'boss@example.com', password: PASSWORD }),
+    ).rejects.toBeInstanceOf(BadGatewayException);
+
+    expect(otpTable.rows).toHaveLength(1);
+    expect(otpTable.rows[0]!.status).toBe('EXPIRED');
+    expect(await otpService.remainingResendSeconds(PHONE, 'ADMIN_LOGIN')).toBe(0);
+
+    // And the retry gets a fresh code rather than an answerable stale one.
+    const retry = asChallenge(
+      await service.login({ email: 'boss@example.com', password: PASSWORD }),
+    );
+    expect(sms.sendOtp).toHaveBeenCalledTimes(2);
+    expect(otpTable.rows.filter((row) => row.status === 'PENDING')).toHaveLength(1);
+    expect(retry.challenge_token).toBeDefined();
   });
 
   it('still signs in with the password alone when no factor is enrolled', async () => {

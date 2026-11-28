@@ -495,6 +495,10 @@ export class AdminAuthService {
         // A code nobody received cannot be answered, so this is a gateway
         // failure, not a credentials failure, and the password step says so.
         this.logger.error(`[admin-sms-otp] could not send a sign-in code: ${String(caught)}`);
+        // Minted before the send could fail, so it is retired before the error
+        // is raised: an undelivered code must not stay answerable, nor hold the
+        // cooldown against the retry the failure message invites.
+        await this.otp.discardUndelivered(issued.id);
         throw new BadGatewayException('Could not send the sign-in code. Check the SMS provider.');
       }
     }

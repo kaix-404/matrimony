@@ -411,4 +411,60 @@ describe('OTP cooldown', () => {
 
     await expect(service.assertNotCoolingDown(MOBILE, 'DELETE_ACCOUNT')).resolves.toBeUndefined();
   });
+
+  it('lets the member retry at once after a code that was never delivered', async () => {
+    // The controller mints the code before the send, so a rejected send used to
+    // leave a live PENDING row behind: the member was told "try again shortly",
+    // retried, and was refused by the cooldown held by a message that never
+    // arrived. Discarding the row has to release both the code and the wait.
+    const clock = new FrozenClock(new Date('2026-03-01T10:00:00Z'));
+    const { service, store } = await makeService(clock);
+
+    const issued = await service.issue({ mobile: MOBILE, purpose: 'LOGIN' });
+    await service.discardUndelivered(issued.id);
+
+    expect(store.rows[0].status).toBe(OtpStatus.EXPIRED);
+    expect(await service.remainingResendSeconds(MOBILE, 'LOGIN')).toBe(0);
+    await expect(service.assertNotCoolingDown(MOBILE, 'LOGIN')).resolves.toBeUndefined();
+    // And the code nobody received cannot be spent by whoever guessed it.
+    expect(
+      await service.verify({ mobile: MOBILE, purpose: 'LOGIN', code: issued.code }),
+    ).toBeNull();
+  });
+
+  it('keeps the wait for a code that hit its attempt ceiling', async () => {
+    // Only an undelivered code releases the cooldown. A number that worked
+    // through its guesses is refused for another reason entirely, and letting it
+    // order a fresh SMS at once would make guessing a way to spend the budget.
+    // Spending the ceiling happens on the attempt after it, so the row is still
+    // PENDING while the last guess is counted.
+    const clock = new FrozenClock(new Date('2026-03-01T10:00:00Z'));
+    const { service, store } = await makeService(clock);
+
+    await service.issue({ mobile: MOBILE, purpose: 'LOGIN' });
+    for (let i = 0; i < env.OTP_MAX_ATTEMPTS; i += 1) {
+      await service.verify({ mobile: MOBILE, purpose: 'LOGIN', code: '999999' });
+    }
+    expect(store.rows[0].status).toBe(OtpStatus.PENDING);
+
+    await service.verify({ mobile: MOBILE, purpose: 'LOGIN', code: '999999' });
+
+    expect(store.rows[0].status).toBe(OtpStatus.ATTEMPT_LIMIT_REACHED);
+    expect(await service.remainingResendSeconds(MOBILE, 'LOGIN')).toBe(60);
+  });
+
+  it('leaves a live code for another purpose alone when one is discarded', async () => {
+    const clock = new FrozenClock(new Date('2026-03-01T10:00:00Z'));
+    const { service } = await makeService(clock);
+
+    const login = await service.issue({ mobile: MOBILE, purpose: 'LOGIN' });
+    const deletion = await service.issue({ mobile: MOBILE, purpose: 'DELETE_ACCOUNT' });
+
+    await service.discardUndelivered(login.id);
+
+    expect(await service.remainingResendSeconds(MOBILE, 'DELETE_ACCOUNT')).toBe(60);
+    expect(
+      await service.verify({ mobile: MOBILE, purpose: 'DELETE_ACCOUNT', code: deletion.code }),
+    ).not.toBeNull();
+  });
 });

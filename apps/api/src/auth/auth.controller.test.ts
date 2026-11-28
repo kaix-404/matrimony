@@ -1,6 +1,11 @@
 import { ServiceUnavailableException, UnauthorizedException } from '@nestjs/common';
 import { SMS_UNAVAILABLE_CODE } from '@matrimony/shared';
 import { AuthController } from './auth.controller';
+import { OtpService } from './otp.service';
+import { FrozenClock } from '../common/clock/clock.service';
+import { OtpStatus } from '../prisma/prisma-client';
+import { createFakeOtpTable } from '../testing/fake-otp-table';
+import type { Env } from '../config/env';
 
 /**
  * OTP verification routing — the branch that decides which purpose signs in.
@@ -179,6 +184,7 @@ describe('AuthController.requestOtp', () => {
         resendAfterAt: new Date('2026-10-25T12:01:00Z'),
         expiresAt: new Date('2026-10-25T12:06:00Z'),
       }),
+      discardUndelivered: jest.fn().mockResolvedValue(undefined),
       cooldownSeconds: 60,
       ttlSeconds: 300,
     };
@@ -320,5 +326,85 @@ describe('AuthController.requestOtp', () => {
     // account, so it no longer surfaces as a user-facing delivery warning.
     expect(sendOtp).toHaveBeenCalled();
     expect(result.delivery_warning).toBeUndefined();
+  });
+});
+
+/**
+ * What a failed send leaves behind.
+ *
+ * The 503 tells the member to try again shortly, so the row minted before the
+ * send must not then refuse that retry. These tests drive the real `OtpService`
+ * against the in-memory table rather than a mock of it: the point is the
+ * cooldown check itself, and a mocked `assertNotCoolingDown` would always let
+ * the second call through, which is exactly the bug.
+ */
+describe('AuthController.requestOtp after a failed send', () => {
+  const originalNodeEnv = process.env.NODE_ENV;
+  const body = { mobile: '9876543210', purpose: 'REGISTRATION' } as never;
+  const env = {
+    OTP_HASH_SECRET: 'test-otp-pepper',
+    OTP_MAX_ATTEMPTS: 3,
+    OTP_RESEND_COOLDOWN_SECONDS: 60,
+    OTP_TTL_SECONDS: 300,
+    NODE_ENV: 'production',
+  } as Env;
+
+  afterEach(() => {
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  function makeController(opts: { configured?: boolean } = {}) {
+    const store = createFakeOtpTable();
+    const otp = new OtpService(
+      { otpRequest: store } as never,
+      new FrozenClock(new Date('2026-03-01T10:00:00Z')),
+      env,
+    );
+    const sendOtp = jest
+      .fn()
+      .mockResolvedValue({ providerMessageId: 'msg-1', reportedZeroBalance: false });
+
+    const controller = new AuthController(
+      otp,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { configured: opts.configured ?? true, sendOtp } as never,
+    );
+
+    return { controller, sendOtp, store };
+  }
+
+  it('accepts the immediate retry, with the undelivered code retired and its cooldown gone', async () => {
+    process.env.NODE_ENV = 'production';
+    const { controller, sendOtp, store } = makeController();
+    sendOtp.mockRejectedValueOnce(new Error('MSG91 rejected the send (HTTP 400)'));
+
+    await expect(controller.requestOtp(body)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    // The row survives as evidence, but nothing can answer to it.
+    expect(store.rows).toHaveLength(1);
+    expect(store.rows[0].status).toBe(OtpStatus.EXPIRED);
+
+    const retry = await controller.requestOtp(body);
+
+    // The second call is the whole point: it runs through the same cooldown
+    // check that used to answer 429, and it reaches the provider.
+    expect(sendOtp).toHaveBeenCalledTimes(2);
+    expect(retry.dev_code).toBeUndefined();
+    expect(retry.resend_after_seconds).toBe(60);
+    expect(store.rows.filter((row) => row.status === OtpStatus.PENDING)).toHaveLength(1);
+  });
+
+  it('writes no code at all when the gateway is unconfigured in production', async () => {
+    process.env.NODE_ENV = 'production';
+    const { controller, sendOtp, store } = makeController({ configured: false });
+
+    await expect(controller.requestOtp(body)).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+    // Nothing was minted, so there is no undelivered code to leak and no cooldown
+    // for the retry the response asks for.
+    expect(sendOtp).not.toHaveBeenCalled();
+    expect(store.rows).toHaveLength(0);
   });
 });

@@ -107,6 +107,42 @@ export class OtpService {
   }
 
   /**
+   * Retires a code that was minted but could not be delivered.
+   *
+   * `AuthController` and `AdminAuthService` both issue before they send, because
+   * the code has to exist before there is anything to text. When the provider
+   * then rejects the send, that ordering used to leave a live PENDING row
+   * behind: the member read "try again shortly", retried, and was refused by the
+   * cooldown held by a message nobody received — and the undelivered code stayed
+   * answerable for its whole TTL.
+   *
+   * Two things are recorded, and they are different questions. `status` is what
+   * makes the code unusable, so a guess cannot spend a message that was never
+   * sent. `resendAfterAt` is what the cooldown reads, so it is moved back to the
+   * current instant and the retry the 503 asks for is allowed immediately.
+   *
+   * Only this case clears the wait. A code that hit its attempt ceiling keeps
+   * its timestamp deliberately: a number working through the six digits should
+   * still be made to wait before it costs another SMS.
+   *
+   * A timeout is the one call where delivery is genuinely unknown — the abort in
+   * `sendOtp` cannot tell whether MSG91 accepted the request before it fired —
+   * and retiring the code is still the safer side of that ambiguity: a message
+   * that did arrive but no longer answers strands the member at a code screen,
+   * whereas the retry this allows texts them a fresh one.
+   *
+   * Marked EXPIRED rather than deleted, because the row is evidence: "a code was
+   * created at this instant and no send came back confirmed" is what makes a
+   * provider outage visible after the fact.
+   */
+  async discardUndelivered(id: string): Promise<void> {
+    await this.prisma.otpRequest.updateMany({
+      where: { id, status: OtpStatus.PENDING },
+      data: { status: OtpStatus.EXPIRED, resendAfterAt: this.clock.now() },
+    });
+  }
+
+  /**
    * Consumes a code.
    *
    * Returns the request id on success and null on any failure — wrong code,
@@ -234,7 +270,15 @@ export class OtpService {
     return consumed.count > 0;
   }
 
-  /** Remaining resend delay, computed from the newest request. */
+  /**
+   * Remaining resend delay, computed from the newest request.
+   *
+   * Deliberately not filtered by status: only an undelivered code should release
+   * the wait, and it does that by having its own timestamp moved back in
+   * `discardUndelivered`. Skipping non-PENDING rows here would have excused the
+   * attempt-ceiling case as well, letting a number that burned through its
+   * guesses order another SMS with no delay at all.
+   */
   async remainingResendSeconds(
     mobile: string,
     purpose: OtpPurpose,
